@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "StateInfo",
+  "type": "object",
+  "required": [
+    "last_mint",
+    "poll_count",
+    "poll_deposit",
+    "total_share",
+    "total_staked",
+    "total_weight"
+  ],
+  "properties": {
+    "last_mint": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "poll_count": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "poll_deposit": {
+      "$ref": "#/definitions/Uint128"
+    },
+    "total_share": {
+      "$ref": "#/definitions/Uint128"
+    },
+    "total_staked": {
+      "$ref": "#/definitions/Uint128"
+    },
+    "total_weight": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0.0
+    }
+  },
+  "definitions": {
+    "Uint128": {
+      "type": "string"
+    }
+  }
+}

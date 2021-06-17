@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ConfigInfo",
+  "type": "object",
+  "required": [
+    "lock_end",
+    "lock_start",
+    "owner",
+    "spectrum_gov",
+    "spectrum_token"
+  ],
+  "properties": {
+    "lock_end": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "lock_start": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "owner": {
+      "$ref": "#/definitions/HumanAddr"
+    },
+    "spectrum_gov": {
+      "$ref": "#/definitions/HumanAddr"
+    },
+    "spectrum_token": {
+      "$ref": "#/definitions/HumanAddr"
+    }
+  },
+  "definitions": {
+    "HumanAddr": {
+      "type": "string"
+    }
+  }
+}

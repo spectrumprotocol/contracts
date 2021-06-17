@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PoolsResponse",
+  "type": "object",
+  "required": [
+    "pools"
+  ],
+  "properties": {
+    "pools": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/PoolItem"
+      }
+    }
+  },
+  "definitions": {
+    "Decimal": {
+      "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
+      "type": "string"
+    },
+    "HumanAddr": {
+      "type": "string"
+    },
+    "PoolItem": {
+      "type": "object",
+      "required": [
+        "asset_token",
+        "auto_compound",
+        "auto_spec_share_index",
+        "farm_share",
+        "farm_share_index",
+        "reinvest_allowance",
+        "stake_spec_share_index",
+        "staking_token",
+        "state_spec_share_index",
+        "total_auto_bond_share",
+        "total_stake_bond_amount",
+        "total_stake_bond_share",
+        "weight"
+      ],
+      "properties": {
+        "asset_token": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "auto_compound": {
+          "type": "boolean"
+        },
+        "auto_spec_share_index": {
+          "$ref": "#/definitions/Decimal"
+        },
+        "farm_share": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "farm_share_index": {
+          "$ref": "#/definitions/Decimal"
+        },
+        "reinvest_allowance": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "stake_spec_share_index": {
+          "$ref": "#/definitions/Decimal"
+        },
+        "staking_token": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "state_spec_share_index": {
+          "$ref": "#/definitions/Decimal"
+        },
+        "total_auto_bond_share": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "total_stake_bond_amount": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "total_stake_bond_share": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "weight": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        }
+      }
+    },
+    "Uint128": {
+      "type": "string"
+    }
+  }
+}

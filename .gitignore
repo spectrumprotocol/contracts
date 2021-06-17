@@ -1,0 +1,6 @@
+# Build results
+target/
+.idea
+.DS_Store
+*.profraw
+*backup*
