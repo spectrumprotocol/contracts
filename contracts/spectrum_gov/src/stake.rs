@@ -297,14 +297,18 @@ pub fn query_balances<S: Storage, A: Api, Q: Querier>(
 }
 
 pub fn calc_mintable(state: &State, config: &Config, height: u64) -> Uint128 {
-    if config.mint_start <= height && state.last_mint < config.mint_end && state.last_mint < height
-    {
-        let height = if height < config.mint_end {
-            height
-        } else {
-            config.mint_end
-        };
-        let diff: u128 = (height - state.last_mint).into();
+    let last_mint = if config.mint_start > state.last_mint {
+        config.mint_start
+    } else {
+        state.last_mint
+    };
+    let height = if height < config.mint_end {
+        height
+    } else {
+        config.mint_end
+    };
+    if last_mint < height {
+        let diff: u128 = (height - last_mint).into();
         let val = config.mint_per_block.u128() * diff;
         Uint128::from(val)
     } else {

@@ -4,11 +4,14 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    from_binary, from_slice, to_binary, Api, CanonicalAddr, Coin, Empty, Extern, HumanAddr,
-    Querier, QuerierResult, QueryRequest, SystemError, Uint128, WasmQuery,
+    from_binary, from_slice, to_binary, Api, CanonicalAddr, Coin, Decimal, Extern,
+    HumanAddr, Querier, QuerierResult, QueryRequest, SystemError, Uint128, WasmQuery,
 };
 use cosmwasm_storage::to_length_prefixed;
 use std::collections::HashMap;
+use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
+use terraswap::asset::{Asset, AssetInfo, PairInfo};
+use terraswap::pair::SimulationResponse;
 
 use mirror_protocol::gov::StakerResponse as MirrorStakerResponse;
 use mirror_protocol::staking::{
@@ -40,8 +43,10 @@ pub fn mock_dependencies(
 }
 
 pub struct WasmMockQuerier {
-    base: MockQuerier<Empty>,
+    base: MockQuerier<TerraQueryWrapper>,
     token_querier: TokenQuerier,
+    tax_querier: TaxQuerier,
+    terraswap_factory_querier: TerraswapFactoryQuerier,
     canonical_length: usize,
 }
 
@@ -79,10 +84,55 @@ pub(crate) fn balances_to_map(
     balances_map
 }
 
+#[derive(Clone, Default)]
+pub struct TaxQuerier {
+    rate: Decimal,
+    // this lets us iterate over all pairs that match the first string
+    caps: HashMap<String, Uint128>,
+}
+
+impl TaxQuerier {
+    pub fn new(rate: Decimal, caps: &[(&String, &Uint128)]) -> Self {
+        TaxQuerier {
+            rate,
+            caps: caps_to_map(caps),
+        }
+    }
+}
+
+pub(crate) fn caps_to_map(caps: &[(&String, &Uint128)]) -> HashMap<String, Uint128> {
+    let mut owner_map: HashMap<String, Uint128> = HashMap::new();
+    for (denom, cap) in caps.iter() {
+        owner_map.insert(denom.to_string(), **cap);
+    }
+    owner_map
+}
+
+#[derive(Clone, Default)]
+pub struct TerraswapFactoryQuerier {
+    pairs: HashMap<String, PairInfo>,
+}
+
+impl TerraswapFactoryQuerier {
+    pub fn new(pairs: &[(&String, &PairInfo)]) -> Self {
+        TerraswapFactoryQuerier {
+            pairs: pairs_to_map(pairs),
+        }
+    }
+}
+
+pub(crate) fn pairs_to_map(pairs: &[(&String, &PairInfo)]) -> HashMap<String, PairInfo> {
+    let mut pairs_map: HashMap<String, PairInfo> = HashMap::new();
+    for (key, pair) in pairs.iter() {
+        pairs_map.insert(key.to_string(), (*pair).clone());
+    }
+    pairs_map
+}
+
 impl Querier for WasmMockQuerier {
     fn raw_query(&self, bin_request: &[u8]) -> QuerierResult {
         // MockQuerier doesn't support Custom, so we ignore it completely here
-        let request: QueryRequest<Empty> = match from_slice(bin_request) {
+        let request: QueryRequest<TerraQueryWrapper> = match from_slice(bin_request) {
             Ok(v) => v,
             Err(e) => {
                 return Err(SystemError::InvalidRequest {
@@ -109,11 +159,42 @@ enum MockQueryMsg {
         staker_addr: HumanAddr,
         asset_token: Option<HumanAddr>,
     },
+    Pair {
+        asset_infos: [AssetInfo; 2],
+    },
+    Simulation {
+        offer_asset: Asset,
+    },
 }
 
 impl WasmMockQuerier {
-    pub fn handle_query(&self, request: &QueryRequest<Empty>) -> QuerierResult {
+    pub fn handle_query(&self, request: &QueryRequest<TerraQueryWrapper>) -> QuerierResult {
         match &request {
+            QueryRequest::Custom(TerraQueryWrapper { route, query_data }) => {
+                if &TerraRoute::Treasury == route {
+                    match query_data {
+                        TerraQuery::TaxRate {} => {
+                            let res = TaxRateResponse {
+                                rate: self.tax_querier.rate,
+                            };
+                            Ok(to_binary(&res))
+                        }
+                        TerraQuery::TaxCap { denom } => {
+                            let cap = self
+                                .tax_querier
+                                .caps
+                                .get(denom)
+                                .copied()
+                                .unwrap_or_default();
+                            let res = TaxCapResponse { cap };
+                            Ok(to_binary(&res))
+                        }
+                        _ => panic!("DO NOT ENTER HERE"),
+                    }
+                } else {
+                    panic!("DO NOT ENTER HERE")
+                }
+            }
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 match from_binary(&msg).unwrap() {
                     MockQueryMsg::balance { address, height: _ } => {
@@ -173,6 +254,28 @@ impl WasmMockQuerier {
                             })),
                         }
                     }
+                    MockQueryMsg::Pair { asset_infos } => {
+                        let key = asset_infos[0].to_string() + asset_infos[1].to_string().as_str();
+                        match self.terraswap_factory_querier.pairs.get(&key) {
+                            Some(v) => Ok(to_binary(&v)),
+                            None => Err(SystemError::InvalidRequest {
+                                error: "No pair info exists".to_string(),
+                                request: msg.as_slice().into(),
+                            }),
+                        }
+                    }
+                    MockQueryMsg::Simulation { offer_asset } => {
+                        let commission_amount = offer_asset.amount.multiply_ratio(3u128, 1000u128);
+                        let return_amount = offer_asset.amount - commission_amount;
+                        match return_amount.into() {
+                            Ok(amount) => Ok(to_binary(&SimulationResponse {
+                                return_amount: amount,
+                                commission_amount: commission_amount,
+                                spread_amount: Uint128::from(100u128),
+                            })),
+                            Err(_e) => return Err(SystemError::Unknown {}),
+                        }
+                    }
                 }
             }
             QueryRequest::Wasm(WasmQuery::Raw { contract_addr, key }) => {
@@ -196,10 +299,16 @@ impl WasmMockQuerier {
 }
 
 impl WasmMockQuerier {
-    pub fn new<A: Api>(base: MockQuerier<Empty>, canonical_length: usize, _api: A) -> Self {
+    pub fn new<A: Api>(
+        base: MockQuerier<TerraQueryWrapper>,
+        canonical_length: usize,
+        _api: A,
+    ) -> Self {
         WasmMockQuerier {
             base,
             token_querier: TokenQuerier::default(),
+            tax_querier: TaxQuerier::default(),
+            terraswap_factory_querier: TerraswapFactoryQuerier::default(),
             canonical_length,
         }
     }
@@ -224,5 +333,15 @@ impl WasmMockQuerier {
             Some(v) => *v,
             None => Uint128::zero(),
         }
+    }
+
+    // configure the token owner mock querier
+    pub fn with_tax(&mut self, rate: Decimal, caps: &[(&String, &Uint128)]) {
+        self.tax_querier = TaxQuerier::new(rate, caps);
+    }
+
+    // configure the terraswap pair
+    pub fn with_terraswap_pairs(&mut self, pairs: &[(&String, &PairInfo)]) {
+        self.terraswap_factory_querier = TerraswapFactoryQuerier::new(pairs);
     }
 }

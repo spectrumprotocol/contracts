@@ -1,9 +1,9 @@
 use crate::contract::{handle, init, query};
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
+use crate::stake::calc_mintable;
+use crate::state::{Config, State};
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{
-    from_binary, to_binary, to_vec, Binary, CosmosMsg, Decimal, Extern, HumanAddr, Uint128, WasmMsg,
-};
+use cosmwasm_std::{Binary, CanonicalAddr, CosmosMsg, Decimal, Extern, HumanAddr, Uint128, WasmMsg, from_binary, to_binary, to_vec};
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 use spectrum_protocol::common::OrderBy;
 use spectrum_protocol::gov::{
@@ -1075,4 +1075,51 @@ fn test_reward(
             send: vec![],
         })
     )
+}
+
+#[test]
+fn test_mintable() {
+    // First mint
+    let mut state = State {
+        contract_addr: CanonicalAddr::default(),
+        poll_count: 0,
+        total_share: Uint128::zero(),
+        poll_deposit: Uint128::zero(),
+        last_mint: 0,
+        total_weight: 0,
+    };
+    let config = Config {
+        owner: CanonicalAddr::default(),
+        spec_token: CanonicalAddr::default(),
+        quorum: Decimal::percent(120u64),
+        threshold: Decimal::percent(DEFAULT_THRESHOLD),
+        voting_period: 0,
+        effective_delay: 0,
+        expiration_period: 0,
+        proposal_deposit: Uint128::zero(),
+        mint_per_block: Uint128::from(1u64),
+        mint_start: 10,
+        mint_end: 110,
+        warchest_address: CanonicalAddr::default(),
+        warchest_ratio: Decimal::zero(),
+    };
+    assert_eq!(calc_mintable(&state, &config, 0), Uint128::zero());
+    assert_eq!(calc_mintable(&state, &config, 10), Uint128::zero());
+    assert_eq!(calc_mintable(&state, &config, 12), Uint128::from(2u64));
+    assert_eq!(calc_mintable(&state, &config, 110), Uint128::from(100u64));
+    assert_eq!(calc_mintable(&state, &config, 111), Uint128::from(100u64));
+
+    // Next mint
+    state.last_mint = 12;
+    assert_eq!(calc_mintable(&state, &config, 20), Uint128::from(8u64));
+    assert_eq!(calc_mintable(&state, &config, 110), Uint128::from(98u64));
+    assert_eq!(calc_mintable(&state, &config, 111), Uint128::from(98u64));
+
+    // // All minted
+    state.last_mint = 110;
+    assert_eq!(calc_mintable(&state, &config, 0), Uint128::zero());
+    assert_eq!(calc_mintable(&state, &config, 10), Uint128::zero());
+    assert_eq!(calc_mintable(&state, &config, 110), Uint128::zero());
+    assert_eq!(calc_mintable(&state, &config, 111), Uint128::zero());
+
 }
