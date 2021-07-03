@@ -57,6 +57,12 @@ fn receive_cw20<S: Storage, A: Api, Q: Querier>(
     env: Env,
     cw20_msg: Cw20ReceiveMsg,
 ) -> HandleResult {
+    // only asset contract can execute this message
+    let config = read_config(&deps.storage)?;
+    if config.spectrum_token != deps.api.canonical_address(&env.message.sender)? {
+        return Err(StdError::unauthorized());
+    }
+
     if let Some(msg) = cw20_msg.msg {
         match from_binary(&msg)? {
             Cw20HookMsg::deposit {} => deposit(
@@ -99,10 +105,12 @@ fn poll_votes<S: Storage, A: Api, Q: Querier>(
     amount: Uint128,
 ) -> HandleResult {
 
-    // allow only leader (max weight) can vote
+    // anyone in shared wallet can vote
     let shares = read_rewards(&deps.storage)?;
-    let max_share = shares.iter().max_by_key(|it| it.1.weight);
-    if max_share.is_none() || max_share.unwrap().0 != deps.api.canonical_address(&env.message.sender)? {
+    let sender_addr = deps.api.canonical_address(&env.message.sender)?;
+    let found = shares.into_iter()
+        .any(|(key, _)| key == sender_addr);
+    if !found {
         return Err(StdError::unauthorized());
     }
 
