@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "BalanceResponse",
+  "type": "object",
+  "required": [
+    "balance",
+    "share"
+  ],
+  "properties": {
+    "balance": {
+      "$ref": "#/definitions/Uint128"
+    },
+    "share": {
+      "$ref": "#/definitions/Uint128"
+    }
+  },
+  "definitions": {
+    "Uint128": {
+      "type": "string"
+    }
+  }
+}

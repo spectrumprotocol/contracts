@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ConfigInfo",
+  "type": "object",
+  "required": [
+    "owner",
+    "spectrum_gov",
+    "spectrum_token"
+  ],
+  "properties": {
+    "owner": {
+      "$ref": "#/definitions/HumanAddr"
+    },
+    "spectrum_gov": {
+      "$ref": "#/definitions/HumanAddr"
+    },
+    "spectrum_token": {
+      "$ref": "#/definitions/HumanAddr"
+    }
+  },
+  "definitions": {
+    "HumanAddr": {
+      "type": "string"
+    }
+  }
+}

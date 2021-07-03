@@ -342,6 +342,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "spectrum-platform"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
+]
+
+[[package]]
 name = "spectrum-protocol"
 version = "0.1.0"
 dependencies = [
@@ -391,6 +404,20 @@ dependencies = [
  "cosmwasm-storage",
  "cw20",
  "cw20-base",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
+]
+
+[[package]]
+name = "spectrum-wallet"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
  "schemars",
  "serde",
  "spectrum-protocol",
