@@ -1,21 +1,15 @@
-use cosmwasm_std::{
-    log, to_binary, Api, Binary, CosmosMsg, Decimal, Env, Extern, HandleResponse, HandleResult,
-    HumanAddr, InitResponse, MigrateResponse, MigrateResult, Querier, QueryRequest, StdError,
-    StdResult, Storage, Uint128, WasmMsg, WasmQuery,
-};
+use cosmwasm_std::{log, to_binary, Api, Binary, CosmosMsg, Decimal, Env, Extern, HandleResponse, HandleResult, HumanAddr, InitResponse, MigrateResponse, MigrateResult, Querier, QueryRequest, StdError, StdResult, Storage, Uint128, WasmMsg, WasmQuery, from_binary};
 
 use crate::state::{
     config_store, read_config, read_reward, read_rewards, read_state, reward_store, state_store,
     Config, RewardInfo, State,
 };
-use cw20::Cw20HandleMsg;
+use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 use spectrum_protocol::gov::{
     BalanceResponse as GovBalanceResponse, QueryMsg as GovQueryMsg, VoteOption,
+    Cw20HookMsg as GovCw20HookMsg, StateInfo as GovStateInfo,
 };
-use spectrum_protocol::wallet::{
-    BalanceResponse, ConfigInfo, HandleMsg, MigrateMsg, QueryMsg, ShareInfo, SharesResponse,
-    StateInfo,
-};
+use spectrum_protocol::wallet::{BalanceResponse, ConfigInfo, HandleMsg, MigrateMsg, QueryMsg, ShareInfo, SharesResponse, StateInfo, Cw20HookMsg};
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -49,10 +43,52 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             vote,
             amount,
         } => poll_votes(deps, env, poll_id, vote, amount),
-        HandleMsg::withdraw { amount } => withdraw(deps, env, amount),
-        HandleMsg::upsert_share { address, weight } => upsert_share(deps, env, address, weight),
+        HandleMsg::receive(msg) => receive_cw20(deps, env, msg),
+        HandleMsg::stake { amount } => stake(deps, env, amount),
+        HandleMsg::unstake { amount } => unstake(deps, env, amount),
+        HandleMsg::upsert_share { address, weight, lock_start, lock_end, lock_amount } => upsert_share(deps, env, address, weight, lock_start, lock_end, lock_amount),
         HandleMsg::update_config { owner } => update_config(deps, env, owner),
+        HandleMsg::withdraw { amount } => withdraw(deps, env, amount),
     }
+}
+
+fn receive_cw20<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    cw20_msg: Cw20ReceiveMsg,
+) -> HandleResult {
+    if let Some(msg) = cw20_msg.msg {
+        match from_binary(&msg)? {
+            Cw20HookMsg::deposit {} => deposit(
+                deps,
+                env,
+                cw20_msg.sender,
+                cw20_msg.amount,
+            ),
+        }
+    } else {
+        Err(StdError::generic_err("data should be given"))
+    }
+}
+
+fn deposit<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    _env: Env,
+    sender: HumanAddr,
+    amount: Uint128,
+) -> HandleResult {
+    let staker_addr = deps.api.canonical_address(&sender)?;
+    let mut reward_info = read_reward(&deps.storage, &staker_addr)?;
+    reward_info.amount += amount;
+    reward_store(&mut deps.storage).save(staker_addr.as_slice(), &reward_info)?;
+    Ok(HandleResponse {
+        messages: vec![],
+        data: None,
+        log: vec![
+            log("action", "deposit"),
+            log("amount", amount.to_string())
+        ],
+    })
 }
 
 fn poll_votes<S: Storage, A: Api, Q: Querier>(
@@ -62,8 +98,11 @@ fn poll_votes<S: Storage, A: Api, Q: Querier>(
     vote: VoteOption,
     amount: Uint128,
 ) -> HandleResult {
+
+    // allow only leader (max weight) can vote
     let shares = read_rewards(&deps.storage)?;
-    if shares.len() != 1 || shares[0].0 != deps.api.canonical_address(&env.message.sender)? {
+    let max_share = shares.iter().max_by_key(|it| it.1.weight);
+    if max_share.is_none() || max_share.unwrap().0 != deps.api.canonical_address(&env.message.sender)? {
         return Err(StdError::unauthorized());
     }
 
@@ -83,26 +122,75 @@ fn poll_votes<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-fn withdraw<S: Storage, A: Api, Q: Querier>(
+fn stake<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    amount: Option<Uint128>,
+    amount: Uint128,
 ) -> HandleResult {
-    let staker_addr = deps.api.canonical_address(&env.message.sender)?;
+
+    // record reward before any share change
     let mut state = read_state(&deps.storage)?;
-
     let config = read_config(&deps.storage)?;
-    let staked = deposit_reward(deps, &mut state, &config, env.block.height, false)?;
+    deposit_reward(deps, &mut state, &config, env.block.height, false)?;
 
+    let staker_addr = deps.api.canonical_address(&env.message.sender)?;
     let mut reward_info = read_reward(&deps.storage, &staker_addr)?;
     before_share_change(&state, &mut reward_info)?;
 
-    let (amount, share) = if let Some(amount) = amount {
-        (amount, amount.multiply_ratio(staked.share, staked.balance))
-    } else {
-        (calc_balance(reward_info.share, &staked), reward_info.share)
-    };
+    // calculate new stake share
+    let gov_state: GovStateInfo = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: deps.api.human_address(&config.spectrum_gov)?,
+        msg: to_binary(&GovQueryMsg::state {
+            height: env.block.height,
+        })?,
+    }))?;
+    let new_share = amount.multiply_ratio(gov_state.total_share, gov_state.total_staked);
+
+    // move from amount to staked share
+    reward_info.amount = (reward_info.amount - amount)?;
+    reward_info.share += new_share;
+    reward_store(&mut deps.storage).save(staker_addr.as_slice(), &reward_info)?;
+
+    state.previous_share += new_share;
+    state_store(&mut deps.storage).save(&state)?;
+
+    Ok(HandleResponse {
+        messages: vec![
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: deps.api.human_address(&config.spectrum_token)?,
+                msg: to_binary(&Cw20HandleMsg::Send {
+                    contract: deps.api.human_address(&config.spectrum_gov)?,
+                    amount,
+                    msg: Some(to_binary(&GovCw20HookMsg::stake_tokens {
+                        staker_addr: None,
+                    })?),
+                })?,
+                send: vec![],
+            })
+        ],
+        log: vec![log("action", "stake"), log("amount", amount.to_string())],
+        data: None,
+    })
+}
+
+fn unstake<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    amount: Uint128,
+) -> HandleResult {
+
+    // record reward before any share change
+    let mut state = read_state(&deps.storage)?;
+    let config = read_config(&deps.storage)?;
+    let staked = deposit_reward(deps, &mut state, &config, env.block.height, false)?;
+
+    let staker_addr = deps.api.canonical_address(&env.message.sender)?;
+    let mut reward_info = read_reward(&deps.storage, &staker_addr)?;
+    before_share_change(&state, &mut reward_info)?;
+
+    let share = amount.multiply_ratio(staked.share, staked.balance);
     reward_info.share = (reward_info.share - share)?;
+    reward_info.amount += amount;
     reward_store(&mut deps.storage).save(staker_addr.as_slice(), &reward_info)?;
 
     state.previous_share = (state.previous_share - share)?;
@@ -117,16 +205,56 @@ fn withdraw<S: Storage, A: Api, Q: Querier>(
                 })?,
                 send: vec![],
             }),
+        ],
+        log: vec![log("action", "unstake"), log("amount", amount.to_string())],
+        data: None,
+    })
+}
+
+fn withdraw<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    amount: Option<Uint128>,
+) -> HandleResult {
+
+    // record reward before any share change
+    let mut state = read_state(&deps.storage)?;
+    let config = read_config(&deps.storage)?;
+    let staked = deposit_reward(deps, &mut state, &config, env.block.height, false)?;
+
+    let staker_addr = deps.api.canonical_address(&env.message.sender)?;
+    let mut reward_info = read_reward(&deps.storage, &staker_addr)?;
+    before_share_change(&state, &mut reward_info)?;
+
+    let staked_amount = calc_balance(reward_info.share, &staked);
+    let total_amount = staked_amount + reward_info.amount;
+    let locked_amount = reward_info.calc_locked_amount(env.block.height);
+    let withdrawable = (total_amount - locked_amount)?;
+    let withdraw_amount = if let Some(amount) = amount {
+        if amount > withdrawable {
+            return Err(StdError::generic_err("not enough amount to withdraw"));
+        }
+        amount
+    } else {
+        withdrawable
+    };
+
+    reward_info.amount = (reward_info.amount - withdraw_amount)?;
+    reward_store(&mut deps.storage).save(staker_addr.as_slice(), &reward_info)?;
+    state_store(&mut deps.storage).save(&state)?;
+
+    Ok(HandleResponse {
+        messages: vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: deps.api.human_address(&config.spectrum_token)?,
                 msg: to_binary(&Cw20HandleMsg::Transfer {
                     recipient: env.message.sender,
-                    amount,
+                    amount: withdraw_amount,
                 })?,
                 send: vec![],
             }),
         ],
-        log: vec![log("action", "withdraw"), log("amount", amount.to_string())],
+        log: vec![log("action", "withdraw"), log("amount", withdraw_amount.to_string())],
         data: None,
     })
 }
@@ -180,6 +308,9 @@ fn upsert_share<S: Storage, A: Api, Q: Querier>(
     env: Env,
     address: HumanAddr,
     weight: u32,
+    lock_start: Option<u64>,
+    lock_end: Option<u64>,
+    lock_amount: Option<Uint128>,
 ) -> HandleResult {
     let config = read_config(&deps.storage)?;
     if config.owner != deps.api.canonical_address(&env.message.sender)? {
@@ -196,6 +327,9 @@ fn upsert_share<S: Storage, A: Api, Q: Querier>(
 
     state.total_weight = state.total_weight + weight - reward_info.weight;
     reward_info.weight = weight;
+    reward_info.lock_start = lock_start.unwrap_or(0u64);
+    reward_info.lock_end = lock_end.unwrap_or(0u64);
+    reward_info.lock_amount = lock_amount.unwrap_or(Uint128::zero());
 
     state_store(&mut deps.storage).save(&state)?;
 
@@ -273,7 +407,9 @@ pub fn query_balance<S: Storage, A: Api, Q: Querier>(
 
     Ok(BalanceResponse {
         share: reward_info.share,
-        balance: calc_balance(reward_info.share, &staked),
+        staked_amount: calc_balance(reward_info.share, &staked),
+        unstaked_amount: reward_info.amount,
+        locked_amount: reward_info.calc_locked_amount(height),
     })
 }
 
@@ -306,6 +442,10 @@ fn query_shares<S: Storage, A: Api, Q: Querier>(
                 weight: it.1.weight,
                 share_index: it.1.share_index,
                 share: it.1.share,
+                amount: it.1.amount,
+                lock_start: it.1.lock_start,
+                lock_end: it.1.lock_end,
+                lock_amount: it.1.lock_amount,
             })
             .collect(),
     })

@@ -3,6 +3,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::gov::VoteOption;
+use cw20::Cw20ReceiveMsg;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigInfo {
@@ -18,16 +19,31 @@ pub enum HandleMsg {
         vote: VoteOption,
         amount: Uint128,
     },
+    receive(Cw20ReceiveMsg),
+    stake {
+        amount: Uint128,
+    },
+    unstake {
+        amount: Uint128,
+    },
     update_config {
         owner: Option<HumanAddr>,
     },
     upsert_share {
         address: HumanAddr,
         weight: u32,
+        lock_start: Option<u64>,
+        lock_end: Option<u64>,
+        lock_amount: Option<Uint128>,
     },
     withdraw {
         amount: Option<Uint128>,
     },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub enum Cw20HookMsg {
+    deposit {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -40,8 +56,10 @@ pub enum QueryMsg {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct BalanceResponse {
-    pub balance: Uint128,
     pub share: Uint128,
+    pub staked_amount: Uint128,
+    pub unstaked_amount: Uint128,
+    pub locked_amount: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -57,6 +75,10 @@ pub struct ShareInfo {
     pub weight: u32,
     pub share_index: Decimal,
     pub share: Uint128,
+    pub amount: Uint128,
+    pub lock_start: u64,
+    pub lock_end: u64,
+    pub lock_amount: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]

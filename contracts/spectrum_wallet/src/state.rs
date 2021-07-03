@@ -43,9 +43,25 @@ static PREFIX_REWARD: &[u8] = b"reward";
 
 #[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfo {
+    #[serde(default)] pub amount: Uint128,
+    #[serde(default)] pub lock_start: u64,
+    #[serde(default)] pub lock_end: u64,
+    #[serde(default)] pub lock_amount: Uint128,
     pub share_index: Decimal,
     pub share: Uint128,
     pub weight: u32,
+}
+
+impl RewardInfo {
+    pub fn calc_locked_amount(&self, height: u64) -> Uint128 {
+        if self.lock_end <= height {
+            Uint128::zero()
+        } else if self.lock_start >= height {
+            self.lock_amount
+        } else {
+            self.lock_amount.multiply_ratio(self.lock_end - height, self.lock_end - self.lock_start)
+        }
+    }
 }
 
 pub fn reward_store<S: Storage>(storage: &mut S) -> Bucket<S, RewardInfo> {
