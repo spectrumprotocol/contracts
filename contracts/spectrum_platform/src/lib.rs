@@ -3,6 +3,9 @@
 pub mod contract;
 pub mod state;
 
+#[cfg(test)]
+mod tests;
+
 mod poll;
 
 #[cfg(target_arch = "wasm32")]
