@@ -25,6 +25,10 @@
       "type": "object",
       "required": [
         "address",
+        "amount",
+        "lock_amount",
+        "lock_end",
+        "lock_start",
         "share",
         "share_index",
         "weight"
@@ -32,6 +36,22 @@
       "properties": {
         "address": {
           "$ref": "#/definitions/HumanAddr"
+        },
+        "amount": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "lock_amount": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "lock_end": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "lock_start": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
         },
         "share": {
           "$ref": "#/definitions/Uint128"
