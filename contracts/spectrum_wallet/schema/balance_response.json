@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "BalanceResponse",
+  "type": "object",
+  "required": [
+    "locked_amount",
+    "share",
+    "staked_amount",
+    "unstaked_amount"
+  ],
+  "properties": {
+    "locked_amount": {
+      "$ref": "#/definitions/Uint128"
+    },
+    "share": {
+      "$ref": "#/definitions/Uint128"
+    },
+    "staked_amount": {
+      "$ref": "#/definitions/Uint128"
+    },
+    "unstaked_amount": {
+      "$ref": "#/definitions/Uint128"
+    }
+  },
+  "definitions": {
+    "Uint128": {
+      "type": "string"
+    }
+  }
+}

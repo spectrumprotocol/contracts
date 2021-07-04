@@ -1,0 +1,265 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HandleMsg",
+  "anyOf": [
+    {
+      "type": "object",
+      "required": [
+        "poll_end"
+      ],
+      "properties": {
+        "poll_end": {
+          "type": "object",
+          "required": [
+            "poll_id"
+          ],
+          "properties": {
+            "poll_id": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "poll_execute"
+      ],
+      "properties": {
+        "poll_execute": {
+          "type": "object",
+          "required": [
+            "poll_id"
+          ],
+          "properties": {
+            "poll_id": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "poll_expire"
+      ],
+      "properties": {
+        "poll_expire": {
+          "type": "object",
+          "required": [
+            "poll_id"
+          ],
+          "properties": {
+            "poll_id": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "poll_start"
+      ],
+      "properties": {
+        "poll_start": {
+          "type": "object",
+          "required": [
+            "description",
+            "execute_msgs",
+            "title"
+          ],
+          "properties": {
+            "description": {
+              "type": "string"
+            },
+            "execute_msgs": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/ExecuteMsg"
+              }
+            },
+            "link": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "title": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "poll_vote"
+      ],
+      "properties": {
+        "poll_vote": {
+          "type": "object",
+          "required": [
+            "poll_id",
+            "vote"
+          ],
+          "properties": {
+            "poll_id": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "vote": {
+              "$ref": "#/definitions/VoteOption"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "update_config"
+      ],
+      "properties": {
+        "update_config": {
+          "type": "object",
+          "properties": {
+            "effective_delay": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "expiration_period": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "owner": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/HumanAddr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "quorum": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Decimal"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "threshold": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Decimal"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "voting_period": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "upsert_board"
+      ],
+      "properties": {
+        "upsert_board": {
+          "type": "object",
+          "required": [
+            "address",
+            "weight"
+          ],
+          "properties": {
+            "address": {
+              "$ref": "#/definitions/HumanAddr"
+            },
+            "weight": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "Decimal": {
+      "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
+      "type": "string"
+    },
+    "ExecuteMsg": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "execute"
+          ],
+          "properties": {
+            "execute": {
+              "type": "object",
+              "required": [
+                "contract",
+                "msg"
+              ],
+              "properties": {
+                "contract": {
+                  "$ref": "#/definitions/HumanAddr"
+                },
+                "msg": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "HumanAddr": {
+      "type": "string"
+    },
+    "VoteOption": {
+      "type": "string",
+      "enum": [
+        "yes",
+        "no"
+      ]
+    }
+  }
+}
