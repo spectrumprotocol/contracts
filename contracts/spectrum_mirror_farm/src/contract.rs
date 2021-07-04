@@ -6,8 +6,8 @@ use cosmwasm_std::{
 
 use crate::{
     bond::try_bond,
-    harvest::try_harvest_all,
-    reinvest::{try_re_invest, try_stake},
+    harvest::harvest_all,
+    reinvest::{re_invest, stake},
     state::{read_config, state_store, store_config, Config, PoolInfo, State},
 };
 
@@ -16,7 +16,7 @@ use spectrum_protocol::mirror_farm::{
     ConfigInfo, Cw20HookMsg, HandleMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
 
-use crate::bond::{deposit_spec_reward, query_reward_info, try_unbond, try_withdraw};
+use crate::bond::{deposit_spec_reward, query_reward_info, unbond, withdraw};
 use crate::state::{pool_info_read, pool_info_store, read_state};
 
 /// (we require 0-1)
@@ -97,7 +97,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             deposit_fee,
             lock_start,
             lock_end,
-        } => try_update_config(
+        } => update_config(
             deps,
             env,
             owner,
@@ -115,15 +115,15 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             staking_token,
             weight,
             auto_compound,
-        } => try_register_asset(deps, env, asset_token, staking_token, weight, auto_compound),
+        } => register_asset(deps, env, asset_token, staking_token, weight, auto_compound),
         HandleMsg::unbond {
             asset_token,
             amount,
-        } => try_unbond(deps, env, asset_token, amount),
-        HandleMsg::withdraw { asset_token } => try_withdraw(deps, env, asset_token),
-        HandleMsg::harvest_all {} => try_harvest_all(deps, env),
-        HandleMsg::re_invest { asset_token } => try_re_invest(deps, env, asset_token),
-        HandleMsg::stake { asset_token } => try_stake(deps, env, asset_token),
+        } => unbond(deps, env, asset_token, amount),
+        HandleMsg::withdraw { asset_token } => withdraw(deps, env, asset_token),
+        HandleMsg::harvest_all {} => harvest_all(deps, env),
+        HandleMsg::re_invest { asset_token } => re_invest(deps, env, asset_token),
+        HandleMsg::stake { asset_token } => stake(deps, env, asset_token),
     }
 }
 
@@ -152,7 +152,7 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
     }
 }
 
-pub fn try_update_config<S: Storage, A: Api, Q: Querier>(
+pub fn update_config<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     owner: Option<HumanAddr>,
@@ -219,7 +219,7 @@ pub fn try_update_config<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-pub fn try_register_asset<S: Storage, A: Api, Q: Querier>(
+pub fn register_asset<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     asset_token: HumanAddr,

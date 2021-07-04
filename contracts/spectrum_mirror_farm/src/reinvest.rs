@@ -18,7 +18,7 @@ use terraswap::querier::{query_pair_info, query_token_balance, simulate};
 
 const TERRASWAP_COMMISSION_RATE: &str = "0.003";
 
-pub fn try_re_invest<S: Storage, A: Api, Q: Querier>(
+pub fn re_invest<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     asset_token: HumanAddr,
@@ -312,7 +312,7 @@ pub fn re_invest_mir<S: Storage, A: Api, Q: Querier>(
     Ok(response)
 }
 
-pub fn try_stake<S: Storage, A: Api, Q: Querier>(
+pub fn stake<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     asset_token: HumanAddr,

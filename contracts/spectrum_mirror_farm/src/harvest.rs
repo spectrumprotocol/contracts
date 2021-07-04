@@ -25,7 +25,7 @@ use terraswap::pair::{
 use terraswap::querier::{query_pair_info, simulate};
 
 // harvest all
-pub fn try_harvest_all<S: Storage, A: Api, Q: Querier>(
+pub fn harvest_all<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
 ) -> HandleResult {

@@ -14,7 +14,7 @@ pub struct ConfigInfo {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum HandleMsg {
-    poll_votes {
+    poll_vote {
         poll_id: u64,
         vote: VoteOption,
         amount: Uint128,

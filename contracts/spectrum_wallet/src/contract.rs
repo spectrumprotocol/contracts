@@ -8,6 +8,7 @@ use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 use spectrum_protocol::gov::{
     BalanceResponse as GovBalanceResponse, QueryMsg as GovQueryMsg, VoteOption,
     Cw20HookMsg as GovCw20HookMsg, StateInfo as GovStateInfo,
+    HandleMsg as GovHandleMsg,
 };
 use spectrum_protocol::wallet::{BalanceResponse, ConfigInfo, HandleMsg, MigrateMsg, QueryMsg, ShareInfo, SharesResponse, StateInfo, Cw20HookMsg};
 
@@ -38,11 +39,11 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     msg: HandleMsg,
 ) -> StdResult<HandleResponse> {
     match msg {
-        HandleMsg::poll_votes {
+        HandleMsg::poll_vote {
             poll_id,
             vote,
             amount,
-        } => poll_votes(deps, env, poll_id, vote, amount),
+        } => poll_vote(deps, env, poll_id, vote, amount),
         HandleMsg::receive(msg) => receive_cw20(deps, env, msg),
         HandleMsg::stake { amount } => stake(deps, env, amount),
         HandleMsg::unstake { amount } => unstake(deps, env, amount),
@@ -97,7 +98,7 @@ fn deposit<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-fn poll_votes<S: Storage, A: Api, Q: Querier>(
+fn poll_vote<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     poll_id: u64,
@@ -120,7 +121,7 @@ fn poll_votes<S: Storage, A: Api, Q: Querier>(
         data: None,
         messages: vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.human_address(&config.spectrum_gov)?,
-            msg: to_binary(&HandleMsg::poll_votes {
+            msg: to_binary(&GovHandleMsg::poll_vote {
                 poll_id,
                 vote,
                 amount,
@@ -208,7 +209,7 @@ fn unstake<S: Storage, A: Api, Q: Querier>(
         messages: vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: deps.api.human_address(&config.spectrum_gov)?,
-                msg: to_binary(&HandleMsg::withdraw {
+                msg: to_binary(&GovHandleMsg::withdraw {
                     amount: Some(amount),
                 })?,
                 send: vec![],

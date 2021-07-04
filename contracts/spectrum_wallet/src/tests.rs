@@ -139,7 +139,7 @@ fn test_stake(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
     ]);
 
     // vote
-    let msg = HandleMsg::poll_votes {
+    let msg = HandleMsg::poll_vote {
         poll_id: 1u64,
         amount: Uint128::from(100u64),
         vote: VoteOption::yes,
