@@ -187,9 +187,4 @@ pub struct NextPositionIdxResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {
-    pub collateral_oracle: HumanAddr,
-    pub staking: HumanAddr,
-    pub terraswap_factory: HumanAddr,
-    pub lock: HumanAddr,
-}
+pub struct MigrateMsg {}

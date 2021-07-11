@@ -25,7 +25,7 @@ pub enum HandleMsg {
         receiver: HumanAddr,
     },
     UnlockPositionFunds {
-        position_idx: Uint128,
+        positions_idx: Vec<Uint128>,
     },
     ReleasePositionFunds {
         position_idx: Uint128,
@@ -56,3 +56,6 @@ pub struct PositionLockInfoResponse {
     pub locked_amount: Uint128,
     pub unlock_time: u64,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}

@@ -51,13 +51,11 @@ pub fn harvest_all<S: Storage, A: Api, Q: Querier>(
     let mirror_reward_infos =
         query_mirror_reward_info(&deps, &mirror_staking, &env.contract.address)?;
 
-    let state = read_state(&deps.storage)?;
-
     let mirror_gov_staked: MirrorStakerResponse =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: deps.api.human_address(&config.mirror_gov)?,
             msg: to_binary(&MirrorGovQueryMsg::Staker {
-                address: deps.api.human_address(&state.contract_addr)?,
+                address: env.contract.address,
             })?,
         }))?;
 
@@ -175,13 +173,14 @@ pub fn harvest_all<S: Storage, A: Api, Q: Querier>(
     ));
 
     for mirror_reward_info in mirror_reward_infos.reward_infos.iter() {
+        
         let asset_token_raw = deps
             .api
             .canonical_address(&mirror_reward_info.asset_token)?;
         let mut pool_info = pool_info_read(&deps.storage).load(asset_token_raw.as_slice())?;
         let swap_amount = swap_amount_map
             .remove(&mirror_reward_info.asset_token)
-            .unwrap();
+            .unwrap_or(Uint128::zero());
 
         if mirror_reward_info.asset_token == mirror_token {
             pool_info.reinvest_allowance += swap_amount;
@@ -205,7 +204,9 @@ pub fn harvest_all<S: Storage, A: Api, Q: Querier>(
         let withdraw_voting_rewards: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: mirror_gov.clone(),
             send: vec![],
-            msg: to_binary(&MirrorGovHandleMsg::WithdrawVotingRewards {})?,
+            msg: to_binary(&MirrorGovHandleMsg::WithdrawVotingRewards {
+                poll_id: None,
+            })?,
         });
         messages.push(withdraw_voting_rewards);
     }
