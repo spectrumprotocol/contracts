@@ -9,6 +9,7 @@ use crate::{
     harvest::harvest_all,
     reinvest::{re_invest, stake},
     state::{read_config, state_store, store_config, Config, PoolInfo, State},
+    vote::cast_vote_to_mirror,
 };
 
 use cw20::Cw20ReceiveMsg;
@@ -124,6 +125,9 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         HandleMsg::harvest_all {} => harvest_all(deps, env),
         HandleMsg::re_invest { asset_token } => re_invest(deps, env, asset_token),
         HandleMsg::stake { asset_token } => stake(deps, env, asset_token),
+        HandleMsg::cast_vote_to_mirror { poll_id, amount } => {
+            cast_vote_to_mirror(deps, env, poll_id, amount)
+        }
     }
 }
 

@@ -287,7 +287,6 @@ fn stake_token<A: Api>(
         })],
         log: vec![
             log("action", "bond"),
-            log("staking_token", staking_token.as_str()),
             log("asset_token", asset_token.as_str()),
             log("amount", amount.to_string()),
         ],
@@ -385,7 +384,6 @@ pub fn unbond<S: Storage, A: Api, Q: Querier>(
         ],
         log: vec![
             log("action", "unbond"),
-            log("staker_addr", env.message.sender.as_str()),
             log("asset_token", asset_token.as_str()),
             log("amount", amount.to_string()),
         ],
