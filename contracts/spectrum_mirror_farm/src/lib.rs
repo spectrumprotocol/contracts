@@ -16,6 +16,9 @@ mod tests_reinvest;
 mod test_vote;
 
 #[cfg(test)]
+mod test_harvest;
+
+#[cfg(test)]
 mod mock_querier;
 
 #[cfg(target_arch = "wasm32")]
