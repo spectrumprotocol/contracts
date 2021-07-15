@@ -287,7 +287,6 @@ fn stake_token<A: Api>(
         })],
         log: vec![
             log("action", "bond"),
-            log("staking_token", staking_token.as_str()),
             log("asset_token", asset_token.as_str()),
             log("amount", amount.to_string()),
         ],
@@ -296,7 +295,7 @@ fn stake_token<A: Api>(
     Ok(response)
 }
 
-pub fn try_unbond<S: Storage, A: Api, Q: Querier>(
+pub fn unbond<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     asset_token: HumanAddr,
@@ -385,7 +384,6 @@ pub fn try_unbond<S: Storage, A: Api, Q: Querier>(
         ],
         log: vec![
             log("action", "unbond"),
-            log("staker_addr", env.message.sender.as_str()),
             log("asset_token", asset_token.as_str()),
             log("amount", amount.to_string()),
         ],
@@ -393,7 +391,7 @@ pub fn try_unbond<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-pub fn try_withdraw<S: Storage, A: Api, Q: Querier>(
+pub fn withdraw<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     asset_token: Option<HumanAddr>,

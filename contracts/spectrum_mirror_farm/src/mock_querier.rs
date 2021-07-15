@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    from_binary, from_slice, to_binary, Api, CanonicalAddr, Coin, Decimal, Extern,
-    HumanAddr, Querier, QuerierResult, QueryRequest, SystemError, Uint128, WasmQuery,
+    from_binary, from_slice, to_binary, Api, CanonicalAddr, Coin, Decimal, Extern, HumanAddr,
+    Querier, QuerierResult, QueryRequest, SystemError, Uint128, WasmQuery,
 };
 use cosmwasm_storage::to_length_prefixed;
 use std::collections::HashMap;
@@ -44,6 +44,7 @@ pub fn mock_dependencies(
 
 pub struct WasmMockQuerier {
     base: MockQuerier<TerraQueryWrapper>,
+    voting_reward_querier: VotingRewardQuerier,
     token_querier: TokenQuerier,
     tax_querier: TaxQuerier,
     terraswap_factory_querier: TerraswapFactoryQuerier,
@@ -55,6 +56,29 @@ pub struct TokenQuerier {
     // this lets us iterate over all pairs that match the first string
     balances: HashMap<HumanAddr, HashMap<HumanAddr, Uint128>>,
     balance_percent: u128,
+}
+
+#[derive(Clone, Default)]
+pub struct VotingRewardQuerier {
+    balances: HashMap<HumanAddr, Uint128>,
+}
+
+impl VotingRewardQuerier {
+    pub fn new(balances: &[(&HumanAddr, &Uint128)]) -> Self {
+        VotingRewardQuerier {
+            balances: reward_balances_to_map(balances),
+        }
+    }
+}
+
+pub(crate) fn reward_balances_to_map(
+    balances: &[(&HumanAddr, &Uint128)],
+) -> HashMap<HumanAddr, Uint128> {
+    let mut balances_map: HashMap<HumanAddr, Uint128> = HashMap::new();
+    for (contract_addr, balances) in balances.iter() {
+        balances_map.insert(HumanAddr::from(contract_addr), **balances);
+    }
+    balances_map
 }
 
 impl TokenQuerier {
@@ -207,13 +231,13 @@ impl WasmMockQuerier {
                         }))
                     }
                     MockQueryMsg::Staker { address } => {
-                        let balance = self.read_token_balance(contract_addr, address);
+                        let balance = self.read_token_balance(contract_addr, address.clone());
                         Ok(to_binary(&MirrorStakerResponse {
                             balance,
                             share: balance
                                 .multiply_ratio(100u128, self.token_querier.balance_percent),
                             locked_balance: vec![],
-                            pending_voting_rewards: Uint128::zero(),
+                            pending_voting_rewards: self.read_voting_rewards(address.clone()),
                             withdrawable_polls: vec![],
                         }))
                     }
@@ -306,10 +330,23 @@ impl WasmMockQuerier {
     ) -> Self {
         WasmMockQuerier {
             base,
+            voting_reward_querier: VotingRewardQuerier::default(),
             token_querier: TokenQuerier::default(),
             tax_querier: TaxQuerier::default(),
             terraswap_factory_querier: TerraswapFactoryQuerier::default(),
             canonical_length,
+        }
+    }
+
+    // configure pending voting rewards
+    pub fn with_voting_rewards(&mut self, balances: &[(&HumanAddr, &Uint128)]) {
+        self.voting_reward_querier = VotingRewardQuerier::new(balances);
+    }
+
+    pub fn read_voting_rewards(&self, address: HumanAddr) -> Uint128 {
+        match self.voting_reward_querier.balances.get(&address) {
+            Some(balances) => *balances,
+            None => return Uint128::zero(),
         }
     }
 

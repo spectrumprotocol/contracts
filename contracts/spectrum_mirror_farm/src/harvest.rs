@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use cosmwasm_std::{
     log, to_binary, Api, CanonicalAddr, Coin, CosmosMsg, Decimal, Env, Extern, HandleResponse,
-    HandleResult, HumanAddr, LogAttribute, Querier, StdError, Storage, Uint128, WasmMsg,
+    HandleResult, HumanAddr, LogAttribute, Querier, QueryRequest, StdError, Storage, Uint128,
+    WasmMsg, WasmQuery,
 };
 
 use crate::{
@@ -15,7 +16,10 @@ use crate::querier::query_mirror_reward_info;
 use cw20::Cw20HandleMsg;
 
 use crate::state::{pool_info_read, pool_info_store, read_state};
-use mirror_protocol::gov::Cw20HookMsg as MirrorGovCw20HookMsg;
+use mirror_protocol::gov::{
+    Cw20HookMsg as MirrorGovCw20HookMsg, HandleMsg as MirrorGovHandleMsg,
+    QueryMsg as MirrorGovQueryMsg, StakerResponse as MirrorStakerResponse,
+};
 use mirror_protocol::staking::HandleMsg as MirrorHandleMsg;
 use spectrum_protocol::gov::{Cw20HookMsg as GovCw20HookMsg, HandleMsg as GovHandleMsg};
 use terraswap::asset::{Asset, AssetInfo};
@@ -25,7 +29,7 @@ use terraswap::pair::{
 use terraswap::querier::{query_pair_info, simulate};
 
 // harvest all
-pub fn try_harvest_all<S: Storage, A: Api, Q: Querier>(
+pub fn harvest_all<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
 ) -> HandleResult {
@@ -47,6 +51,14 @@ pub fn try_harvest_all<S: Storage, A: Api, Q: Querier>(
     let mirror_reward_infos =
         query_mirror_reward_info(&deps, &mirror_staking, &env.contract.address)?;
 
+    let mirror_gov_staked: MirrorStakerResponse =
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: deps.api.human_address(&config.mirror_gov)?,
+            msg: to_binary(&MirrorGovQueryMsg::Staker {
+                address: env.contract.address,
+            })?,
+        }))?;
+
     let mut total_mir_swap_amount = Uint128::zero();
     let mut total_mir_stake_amount = Uint128::zero();
     let mut total_mir_commission = Uint128::zero();
@@ -66,6 +78,16 @@ pub fn try_harvest_all<S: Storage, A: Api, Q: Querier>(
         config.controller_fee
     };
     let total_fee = community_fee + platform_fee + controller_fee;
+
+    if !mirror_gov_staked.pending_voting_rewards.is_zero() {
+        let voting_reward = mirror_gov_staked.pending_voting_rewards;
+        let voting_reward_commission = voting_reward * total_fee;
+        let staked_voting_reward = (voting_reward - voting_reward_commission)?;
+        total_mir_commission += voting_reward_commission;
+        total_mir_swap_amount += voting_reward_commission;
+        total_mir_stake_amount += staked_voting_reward;
+    }
+
     for mirror_reward_info in mirror_reward_infos.reward_infos.iter() {
         let reward = mirror_reward_info.pending_reward;
         if reward.is_zero() || mirror_reward_info.bond_amount.is_zero() {
@@ -87,13 +109,6 @@ pub fn try_harvest_all<S: Storage, A: Api, Q: Querier>(
         let swap_amount =
             mirror_amount.multiply_ratio(auto_bond_amount, mirror_reward_info.bond_amount);
         let stake_amount = (mirror_amount - swap_amount)?;
-
-        // logs.push(log("asset_token", mirror_reward_info.asset_token.as_str()));
-        // logs.push(log("reward", reward.to_string()));
-        // logs.push(log("commission", commission.to_string()));
-        // logs.push(log("mirror_amount", mirror_amount.to_string()));
-        // logs.push(log("swap_amount", swap_amount.to_string()));
-        // logs.push(log("stake_amount", stake_amount.to_string()));
 
         swap_amount_map.insert(mirror_reward_info.asset_token.clone(), swap_amount);
         if !stake_amount.is_zero() {
@@ -152,37 +167,27 @@ pub fn try_harvest_all<S: Storage, A: Api, Q: Querier>(
     let total_ust_commission_amount =
         total_ust_return_amount.multiply_ratio(total_mir_commission, total_mir_swap_amount);
 
-    // logs.push(log(
-    //     "return_amount",
-    //     mir_swap_rate.return_amount.to_string(),
-    // ));
     logs.push(log(
         "total_ust_return_amount",
         total_ust_return_amount.to_string(),
     ));
-    // logs.push(log(
-    //     "total_ust_commission_amount",
-    //     total_ust_commission_amount.to_string(),
-    // ));
 
     for mirror_reward_info in mirror_reward_infos.reward_infos.iter() {
+        
         let asset_token_raw = deps
             .api
             .canonical_address(&mirror_reward_info.asset_token)?;
         let mut pool_info = pool_info_read(&deps.storage).load(asset_token_raw.as_slice())?;
         let swap_amount = swap_amount_map
             .remove(&mirror_reward_info.asset_token)
-            .unwrap();
+            .unwrap_or(Uint128::zero());
 
-        // logs.push(log("asset_token", mirror_reward_info.asset_token.as_str()));
-        // logs.push(log("swap_amount", swap_amount.to_string()));
         if mirror_reward_info.asset_token == mirror_token {
             pool_info.reinvest_allowance += swap_amount;
         } else {
             let reinvest_allowance =
                 total_ust_return_amount.multiply_ratio(swap_amount, total_mir_swap_amount);
             pool_info.reinvest_allowance += reinvest_allowance;
-            // logs.push(log("reinvest_allowance", reinvest_allowance.to_string()));
         }
         pool_info_store(&mut deps.storage).save(asset_token_raw.as_slice(), &pool_info)?;
     }
@@ -194,6 +199,17 @@ pub fn try_harvest_all<S: Storage, A: Api, Q: Querier>(
         msg: to_binary(&MirrorHandleMsg::Withdraw { asset_token: None })?,
     });
     messages.push(withdraw_all_mir);
+
+    if !mirror_gov_staked.pending_voting_rewards.is_zero() {
+        let withdraw_voting_rewards: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: mirror_gov.clone(),
+            send: vec![],
+            msg: to_binary(&MirrorGovHandleMsg::WithdrawVotingRewards {
+                poll_id: None,
+            })?,
+        });
+        messages.push(withdraw_voting_rewards);
+    }
 
     if !total_mir_swap_amount.is_zero() {
         let swap_mir: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {

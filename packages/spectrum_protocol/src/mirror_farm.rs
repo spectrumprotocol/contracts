@@ -62,6 +62,10 @@ pub enum HandleMsg {
     stake {
         asset_token: HumanAddr,
     },
+    cast_vote_to_mirror {
+        poll_id: u64,
+        amount: Uint128,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

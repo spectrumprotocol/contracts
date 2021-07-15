@@ -18,7 +18,7 @@ use terraswap::querier::{query_pair_info, query_token_balance, simulate};
 
 const TERRASWAP_COMMISSION_RATE: &str = "0.003";
 
-pub fn try_re_invest<S: Storage, A: Api, Q: Querier>(
+pub fn re_invest<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     asset_token: HumanAddr,
@@ -173,10 +173,6 @@ pub fn re_invest_asset<S: Storage, A: Api, Q: Querier>(
             log("reinvest_allowance", reinvest_allowance.to_string()),
             log("provide_token_amount", swap_rate.return_amount.to_string()),
             log("provide_ust_amount", net_liquidity_after_tax.to_string()),
-            log(
-                "remaining_reinvest_allowance",
-                pool_info.reinvest_allowance.to_string(),
-            ),
         ],
         data: None,
     };
@@ -312,7 +308,7 @@ pub fn re_invest_mir<S: Storage, A: Api, Q: Querier>(
     Ok(response)
 }
 
-pub fn try_stake<S: Storage, A: Api, Q: Querier>(
+pub fn stake<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     asset_token: HumanAddr,
@@ -343,7 +339,6 @@ pub fn try_stake<S: Storage, A: Api, Q: Querier>(
         log: vec![
             log("action", "stake"),
             log("asset_token", asset_token.as_str()),
-            log("staking_token", staking_token.as_str()),
             log("amount", amount.to_string()),
         ],
         data: None,
