@@ -296,7 +296,7 @@ fn stake_token<A: Api>(
     Ok(response)
 }
 
-pub fn try_unbond<S: Storage, A: Api, Q: Querier>(
+pub fn unbond<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     asset_token: HumanAddr,
@@ -393,7 +393,7 @@ pub fn try_unbond<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-pub fn try_withdraw<S: Storage, A: Api, Q: Querier>(
+pub fn withdraw<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     asset_token: Option<HumanAddr>,
