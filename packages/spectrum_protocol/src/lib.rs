@@ -9,3 +9,4 @@ pub mod querier;
 pub mod spec_farm;
 pub mod staker;
 pub mod wallet;
+pub mod anchor_farm;
