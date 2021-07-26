@@ -13,14 +13,11 @@ use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrap
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
 use terraswap::pair::SimulationResponse;
 
-use mirror_protocol::gov::StakerResponse as MirrorStakerResponse;
-use mirror_protocol::staking::{
-    RewardInfoResponse as MirrorRewardInfoResponse,
-    RewardInfoResponseItem as MirrorRewardInfoResponseItem,
-};
+use anchor_token::gov::StakerResponse as AnchorStakerResponse;
+use anchor_token::staking::StakerInfoResponse as AnchorStakerInfoResponse;
 use spectrum_protocol::gov::BalanceResponse as SpecBalanceResponse;
 
-const MIR_STAKING: &str = "mir_staking";
+const ANC_STAKING: &str = "anc_staking";
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
@@ -155,9 +152,9 @@ enum MockQueryMsg {
     Staker {
         address: HumanAddr,
     },
-    RewardInfo {
-        staker_addr: HumanAddr,
-        asset_token: Option<HumanAddr>,
+    StakerInfo {
+        staker: HumanAddr,
+        block_height: Option<u64>,
     },
     Pair {
         asset_infos: [AssetInfo; 2],
@@ -208,51 +205,25 @@ impl WasmMockQuerier {
                     }
                     MockQueryMsg::Staker { address } => {
                         let balance = self.read_token_balance(contract_addr, address);
-                        Ok(to_binary(&MirrorStakerResponse {
+                        Ok(to_binary(&AnchorStakerResponse {
                             balance,
                             share: balance
                                 .multiply_ratio(100u128, self.token_querier.balance_percent),
                             locked_balance: vec![],
-                            pending_voting_rewards: Uint128::zero(),
-                            withdrawable_polls: vec![],
                         }))
                     }
-                    MockQueryMsg::RewardInfo {
-                        staker_addr,
-                        asset_token,
+                    MockQueryMsg::StakerInfo {
+                        staker,
+                        block_height: _,
                     } => {
-                        let contract_addr = &HumanAddr::from(MIR_STAKING);
-                        match asset_token {
-                            Some(asset_token) => {
-                                let balance =
-                                    self.read_token_balance(contract_addr, asset_token.clone());
-                                Ok(to_binary(&MirrorRewardInfoResponse {
-                                    staker_addr,
-                                    reward_infos: vec![MirrorRewardInfoResponseItem {
-                                        asset_token: asset_token.clone(),
-                                        pending_reward: balance,
-                                        bond_amount: balance,
-                                        is_short: false,
-                                    }],
-                                }))
-                            }
-                            None => Ok(to_binary(&MirrorRewardInfoResponse {
-                                staker_addr: staker_addr.clone(),
-                                reward_infos: self
-                                    .token_querier
-                                    .balances
-                                    .get(contract_addr)
-                                    .unwrap_or(&HashMap::new())
-                                    .into_iter()
-                                    .map(|(asset_token, balance)| MirrorRewardInfoResponseItem {
-                                        asset_token: asset_token.clone(),
-                                        pending_reward: *balance,
-                                        bond_amount: *balance,
-                                        is_short: false,
-                                    })
-                                    .collect(),
-                            })),
-                        }
+                        let contract_addr = &HumanAddr::from(ANC_STAKING);
+                        let balance = self.read_token_balance(contract_addr, staker.clone());
+                        Ok(to_binary(&AnchorStakerInfoResponse {
+                            staker,
+                            reward_index: Decimal::zero(),
+                            bond_amount: balance,
+                            pending_reward: balance,
+                        }))
                     }
                     MockQueryMsg::Pair { asset_infos } => {
                         let key = asset_infos[0].to_string() + asset_infos[1].to_string().as_str();
