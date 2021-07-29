@@ -358,9 +358,17 @@ fn query_state<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdRes
 }
 
 pub fn migrate<S: Storage, A: Api, Q: Querier>(
-    _deps: &mut Extern<S, A, Q>,
+    deps: &mut Extern<S, A, Q>,
     _env: Env,
     _msg: MigrateMsg,
 ) -> MigrateResult {
+    let config = read_config(&deps.storage)?;
+    let state = read_state(&deps.storage)?;
+    let mut pool_info = pool_info_read(&deps.storage).load(config.anchor_token.as_slice())?;
+    let new_share = state.total_farm_share;
+    let share_per_bond = Decimal::from_ratio(new_share, pool_info.total_stake_bond_share);
+    pool_info.farm_share_index = pool_info.farm_share_index + share_per_bond;
+    pool_info.farm_share += new_share;
+    pool_info_store(&mut deps.storage).save(config.anchor_token.as_slice(), &pool_info)?;
     Ok(MigrateResponse::default())
 }

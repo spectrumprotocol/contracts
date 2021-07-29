@@ -1,7 +1,7 @@
 use crate::bond::deposit_farm_share;
 use crate::contract::{handle, init, query};
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
-use crate::state::read_config;
+use crate::state::{read_config, pool_info_read, pool_info_store};
 use anchor_token::gov::{
     HandleMsg as AnchorGovHandleMsg,
 };
@@ -227,7 +227,9 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
     assert!(res.is_ok());
 
     let config = read_config(&deps.storage).unwrap();
-    deposit_farm_share(deps, &config, Uint128::from(500u128)).unwrap();
+    let mut pool_info = pool_info_read(&deps.storage).load(config.anchor_token.as_slice()).unwrap();
+    deposit_farm_share(deps, &mut pool_info, &config, Uint128::from(500u128)).unwrap();
+    pool_info_store(&mut deps.storage).save(config.anchor_token.as_slice(), &pool_info).unwrap();
     deps.querier.with_token_balances(&[
         (
             &HumanAddr::from(ANC_STAKING),
@@ -461,7 +463,7 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
                 locked_spec_reward: Uint128::zero(),
             },]
         );
-    
+
 
     // // bond user2
     // let env = mock_env(MIR_LP, &[]);

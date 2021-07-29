@@ -101,6 +101,7 @@ pub fn bond<S: Storage, A: Api, Q: Querier>(
 
 pub fn deposit_farm_share<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
+    pool_info: &mut PoolInfo,
     config: &Config,
     amount: Uint128,
 ) -> StdResult<()> {
@@ -114,17 +115,12 @@ pub fn deposit_farm_share<S: Storage, A: Api, Q: Querier>(
         }))?;
 
     let mut new_total_share = Uint128::zero();
-    let asset_token_raw = &config.anchor_token;
-    let key = asset_token_raw.as_slice();
-    let mut pool_info = pool_info_read(&deps.storage).load(key)?;
     if !pool_info.total_stake_bond_share.is_zero() {
         let new_share = state.calc_farm_share(amount, staked.balance);
         let share_per_bond = Decimal::from_ratio(new_share, pool_info.total_stake_bond_share);
         pool_info.farm_share_index = pool_info.farm_share_index + share_per_bond;
         pool_info.farm_share += new_share;
         new_total_share += new_share;
-
-        pool_info_store(&mut deps.storage).save(key, &pool_info)?;
     }
 
     state.total_farm_share += new_total_share;
