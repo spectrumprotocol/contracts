@@ -15,13 +15,16 @@ use serde::{Deserialize, Serialize};
 use spectrum_protocol::anchor_farm::{
     ConfigInfo, Cw20HookMsg, HandleMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
-use spectrum_protocol::gov::HandleMsg as GovHandleMsg;
+use spectrum_protocol::gov::{Cw20HookMsg as GovCw20HookMsg, HandleMsg as GovHandleMsg};
 use std::fmt::Debug;
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
 use terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg, HandleMsg as TerraswapHandleMsg};
 
 const SPEC_GOV: &str = "spec_gov";
+const SPEC_PLATFORM: &str = "spec_platform";
 const SPEC_TOKEN: &str = "spec_token";
+const SPEC_LP: &str = "spec_lp";
+const SPEC_POOL: &str = "spec_pool";
 const ANC_GOV: &str = "anc_gov";
 const ANC_TOKEN: &str = "anc_token";
 const ANC_STAKING: &str = "anc_staking";
@@ -65,21 +68,38 @@ pub struct RewardInfoResponseItem {
 fn test() {
     let mut deps = mock_dependencies(20, &[]);
     deps.querier.with_balance_percent(100);
-    deps.querier.with_terraswap_pairs(&[(
-        &"uusdanc_token".to_string(),
-        &PairInfo {
-            asset_infos: [
-                AssetInfo::Token {
-                    contract_addr: HumanAddr::from(ANC_TOKEN),
-                },
-                AssetInfo::NativeToken {
-                    denom: "uusd".to_string(),
-                },
-            ],
-            contract_addr: HumanAddr::from(ANC_POOL),
-            liquidity_token: HumanAddr::from(ANC_LP),
-        },
-    )]);
+    deps.querier.with_terraswap_pairs(&[
+        (
+            &"uusdanc_token".to_string(),
+            &PairInfo {
+                asset_infos: [
+                    AssetInfo::Token {
+                        contract_addr: HumanAddr::from(ANC_TOKEN),
+                    },
+                    AssetInfo::NativeToken {
+                        denom: "uusd".to_string(),
+                    },
+                ],
+                contract_addr: HumanAddr::from(ANC_POOL),
+                liquidity_token: HumanAddr::from(ANC_LP),
+            },
+        ),
+        (
+            &"uusdspec_token".to_string(),
+            &PairInfo {
+                asset_infos: [
+                    AssetInfo::Token {
+                        contract_addr: HumanAddr::from(SPEC_TOKEN),
+                    },
+                    AssetInfo::NativeToken {
+                        denom: "uusd".to_string(),
+                    },
+                ],
+                contract_addr: HumanAddr::from(SPEC_POOL),
+                liquidity_token: HumanAddr::from(SPEC_LP),
+            },
+        ),
+    ]);
     deps.querier.with_tax(
         Decimal::percent(1),
         &[(&"uusd".to_string(), &Uint128(1500000u128))],
@@ -92,6 +112,7 @@ fn test() {
     test_compound_anc_from_allowance(&mut deps);
     test_bond(&mut deps);
     test_compound_anc(&mut deps);
+    test_compound_anc_with_fees(&mut deps);
 }
 
 fn test_config(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) -> ConfigInfo {
@@ -105,7 +126,7 @@ fn test_config(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) -> Conf
         anchor_token: HumanAddr::from(ANC_TOKEN),
         anchor_staking: HumanAddr::from(ANC_STAKING),
         terraswap_factory: HumanAddr::from(TERRA_SWAP),
-        platform: Option::None,
+        platform: Some(HumanAddr::from(SPEC_PLATFORM)),
         controller: Some(HumanAddr::from(TEST_CONTROLLER)),
         base_denom: "uusd".to_string(),
         community_fee: Decimal::zero(),
@@ -917,5 +938,208 @@ fn test_compound_anc(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
             locked_spec_share: Uint128::zero(),
             locked_spec_reward: Uint128::zero(),
         },]
+    );
+}
+
+fn test_compound_anc_with_fees(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
+    // update fees
+    let env = mock_env(SPEC_GOV, &[]);
+    let msg = HandleMsg::update_config {
+        owner: Some(HumanAddr::from(SPEC_GOV)),
+        platform: None,
+        controller: None,
+        community_fee: Some(Decimal::percent(3u64)),
+        platform_fee: Some(Decimal::percent(1u64)),
+        controller_fee: Some(Decimal::percent(1u64)),
+        deposit_fee: None,
+        lock_start: None,
+        lock_end: None,
+    };
+    let res = handle(deps, env.clone(), msg.clone());
+    assert!(res.is_ok());
+
+    let env = mock_env(TEST_CONTROLLER, &[]);
+    let asset_token_raw = deps
+        .api
+        .canonical_address(&HumanAddr::from(ANC_TOKEN))
+        .unwrap();
+    let mut pool_info = pool_info_read(&deps.storage)
+        .load(asset_token_raw.as_slice())
+        .unwrap();
+    pool_info.reinvest_allowance = Uint128::from(0u128);
+    pool_info_store(&mut deps.storage)
+        .save(asset_token_raw.as_slice(), &pool_info)
+        .unwrap();
+
+    /*
+    pending rewards 12100 ANC
+    USER1 7100 (auto 4300, stake 2800)
+    USER2 5000 (auto 0, stake 5000)
+    total 12100
+    total fee = 605
+    remaining = 11495
+    auto 4300 / 12100 * 11495 = 4085
+    stake 7800 / 12100 * 11495 = 7410
+    swap amount 2042 ANC -> 2016 UST
+    provide UST = 1996
+    provide ANC = 1996
+    remaining = 46
+    fee swap amount 605 ANC -> 591 UST -> 590 SPEC
+    community fee = 363 / 605 * 590 = 354
+    platform fee = 121 / 605 * 590 = 118
+    controller fee = 121 / 605 * 590 = 118
+    total swap amount 2647 ANC
+    */
+    let msg = HandleMsg::compound {};
+    let res = handle(deps, env.clone(), msg.clone()).unwrap();
+
+    let pool_info = pool_info_read(&deps.storage)
+        .load(asset_token_raw.as_slice())
+        .unwrap();
+
+    assert_eq!(Uint128::from(46u128), pool_info.reinvest_allowance);
+
+    assert_eq!(
+        res.messages,
+        vec![
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: HumanAddr::from(ANC_STAKING),
+                send: vec![],
+                msg: to_binary(&AnchorStakingHandleMsg::Withdraw {}).unwrap(),
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: HumanAddr::from(ANC_TOKEN),
+                msg: to_binary(&Cw20HandleMsg::Send {
+                    contract: HumanAddr::from(ANC_POOL),
+                    amount: Uint128::from(2647u128),
+                    msg: Some(
+                        to_binary(&TerraswapCw20HookMsg::Swap {
+                            max_spread: None,
+                            belief_price: None,
+                            to: None,
+                        })
+                        .unwrap()
+                    ),
+                })
+                .unwrap(),
+                send: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: HumanAddr::from(SPEC_POOL),
+                msg: to_binary(&TerraswapHandleMsg::Swap {
+                    offer_asset: Asset {
+                        info: AssetInfo::NativeToken {
+                            denom: "uusd".to_string(),
+                        },
+                        amount: Uint128::from(591u128),
+                    },
+                    max_spread: None,
+                    belief_price: None,
+                    to: None,
+                })
+                .unwrap(),
+                send: vec![Coin {
+                    denom: "uusd".to_string(),
+                    amount: Uint128::from(591u128),
+                }],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: HumanAddr::from(SPEC_GOV),
+                msg: to_binary(&GovHandleMsg::mint {}).unwrap(),
+                send: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: HumanAddr::from(SPEC_TOKEN),
+                msg: to_binary(&Cw20HandleMsg::Transfer {
+                    recipient: HumanAddr::from(SPEC_GOV),
+                    amount: Uint128::from(354u128),
+                })
+                .unwrap(),
+                send: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: HumanAddr::from(SPEC_TOKEN),
+                msg: to_binary(&Cw20HandleMsg::Send {
+                    contract: HumanAddr::from(SPEC_GOV),
+                    amount: Uint128::from(118u128),
+                    msg: Some(
+                        to_binary(&GovCw20HookMsg::stake_tokens {
+                            staker_addr: Some(HumanAddr::from(SPEC_PLATFORM)),
+                        })
+                        .unwrap()
+                    ),
+                })
+                .unwrap(),
+                send: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: HumanAddr::from(SPEC_TOKEN),
+                msg: to_binary(&Cw20HandleMsg::Send {
+                    contract: HumanAddr::from(SPEC_GOV),
+                    amount: Uint128::from(118u128),
+                    msg: Some(
+                        to_binary(&GovCw20HookMsg::stake_tokens {
+                            staker_addr: Some(HumanAddr::from(TEST_CONTROLLER)),
+                        })
+                        .unwrap()
+                    ),
+                })
+                .unwrap(),
+                send: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: HumanAddr::from(ANC_TOKEN),
+                send: vec![],
+                msg: to_binary(&Cw20HandleMsg::Send {
+                    contract: HumanAddr::from(ANC_GOV),
+                    amount: Uint128::from(7410u128),
+                    msg: Some(to_binary(&AnchorGovCw20HookMsg::StakeVotingTokens {}).unwrap()),
+                })
+                .unwrap(),
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: HumanAddr::from(ANC_TOKEN),
+                msg: to_binary(&Cw20HandleMsg::IncreaseAllowance {
+                    spender: HumanAddr::from(ANC_POOL),
+                    amount: Uint128::from(1996u128),
+                    expires: None
+                })
+                .unwrap(),
+                send: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: HumanAddr::from(ANC_POOL),
+                msg: to_binary(&TerraswapHandleMsg::ProvideLiquidity {
+                    assets: [
+                        Asset {
+                            info: AssetInfo::Token {
+                                contract_addr: HumanAddr::from(ANC_TOKEN),
+                            },
+                            amount: Uint128::from(1996u128),
+                        },
+                        Asset {
+                            info: AssetInfo::NativeToken {
+                                denom: "uusd".to_string(),
+                            },
+                            amount: Uint128::from(1996u128),
+                        },
+                    ],
+                    slippage_tolerance: None,
+                })
+                .unwrap(),
+                send: vec![Coin {
+                    denom: "uusd".to_string(),
+                    amount: Uint128::from(1996u128),
+                }],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: env.contract.address,
+                msg: to_binary(&HandleMsg::stake {
+                    asset_token: HumanAddr::from(ANC_TOKEN),
+                })
+                .unwrap(),
+                send: vec![],
+            }),
+        ]
     );
 }
