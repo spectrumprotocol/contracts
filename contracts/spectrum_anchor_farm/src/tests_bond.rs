@@ -221,7 +221,7 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
     let res = handle(deps, env.clone(), msg.clone());
     assert!(res.is_err());
 
-    // bond success
+    // bond success user1 1000 ANC-LP
     let env = mock_env(ANC_LP, &[]);
     let res = handle(deps, env.clone(), msg);
     assert!(res.is_ok());
@@ -254,7 +254,7 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
         ),
     ]);
 
-    // query balance
+    // query balance for user1
     let msg = QueryMsg::reward_info {
         staker_addr: HumanAddr::from(USER1),
         height: 0u64,
@@ -282,24 +282,7 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
         },]
     );
 
-    // // bond SPY
-    // let env = mock_env(SPY_LP, &[]);
-    // let msg = HandleMsg::receive(Cw20ReceiveMsg {
-    //     sender: HumanAddr::from(USER1),
-    //     amount: Uint128::from(4000u128),
-    //     msg: Some(
-    //         to_binary(&Cw20HookMsg::bond {
-    //             staker_addr: None,
-    //             asset_token: HumanAddr::from(SPY_TOKEN),
-    //             compound_rate: Some(Decimal::percent(50)),
-    //         })
-    //         .unwrap(),
-    //     ),
-    // });
-    // let res = handle(deps, env.clone(), msg.clone());
-    // assert!(res.is_ok());
-
-    // unbond
+    // unbond 3000 ANC-LP
     let env = mock_env(USER1, &[]);
     let msg = HandleMsg::unbond {
         asset_token: HumanAddr::from(ANC_TOKEN),
@@ -330,7 +313,7 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
         ]
     );
 
-    // withdraw
+    // withdraw rewards
     let msg = HandleMsg::withdraw { asset_token: None };
     let res = handle(deps, env.clone(), msg);
     assert!(res.is_ok());
@@ -374,39 +357,6 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
         ]
     );
 
-    // deposit_farm_share(
-    //     deps,
-    //     &config,
-    //     vec![
-    //         (HumanAddr::from(MIR_TOKEN), Uint128::from(500u128)),
-    //         (HumanAddr::from(SPY_TOKEN), Uint128::from(1000u128)),
-    //     ],
-    // )
-    // .unwrap();
-    // deps.querier.with_token_balances(&[
-    //     (
-    //         &HumanAddr::from(MIR_STAKING),
-    //         &[
-    //             (&HumanAddr::from(MIR_TOKEN), &Uint128::from(10000u128)),
-    //             (&HumanAddr::from(SPY_TOKEN), &Uint128::from(6000u128)),
-    //         ],
-    //     ),
-    //     (
-    //         &HumanAddr::from(MIR_GOV),
-    //         &[(
-    //             &HumanAddr::from(MOCK_CONTRACT_ADDR),
-    //             &Uint128::from(3000u128),
-    //         )],
-    //     ),
-    //     (
-    //         &HumanAddr::from(SPEC_GOV),
-    //         &[(
-    //             &HumanAddr::from(MOCK_CONTRACT_ADDR),
-    //             &Uint128::from(1800u128),
-    //         )],
-    //     ),
-    // ]);
-
     deps.querier.with_token_balances(&[
         (
             &HumanAddr::from(ANC_STAKING),
@@ -425,7 +375,128 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
         ),
     ]);
 
-    // query balance
+    // query balance for user2
+    let msg = QueryMsg::reward_info {
+        staker_addr: HumanAddr::from(USER2),
+        height: 0u64,
+    };
+    let res: RewardInfoResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
+    assert_eq!(res.reward_infos, vec![]);
+
+    // query balance for user1
+    let msg = QueryMsg::reward_info {
+        staker_addr: HumanAddr::from(USER1),
+        height: 0u64,
+    };
+    let res: RewardInfoResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
+    assert_eq!(
+        res.reward_infos,
+        vec![RewardInfoResponseItem {
+            asset_token: HumanAddr::from(ANC_TOKEN),
+            pending_farm_reward: Uint128::from(0u128),
+            pending_spec_reward: Uint128::from(0u128),
+            bond_amount: Uint128::from(7000u128),
+            auto_bond_amount: Uint128::from(4200u128),
+            stake_bond_amount: Uint128::from(2800u128),
+            accum_spec_share: Uint128::from(2700u128),
+            farm_share_index: Decimal::from_ratio(125u128, 1000u128),
+            auto_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
+            stake_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
+            farm_share: Uint128::from(0u128),
+            spec_share: Uint128::from(0u128),
+            auto_bond_share: Uint128::from(4200u128),
+            stake_bond_share: Uint128::from(2800u128),
+            locked_spec_share: Uint128::zero(),
+            locked_spec_reward: Uint128::zero(),
+        },]
+    );
+
+    // bond user2 5000 ANC-LP auto-stake
+    let env = mock_env(ANC_LP, &[]);
+    let msg = HandleMsg::receive(Cw20ReceiveMsg {
+        sender: HumanAddr::from(USER2),
+        amount: Uint128::from(5000u128),
+        msg: Some(
+            to_binary(&Cw20HookMsg::bond {
+                staker_addr: None,
+                asset_token: HumanAddr::from(ANC_TOKEN),
+                compound_rate: None,
+            })
+            .unwrap(),
+        ),
+    });
+    let res = handle(deps, env.clone(), msg);
+    assert!(res.is_ok());
+
+    let mut pool_info = pool_info_read(&deps.storage).load(config.anchor_token.as_slice()).unwrap();
+    deposit_farm_share(deps, &mut pool_info, &config, Uint128::from(10000u128)).unwrap();
+    pool_info_store(&mut deps.storage).save(config.anchor_token.as_slice(), &pool_info).unwrap();
+    deps.querier.with_token_balances(&[
+        (
+            &HumanAddr::from(ANC_STAKING),
+            &[(
+                &HumanAddr::from(MOCK_CONTRACT_ADDR),
+                &Uint128::from(12000u128),
+            )],
+        ),
+        (
+            &HumanAddr::from(ANC_GOV),
+            &[(
+                &HumanAddr::from(MOCK_CONTRACT_ADDR),
+                &Uint128::from(5000u128),
+            )],
+        ),
+        (
+            &HumanAddr::from(SPEC_GOV),
+            &[(&HumanAddr::from(MOCK_CONTRACT_ADDR), &Uint128::from(1000u128))],
+        ),
+    ]);
+
+    /*
+        USER1 7000 (auto 4200, stake 2800)
+        USER2 5000 (auto 0, stake 5000)
+        Total lp 12000
+        Total farm share 7800
+        Farm share +10000
+        USER1 Farm share = 28/78 * 10000 = 3589
+        USER2 Farm share = 50/78 * 10000 = 6410
+        Farm reward 5000
+        USER1 Farm reward = 28/78 * 5000 = 1794
+        USER2 Farm reward = 50/78 * 5000 = 3205
+        SPEC reward +1000
+        USER1 SPEC reward ~ 582
+        USER2 SPEC reward ~ 416
+    */
+
+    // query balance for user1
+    let msg = QueryMsg::reward_info {
+        staker_addr: HumanAddr::from(USER1),
+        height: 0u64,
+    };
+    let res: RewardInfoResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
+    assert_eq!(
+        res.reward_infos,
+        vec![RewardInfoResponseItem {
+            asset_token: HumanAddr::from(ANC_TOKEN),
+            pending_farm_reward: Uint128::from(1794u128),
+            pending_spec_reward: Uint128::from(582u128),
+            bond_amount: Uint128::from(7000u128),
+            auto_bond_amount: Uint128::from(4200u128),
+            stake_bond_amount: Uint128::from(2800u128),
+            accum_spec_share: Uint128::from(3282u128),
+            farm_share_index: Decimal::from_ratio(125u128, 1000u128),
+            auto_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
+            stake_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
+            farm_share: Uint128::from(3589u128),
+            spec_share: Uint128::from(582u128),
+            auto_bond_share: Uint128::from(4200u128),
+            stake_bond_share: Uint128::from(2800u128),
+            locked_spec_share: Uint128::zero(),
+            locked_spec_reward: Uint128::zero(),
+        },]
+    );
+
+    // query balance for user2
     let msg = QueryMsg::reward_info {
         staker_addr: HumanAddr::from(USER2),
         height: 0u64,
@@ -433,356 +504,27 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
     let res: RewardInfoResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
     assert_eq!(
         res.reward_infos,
-        vec![]
+        vec![RewardInfoResponseItem {
+            asset_token: HumanAddr::from(ANC_TOKEN),
+            pending_farm_reward: Uint128::from(3205u128),
+            pending_spec_reward: Uint128::from(416u128),
+            bond_amount: Uint128::from(5000u128),
+            auto_bond_amount: Uint128::from(0u128),
+            stake_bond_amount: Uint128::from(5000u128),
+            accum_spec_share: Uint128::from(416u128),
+            farm_share_index: Decimal::from_ratio(125u128, 1000u128),
+            auto_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
+            stake_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
+            farm_share: Uint128::from(6410u128),
+            spec_share: Uint128::from(416u128),
+            auto_bond_share: Uint128::from(0u128),
+            stake_bond_share: Uint128::from(5000u128),
+            locked_spec_share: Uint128::zero(),
+            locked_spec_reward: Uint128::zero(),
+        },]
     );
 
-        // query balance
-        let msg = QueryMsg::reward_info {
-            staker_addr: HumanAddr::from(USER1),
-            height: 0u64,
-        };
-        let res: RewardInfoResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
-        assert_eq!(
-            res.reward_infos,
-            vec![RewardInfoResponseItem {
-                asset_token: HumanAddr::from(ANC_TOKEN),
-                pending_farm_reward: Uint128::from(0u128),
-                pending_spec_reward: Uint128::from(0u128),
-                bond_amount: Uint128::from(7000u128),
-                auto_bond_amount: Uint128::from(4200u128),
-                stake_bond_amount: Uint128::from(2800u128),
-                accum_spec_share: Uint128::from(2700u128),
-                farm_share_index: Decimal::from_ratio(125u128, 1000u128),
-                auto_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
-                stake_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
-                farm_share: Uint128::from(0u128),
-                spec_share: Uint128::from(0u128),
-                auto_bond_share: Uint128::from(4200u128),
-                stake_bond_share: Uint128::from(2800u128),
-                locked_spec_share: Uint128::zero(),
-                locked_spec_reward: Uint128::zero(),
-            },]
-        );
-
-
-    // // bond user2
-    // let env = mock_env(MIR_LP, &[]);
-    // let msg = HandleMsg::receive(Cw20ReceiveMsg {
-    //     sender: HumanAddr::from(USER2),
-    //     amount: Uint128::from(5000u128),
-    //     msg: Some(
-    //         to_binary(&Cw20HookMsg::bond {
-    //             staker_addr: None,
-    //             asset_token: HumanAddr::from(MIR_TOKEN),
-    //             compound_rate: None,
-    //         })
-    //         .unwrap(),
-    //     ),
-    // });
-    // let res = handle(deps, env.clone(), msg);
-    // assert!(res.is_ok());
-
-    // let env = mock_env(SPY_LP, &[]);
-    // let msg = HandleMsg::receive(Cw20ReceiveMsg {
-    //     sender: HumanAddr::from(USER2),
-    //     amount: Uint128::from(4000u128),
-    //     msg: Some(
-    //         to_binary(&Cw20HookMsg::bond {
-    //             staker_addr: None,
-    //             asset_token: HumanAddr::from(SPY_TOKEN),
-    //             compound_rate: None,
-    //         })
-    //         .unwrap(),
-    //     ),
-    // });
-    // let res = handle(deps, env.clone(), msg);
-    // assert!(res.is_ok());
-
-    // deposit_farm_share(
-    //     deps,
-    //     &config,
-    //     vec![
-    //         (HumanAddr::from(MIR_TOKEN), Uint128::from(4000u128)),
-    //         (HumanAddr::from(SPY_TOKEN), Uint128::from(7200u128)),
-    //     ],
-    // )
-    // .unwrap();
-    // deps.querier.with_token_balances(&[
-    //     (
-    //         &HumanAddr::from(MIR_STAKING),
-    //         &[
-    //             (&HumanAddr::from(MIR_TOKEN), &Uint128::from(16000u128)),
-    //             (&HumanAddr::from(SPY_TOKEN), &Uint128::from(12000u128)),
-    //         ],
-    //     ),
-    //     (
-    //         &HumanAddr::from(MIR_GOV),
-    //         &[(
-    //             &HumanAddr::from(MOCK_CONTRACT_ADDR),
-    //             &Uint128::from(14200u128),
-    //         )],
-    //     ),
-    //     (
-    //         &HumanAddr::from(SPEC_GOV),
-    //         &[(
-    //             &HumanAddr::from(MOCK_CONTRACT_ADDR),
-    //             &Uint128::from(16200u128),
-    //         )],
-    //     ),
-    // ]);
-
-    // /*
-    //     UNIT: 100
-    //     MIR balance: 142 = existing MIR: 30 + new MIR: 112
-    //     new MIR: 112 (MIR pool = 40, SPY pool = 72)
-    //     new MIR on MIR pool: 40 (USER1 = 15, USER2 = 25) from stake USER1 = 30 & USER2 = 50
-    //     new MIR on SPY pool: 72 (USER1 = 24, USER2 = 48) from stake USER1 = 20 & USER2 = 40
-    //     USER1 MIR total: 25 (existing MIR = 10, new on MIR pool = 15)
-    //     USER1 SPY total: 44 (existing MIR = 20, new on SPY pool = 24)
-    //     USER2 MIR total: 25 (new on MIR pool = 25)
-    //     USER2 SPY total: 48 (new on SPY pool = 48)
-
-    //     existing SPEC: 18 (MIR pool = 6, SPY pool = 12)
-    //     SPEC balance: 162 - existing SPEC: 18 = new SPEC: 144
-    //     new SPEC: 144 (MIR pool = 48, SPY pool = 96) from weight MIR pool = 1 & SPY pool = 2
-    //     new SPEC on MIR pool: 48 (USER1 = 33, USER2 = 15) from bond USER1 = 110 & USER2 = 50
-    //     new SPEC on SPY pool: 96 (USER1 = 64, USER2 = 32) from bond USER1 = 80 & USER2 = 40
-    //     USER1 MIR total: 39 (existing MIR = 6, new on MIR pool = 33)
-    //     USER1 SPY total: 76 (existing MIR = 12, new on SPY pool = 64)
-    //     USER2 MIR total: 15 (new on MIR pool = 15)
-    //     USER2 SPY total: 32 (new on SPY pool = 32)
-    // */
-
-    // // query balance1
-    // let msg = QueryMsg::reward_info {
-    //     staker_addr: HumanAddr::from(USER1),
-    //     asset_token: None,
-    //     height: 0u64,
-    // };
-    // let res: RewardInfoResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
-    // assert_eq!(
-    //     res.reward_infos,
-    //     vec![
-    //         RewardInfoResponseItem {
-    //             asset_token: HumanAddr::from(MIR_TOKEN),
-    //             pending_farm_reward: Uint128::from(2498u128),
-    //             pending_spec_reward: Uint128::from(3899u128),
-    //             bond_amount: Uint128::from(11000u128),
-    //             auto_bond_amount: Uint128::from(8000u128),
-    //             stake_bond_amount: Uint128::from(3000u128),
-    //             accum_spec_share: Uint128::from(4799u128),
-    //         },
-    //         RewardInfoResponseItem {
-    //             asset_token: HumanAddr::from(SPY_TOKEN),
-    //             pending_farm_reward: Uint128::from(4400u128),
-    //             pending_spec_reward: Uint128::from(7600u128),
-    //             bond_amount: Uint128::from(8000u128),
-    //             auto_bond_amount: Uint128::from(6000u128),
-    //             stake_bond_amount: Uint128::from(2000u128),
-    //             accum_spec_share: Uint128::from(9400u128),
-    //         },
-    //     ]
-    // );
-
-    // // query balance2
-    // let msg = QueryMsg::reward_info {
-    //     staker_addr: HumanAddr::from(USER2),
-    //     asset_token: None,
-    //     height: 0u64,
-    // };
-    // let res: RewardInfoResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
-    // assert_eq!(
-    //     res.reward_infos,
-    //     vec![
-    //         RewardInfoResponseItem {
-    //             asset_token: HumanAddr::from(MIR_TOKEN),
-    //             pending_farm_reward: Uint128::from(2500u128),
-    //             pending_spec_reward: Uint128::from(1500u128),
-    //             bond_amount: Uint128::from(5000u128),
-    //             auto_bond_amount: Uint128::from(0u128),
-    //             stake_bond_amount: Uint128::from(5000u128),
-    //             accum_spec_share: Uint128::from(1500u128),
-    //         },
-    //         RewardInfoResponseItem {
-    //             asset_token: HumanAddr::from(SPY_TOKEN),
-    //             pending_farm_reward: Uint128::from(4800u128),
-    //             pending_spec_reward: Uint128::from(3200u128),
-    //             bond_amount: Uint128::from(4000u128),
-    //             auto_bond_amount: Uint128::from(0u128),
-    //             stake_bond_amount: Uint128::from(4000u128),
-    //             accum_spec_share: Uint128::from(3200u128),
-    //         },
-    //     ]
-    // );
 }
-
-// fn test_deposit_fee(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
-//     // alter config, deposit fee
-//     let env = mock_env(SPEC_GOV, &[]);
-//     let msg = HandleMsg::update_config {
-//         owner: None,
-//         platform: None,
-//         controller: None,
-//         community_fee: None,
-//         platform_fee: None,
-//         controller_fee: None,
-//         deposit_fee: Some(Decimal::percent(20)),
-//         lock_start: None,
-//         lock_end: None,
-//     };
-//     let res = handle(deps, env.clone(), msg.clone());
-//     assert!(res.is_ok());
-
-//     // bond user3
-//     let env = mock_env(MIR_LP, &[]);
-//     let msg = HandleMsg::receive(Cw20ReceiveMsg {
-//         sender: HumanAddr::from(USER3),
-//         amount: Uint128::from(80000u128),
-//         msg: Some(
-//             to_binary(&Cw20HookMsg::bond {
-//                 staker_addr: None,
-//                 asset_token: HumanAddr::from(MIR_TOKEN),
-//                 compound_rate: Some(Decimal::percent(50)),
-//             })
-//             .unwrap(),
-//         ),
-//     });
-//     let res = handle(deps, env.clone(), msg);
-//     assert!(res.is_ok());
-
-//     let env = mock_env(SPY_LP, &[]);
-//     let msg = HandleMsg::receive(Cw20ReceiveMsg {
-//         sender: HumanAddr::from(USER3),
-//         amount: Uint128::from(60000u128),
-//         msg: Some(
-//             to_binary(&Cw20HookMsg::bond {
-//                 staker_addr: None,
-//                 asset_token: HumanAddr::from(SPY_TOKEN),
-//                 compound_rate: Some(Decimal::percent(50)),
-//             })
-//             .unwrap(),
-//         ),
-//     });
-//     let res = handle(deps, env.clone(), msg);
-//     assert!(res.is_ok());
-
-//     deps.querier.with_token_balances(&[
-//         (
-//             &HumanAddr::from(MIR_STAKING),
-//             &[
-//                 (&HumanAddr::from(MIR_TOKEN), &Uint128::from(96000u128)),
-//                 (&HumanAddr::from(SPY_TOKEN), &Uint128::from(72000u128)),
-//             ],
-//         ),
-//         (
-//             &HumanAddr::from(MIR_GOV),
-//             &[(
-//                 &HumanAddr::from(MOCK_CONTRACT_ADDR),
-//                 &Uint128::from(14200u128),
-//             )],
-//         ),
-//         (
-//             &HumanAddr::from(SPEC_GOV),
-//             &[(
-//                 &HumanAddr::from(MOCK_CONTRACT_ADDR),
-//                 &Uint128::from(16200u128),
-//             )],
-//         ),
-//     ]);
-
-//     // query balance1
-//     let msg = QueryMsg::reward_info {
-//         staker_addr: HumanAddr::from(USER1),
-//         asset_token: None,
-//         height: 0u64,
-//     };
-//     let res: RewardInfoResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
-//     assert_eq!(
-//         res.reward_infos,
-//         vec![
-//             RewardInfoResponseItem {
-//                 asset_token: HumanAddr::from(MIR_TOKEN),
-//                 pending_farm_reward: Uint128::from(2498u128),
-//                 pending_spec_reward: Uint128::from(3899u128),
-//                 bond_amount: Uint128::from(13200u128),
-//                 auto_bond_amount: Uint128::from(9600u128),
-//                 stake_bond_amount: Uint128::from(3600u128),
-//                 accum_spec_share: Uint128::from(4799u128),
-//             },
-//             RewardInfoResponseItem {
-//                 asset_token: HumanAddr::from(SPY_TOKEN),
-//                 pending_farm_reward: Uint128::from(4400u128),
-//                 pending_spec_reward: Uint128::from(7600u128),
-//                 bond_amount: Uint128::from(9600u128),
-//                 auto_bond_amount: Uint128::from(7200u128),
-//                 stake_bond_amount: Uint128::from(2400u128),
-//                 accum_spec_share: Uint128::from(9400u128),
-//             },
-//         ]
-//     );
-
-//     // query balance2
-//     let msg = QueryMsg::reward_info {
-//         staker_addr: HumanAddr::from(USER2),
-//         asset_token: None,
-//         height: 0u64,
-//     };
-//     let res: RewardInfoResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
-//     assert_eq!(
-//         res.reward_infos,
-//         vec![
-//             RewardInfoResponseItem {
-//                 asset_token: HumanAddr::from(MIR_TOKEN),
-//                 pending_farm_reward: Uint128::from(2500u128),
-//                 pending_spec_reward: Uint128::from(1500u128),
-//                 bond_amount: Uint128::from(6000u128),
-//                 auto_bond_amount: Uint128::from(0u128),
-//                 stake_bond_amount: Uint128::from(6000u128),
-//                 accum_spec_share: Uint128::from(1500u128),
-//             },
-//             RewardInfoResponseItem {
-//                 asset_token: HumanAddr::from(SPY_TOKEN),
-//                 pending_farm_reward: Uint128::from(4800u128),
-//                 pending_spec_reward: Uint128::from(3200u128),
-//                 bond_amount: Uint128::from(4800u128),
-//                 auto_bond_amount: Uint128::from(0u128),
-//                 stake_bond_amount: Uint128::from(4800u128),
-//                 accum_spec_share: Uint128::from(3200u128),
-//             },
-//         ]
-//     );
-
-//     // query balance3
-//     let msg = QueryMsg::reward_info {
-//         staker_addr: HumanAddr::from(USER3),
-//         asset_token: None,
-//         height: 0u64,
-//     };
-//     let res: RewardInfoResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
-//     assert_eq!(
-//         res.reward_infos,
-//         vec![
-//             RewardInfoResponseItem {
-//                 asset_token: HumanAddr::from(MIR_TOKEN),
-//                 pending_farm_reward: Uint128::zero(),
-//                 pending_spec_reward: Uint128::zero(),
-//                 bond_amount: Uint128::from(76800u128),
-//                 auto_bond_amount: Uint128::from(38400u128),
-//                 stake_bond_amount: Uint128::from(38400u128),
-//                 accum_spec_share: Uint128::zero(),
-//             },
-//             RewardInfoResponseItem {
-//                 asset_token: HumanAddr::from(SPY_TOKEN),
-//                 pending_farm_reward: Uint128::zero(),
-//                 pending_spec_reward: Uint128::zero(),
-//                 bond_amount: Uint128::from(57600u128),
-//                 auto_bond_amount: Uint128::from(28800u128),
-//                 stake_bond_amount: Uint128::from(28800u128),
-//                 accum_spec_share: Uint128::zero(),
-//             },
-//         ]
-//     );
-// }
 
 // fn test_staked_reward(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
 //     // unbond user1
