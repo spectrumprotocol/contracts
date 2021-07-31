@@ -1,71 +1,74 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Decimal, HumanAddr, Uint128};
-use cw20::Cw20ReceiveMsg;
+use crate::common::OrderBy;
+use cosmwasm_std::{HumanAddr, Uint128};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
+    pub owner: HumanAddr,
     pub pylon_token: HumanAddr,
-    pub staking_token: HumanAddr,
-    pub distribution_schedule: Vec<(u64, u64, Uint128)>,
+    pub genesis_time: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    Receive(Cw20ReceiveMsg),
-    Unbond {
-        amount: Uint128,
+    UpdateConfig {
+        owner: Option<HumanAddr>,
+        pylon_token: Option<HumanAddr>,
+        genesis_time: Option<u64>,
     },
-    /// Withdraw pending rewards
-    Withdraw {},
+    RegisterVestingAccounts {
+        vesting_accounts: Vec<VestingAccount>,
+    },
+    Claim {},
+}
+
+/// CONTRACT: end_time > start_time
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct VestingAccount {
+    pub address: HumanAddr,
+    pub schedules: Vec<(u64, u64, Uint128)>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum Cw20HookMsg {
-    Bond {},
+pub struct VestingInfo {
+    pub schedules: Vec<(u64, u64, Uint128)>,
+    pub last_claim_time: u64,
 }
-
-/// We currently take no arguments for migrations
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     Config {},
-    State {
-        block_height: Option<u64>,
+    VestingAccount {
+        address: HumanAddr,
     },
-    StakerInfo {
-        staker: HumanAddr,
-        block_height: Option<u64>,
+    VestingAccounts {
+        start_after: Option<HumanAddr>,
+        limit: Option<u32>,
+        order_by: Option<OrderBy>,
     },
 }
 
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
+    pub owner: HumanAddr,
     pub pylon_token: HumanAddr,
-    pub staking_token: HumanAddr,
-    pub distribution_schedule: Vec<(u64, u64, Uint128)>,
+    pub genesis_time: u64,
 }
 
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct StateResponse {
-    pub last_distributed: u64,
-    pub total_bond_amount: Uint128,
-    pub global_reward_index: Decimal,
+pub struct VestingAccountResponse {
+    pub address: HumanAddr,
+    pub info: VestingInfo,
 }
 
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct StakerInfoResponse {
-    pub staker: HumanAddr,
-    pub reward_index: Decimal,
-    pub bond_amount: Uint128,
-    pub pending_reward: Uint128,
+pub struct VestingAccountsResponse {
+    pub vesting_accounts: Vec<VestingAccountResponse>,
 }

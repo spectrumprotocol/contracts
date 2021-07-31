@@ -242,9 +242,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "pylon-protocol"
+name = "pylon-token"
 version = "1.0.0"
 dependencies = [
+ "cosmwasm-bignumber",
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw20",
@@ -450,7 +451,7 @@ dependencies = [
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw20",
- "pylon-protocol",
+ "pylon-token",
  "schemars",
  "serde",
  "spectrum-protocol",

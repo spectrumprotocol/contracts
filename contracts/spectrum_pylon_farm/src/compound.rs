@@ -13,12 +13,12 @@ use crate::querier::query_pylon_reward_info;
 use cw20::Cw20HandleMsg;
 
 use crate::state::{pool_info_read, pool_info_store, read_state, Config, PoolInfo};
-use pylon_protocol::gov::Cw20HookMsg as PylonGovCw20HookMsg;
-use pylon_protocol::staking::{
+use pylon_token::gov::Cw20HookMsg as PylonGovCw20HookMsg;
+use pylon_token::staking::{
     Cw20HookMsg as PylonStakingCw20HookMsg, HandleMsg as PylonStakingHandleMsg,
 };
-use spectrum_protocol::pylon_farm::HandleMsg;
 use spectrum_protocol::gov::{Cw20HookMsg as GovCw20HookMsg, HandleMsg as GovHandleMsg};
+use spectrum_protocol::pylon_farm::HandleMsg;
 use terraswap::asset::{Asset, AssetInfo};
 use terraswap::pair::{
     Cw20HookMsg as TerraswapCw20HookMsg, HandleMsg as TerraswapHandleMsg, SimulationResponse,
@@ -80,8 +80,7 @@ pub fn compound<S: Storage, A: Api, Q: Querier>(
         total_mine_commission += commission;
         total_mine_swap_amount += commission;
 
-        let auto_bond_amount =
-            (pylon_reward_info.bond_amount - pool_info.total_stake_bond_amount)?;
+        let auto_bond_amount = (pylon_reward_info.bond_amount - pool_info.total_stake_bond_amount)?;
         compound_amount =
             pylon_amount.multiply_ratio(auto_bond_amount, pylon_reward_info.bond_amount);
         let stake_amount = (pylon_amount - compound_amount)?;
@@ -95,7 +94,7 @@ pub fn compound<S: Storage, A: Api, Q: Querier>(
         total_mine_stake_amount += stake_amount;
     }
 
-    deposit_farm_share(deps, &config, total_mine_stake_amount)?;
+    deposit_farm_share(deps, &mut pool_info, &config, total_mine_stake_amount)?;
 
     // get reinvest amount
     let reinvest_allowance = pool_info.reinvest_allowance + compound_amount;

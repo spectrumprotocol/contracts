@@ -9,12 +9,13 @@ use cosmwasm_std::{
 };
 use cosmwasm_storage::to_length_prefixed;
 use std::collections::HashMap;
+use std::vec;
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
 use terraswap::pair::SimulationResponse;
 
-use pylon_protocol::gov::StakerResponse as PylonStakerResponse;
-use pylon_protocol::staking::StakerInfoResponse as PylonStakerInfoResponse;
+use pylon_token::gov::StakerResponse as PylonStakerResponse;
+use pylon_token::staking::StakerInfoResponse as PylonStakerInfoResponse;
 use spectrum_protocol::gov::BalanceResponse as SpecBalanceResponse;
 
 const MINE_STAKING: &str = "mine_staking";
@@ -209,6 +210,7 @@ impl WasmMockQuerier {
                             balance,
                             share: balance
                                 .multiply_ratio(100u128, self.token_querier.balance_percent),
+                            locked_balance: vec![],
                         }))
                     }
                     MockQueryMsg::StakerInfo {

@@ -2,7 +2,7 @@ use cosmwasm_std::{
     to_binary, Api, CanonicalAddr, Extern, Querier, QueryRequest, StdResult, Storage, WasmQuery,
 };
 
-use pylon_protocol::staking::{QueryMsg as PylonStakingQueryMsg, StakerInfoResponse};
+use pylon_token::staking::{QueryMsg as PylonStakingQueryMsg, StakerInfoResponse};
 
 pub fn query_pylon_reward_info<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
