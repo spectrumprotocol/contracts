@@ -214,7 +214,7 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
     let res = handle(deps, env.clone(), msg.clone());
     assert!(res.is_err());
 
-    // bond success user1 1000 ANC-LP
+    // bond success user1 1000 MINE-LP
     let env = mock_env(MINE_LP, &[]);
     let res = handle(deps, env.clone(), msg);
     assert!(res.is_ok());
@@ -279,7 +279,7 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
         },]
     );
 
-    // unbond 3000 ANC-LP
+    // unbond 3000 MINE-LP
     let env = mock_env(USER1, &[]);
     let msg = HandleMsg::unbond {
         asset_token: HumanAddr::from(MINE_TOKEN),
@@ -408,7 +408,7 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
         },]
     );
 
-    // bond user2 5000 ANC-LP auto-stake
+    // bond user2 5000 MINE-LP auto-stake
     let env = mock_env(MINE_LP, &[]);
     let msg = HandleMsg::receive(Cw20ReceiveMsg {
         sender: HumanAddr::from(USER2),

@@ -70,7 +70,7 @@ pub fn compound<S: Storage, A: Api, Q: Querier>(
     };
     let total_fee = community_fee + platform_fee + controller_fee;
 
-    // calculate auto-compound, auto-Stake, and commission in ANC
+    // calculate auto-compound, auto-Stake, and commission in MINE
     let mut pool_info = pool_info_read(&deps.storage).load(&config.pylon_token.as_slice())?;
     let reward = pylon_reward_info.pending_reward;
     if !reward.is_zero() && !pylon_reward_info.bond_amount.is_zero() {
@@ -100,7 +100,7 @@ pub fn compound<S: Storage, A: Api, Q: Querier>(
     let reinvest_allowance = pool_info.reinvest_allowance + compound_amount;
     // split reinvest amount
     let swap_amount = reinvest_allowance.multiply_ratio(1u128, 2u128);
-    // add commission to reinvest ANC to total swap amount
+    // add commission to reinvest MINE to total swap amount
     total_mine_swap_amount += swap_amount;
 
     let mine_pair_info = query_pair_info(
@@ -116,14 +116,14 @@ pub fn compound<S: Storage, A: Api, Q: Querier>(
         ],
     )?;
 
-    // find ANC swap rate
-    let anc = Asset {
+    // find MINE swap rate
+    let mine = Asset {
         info: AssetInfo::Token {
             contract_addr: pylon_token.clone(),
         },
         amount: total_mine_swap_amount,
     };
-    let mine_swap_rate = simulate(&deps, &mine_pair_info.contract_addr, &anc)?;
+    let mine_swap_rate = simulate(&deps, &mine_pair_info.contract_addr, &mine)?;
     let return_asset = Asset {
         info: AssetInfo::NativeToken {
             denom: config.base_denom.clone(),
@@ -148,10 +148,10 @@ pub fn compound<S: Storage, A: Api, Q: Querier>(
         amount: net_reinvest_ust,
     };
     let swap_mine_rate = simulate(&deps, &mine_pair_info.contract_addr, &net_reinvest_asset)?;
-    // calculate provided ANC from provided UST
-    let provide_anc = swap_mine_rate.return_amount + swap_mine_rate.commission_amount;
+    // calculate provided MINE from provided UST
+    let provide_mine = swap_mine_rate.return_amount + swap_mine_rate.commission_amount;
 
-    pool_info.reinvest_allowance = (swap_amount - provide_anc)?;
+    pool_info.reinvest_allowance = (swap_amount - provide_mine)?;
     pool_info_store(&mut deps.storage).save(&config.pylon_token.as_slice(), &pool_info)?;
 
     logs.push(log(
@@ -160,15 +160,15 @@ pub fn compound<S: Storage, A: Api, Q: Querier>(
     ));
 
     let mut messages: Vec<CosmosMsg> = vec![];
-    let withdraw_all_anc: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
+    let withdraw_all_mine: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: pylon_staking,
         send: vec![],
         msg: to_binary(&PylonStakingHandleMsg::Withdraw {})?,
     });
-    messages.push(withdraw_all_anc);
+    messages.push(withdraw_all_mine);
 
     if !total_mine_swap_amount.is_zero() {
-        let swap_anc: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
+        let swap_mine: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: pylon_token.clone(),
             msg: to_binary(&Cw20HandleMsg::Send {
                 contract: mine_pair_info.contract_addr.clone(),
@@ -181,7 +181,7 @@ pub fn compound<S: Storage, A: Api, Q: Querier>(
             })?,
             send: vec![],
         });
-        messages.push(swap_anc);
+        messages.push(swap_mine);
     }
 
     if !total_ust_commission_amount.is_zero() {
@@ -300,7 +300,7 @@ pub fn compound<S: Storage, A: Api, Q: Querier>(
     }
 
     if !total_mine_stake_amount.is_zero() {
-        let stake_anc = CosmosMsg::Wasm(WasmMsg::Execute {
+        let stake_mine = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: pylon_token.clone(),
             send: vec![],
             msg: to_binary(&Cw20HandleMsg::Send {
@@ -309,14 +309,14 @@ pub fn compound<S: Storage, A: Api, Q: Querier>(
                 msg: Some(to_binary(&PylonGovCw20HookMsg::StakeVotingTokens {})?),
             })?,
         });
-        messages.push(stake_anc);
+        messages.push(stake_mine);
     }
 
     let increase_allowance = CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: pylon_token.clone(),
         msg: to_binary(&Cw20HandleMsg::IncreaseAllowance {
             spender: mine_pair_info.contract_addr.clone(),
-            amount: provide_anc,
+            amount: provide_mine,
             expires: None,
         })?,
         send: vec![],
@@ -330,7 +330,7 @@ pub fn compound<S: Storage, A: Api, Q: Querier>(
                     info: AssetInfo::Token {
                         contract_addr: pylon_token.clone(),
                     },
-                    amount: provide_anc,
+                    amount: provide_mine,
                 },
                 Asset {
                     info: AssetInfo::NativeToken {
@@ -358,7 +358,7 @@ pub fn compound<S: Storage, A: Api, Q: Querier>(
     logs.push(log("action", "compound"));
     logs.push(log("asset_token", pylon_token.as_str()));
     logs.push(log("reinvest_allowance", reinvest_allowance.to_string()));
-    logs.push(log("provide_token_amount", provide_anc.to_string()));
+    logs.push(log("provide_token_amount", provide_mine.to_string()));
     logs.push(log("provide_ust_amount", net_reinvest_ust.to_string()));
     logs.push(log(
         "remaining_reinvest_allowance",

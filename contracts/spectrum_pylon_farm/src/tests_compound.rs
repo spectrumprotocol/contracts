@@ -111,7 +111,7 @@ fn test() {
     test_compound_zero(&mut deps);
     test_compound_mine_from_allowance(&mut deps);
     test_bond(&mut deps);
-    test_compound_anc(&mut deps);
+    test_compound_mine(&mut deps);
     test_compound_mine_with_fees(&mut deps);
 }
 
@@ -428,7 +428,7 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
     let res = handle(deps, env.clone(), msg.clone());
     assert!(res.is_err());
 
-    // bond success user1 1000 ANC-LP
+    // bond success user1 1000 MINE-LP
     let env = mock_env(MINE_LP, &[]);
     let res = handle(deps, env.clone(), msg);
     assert!(res.is_ok());
@@ -493,7 +493,7 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
         },]
     );
 
-    // unbond 3000 ANC-LP
+    // unbond 3000 MINE-LP
     let env = mock_env(USER1, &[]);
     let msg = HandleMsg::unbond {
         asset_token: HumanAddr::from(MINE_TOKEN),
@@ -622,7 +622,7 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
         },]
     );
 
-    // bond user2 5000 ANC-LP auto-stake
+    // bond user2 5000 MINE-LP auto-stake
     let env = mock_env(MINE_LP, &[]);
     let msg = HandleMsg::receive(Cw20ReceiveMsg {
         sender: HumanAddr::from(USER2),
@@ -743,7 +743,7 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
     );
 }
 
-fn test_compound_anc(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_compound_mine(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
     let env = mock_env(TEST_CONTROLLER, &[]);
 
     let asset_token_raw = deps
@@ -759,15 +759,15 @@ fn test_compound_anc(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
         .unwrap();
 
     /*
-    pending rewards 12000 ANC
+    pending rewards 12000 MINE
     USER1 7000 (auto 4200, stake 2800)
     USER2 5000 (auto 0, stake 5000)
     total 12000
     auto 4200 / 12000 * 12000 = 4200
     stake 7800 / 12000 * 12000 = 7800
-    swap amount 2100 ANC -> 2073 UST
+    swap amount 2100 MINE -> 2073 UST
     provide UST = 2052
-    provide ANC = 2052
+    provide MINE = 2052
     remaining = 48
     */
     let msg = HandleMsg::compound {};
@@ -972,7 +972,7 @@ fn test_compound_mine_with_fees(deps: &mut Extern<MockStorage, MockApi, WasmMock
         .unwrap();
 
     /*
-    pending rewards 12100 ANC
+    pending rewards 12100 MINE
     USER1 7100 (auto 4300, stake 2800)
     USER2 5000 (auto 0, stake 5000)
     total 12100
@@ -980,15 +980,15 @@ fn test_compound_mine_with_fees(deps: &mut Extern<MockStorage, MockApi, WasmMock
     remaining = 11495
     auto 4300 / 12100 * 11495 = 4085
     stake 7800 / 12100 * 11495 = 7410
-    swap amount 2042 ANC -> 2016 UST
+    swap amount 2042 MINE -> 2016 UST
     provide UST = 1996
-    provide ANC = 1996
+    provide MINE = 1996
     remaining = 46
-    fee swap amount 605 ANC -> 591 UST -> 590 SPEC
+    fee swap amount 605 MINE -> 591 UST -> 590 SPEC
     community fee = 363 / 605 * 590 = 354
     platform fee = 121 / 605 * 590 = 118
     controller fee = 121 / 605 * 590 = 118
-    total swap amount 2647 ANC
+    total swap amount 2647 MINE
     */
     let msg = HandleMsg::compound {};
     let res = handle(deps, env.clone(), msg.clone()).unwrap();
