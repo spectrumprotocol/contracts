@@ -95,7 +95,7 @@ pub fn compound<S: Storage, A: Api, Q: Querier>(
         total_anc_stake_amount += stake_amount;
     }
 
-    deposit_farm_share(deps, &config, total_anc_stake_amount)?;
+    deposit_farm_share(deps, &mut pool_info, &config, total_anc_stake_amount)?;
 
     // get reinvest amount
     let reinvest_allowance = pool_info.reinvest_allowance + compound_amount;
