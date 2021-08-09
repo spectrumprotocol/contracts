@@ -52,11 +52,22 @@ static KEY_STATE: &[u8] = b"state";
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
 pub struct State {
+    // addr for contract, this is for query
     pub contract_addr: CanonicalAddr,
+
+    // this is to reconcile with gov
     pub previous_spec_share: Uint128,
+
+    // amount of SPEC reward per weight
     pub spec_share_index: Decimal,
+
+    // current MIR rewards in share
     pub total_farm_share: Uint128,
+
+    // total SPEC reward distribution weight
     pub total_weight: u32,
+
+    // is for stat only, not use
     pub earning: Uint128,
 }
 
@@ -82,17 +93,42 @@ static PREFIX_POOL_INFO: &[u8] = b"pool_info";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolInfo {
+    // LP token
     pub staking_token: CanonicalAddr,
+
+    // total auto-compound share in the pool
     pub total_auto_bond_share: Uint128,
+
+    // total auto-stake share in the pool
     pub total_stake_bond_share: Uint128,
+
+    // LP amount for auto-stake
     pub total_stake_bond_amount: Uint128,
+
+    // distribution weight
     pub weight: u32,
+
+    // readonly, flag whether UI should show compound option
     pub auto_compound: bool,
+
+    // current MIR reward share for the pool
     pub farm_share: Uint128,
+
+    // index to reconcile with state.spec_share_index
+    // (state.spec_share_index - pool_info.state_spec_share_index) * pool_info.weight = additional SPEC rewards for this pool
     pub state_spec_share_index: Decimal,
+
+    // total MIR rewards in share per total_stake_bond_share
     pub farm_share_index: Decimal,
+
+    // additional SPEC rewards allocated for auto-compound per total_auto_bond_share
     pub auto_spec_share_index: Decimal,
+
+    // additional SPEC rewards allocated for auto-stake per total_stake_bond_share
     pub stake_spec_share_index: Decimal,
+
+    // for MIR pool: number of MIR to reinvest
+    // for non-MIR pool: number of UST to reinvest
     pub reinvest_allowance: Uint128,
 }
 
@@ -147,13 +183,35 @@ static PREFIX_REWARD: &[u8] = b"reward";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfo {
+
+    // index to reconcile with pool_info.farm_share_index
+    // (pool_info.farm_share_index - reward_info.farm_share_index) * reward_info.stake_bond_share
+    // = new MIR rewards for auto-stake
     pub farm_share_index: Decimal,
+
+    // index to reconcile with pool_info.auto_spec_share_index
+    // (pool_info.auto_spec_share_index - reward_info.auto_spec_share_index) * reward_info.auto_bond_share
+    // = new SPEC rewards for auto-compound
     pub auto_spec_share_index: Decimal,
+
+    // index to reconcile with pool_info.stake_spec_share_index
+    // (pool_info.stake_spec_share_index - reward_info.stake_spec_share_index) * reward_info.stake_bond_share
+    // = new SPEC rewards for auto-stake
     pub stake_spec_share_index: Decimal,
+
+    // share of auto-compound for a person
     pub auto_bond_share: Uint128,
+
+    // share of auto-stake for a person
     pub stake_bond_share: Uint128,
+
+    // current MIR rewards in share balance
     pub farm_share: Uint128,
+
+    // current SPEC reward share balance
     pub spec_share: Uint128,
+
+    // cumulative SPEC share balance
     pub accum_spec_share: Uint128,
 }
 

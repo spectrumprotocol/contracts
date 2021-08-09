@@ -102,7 +102,7 @@ pub fn try_bond<S: Storage, A: Api, Q: Querier>(
 pub fn deposit_farm_share<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     config: &Config,
-    pool_pairs: Vec<(HumanAddr, Uint128)>,
+    pool_pairs: Vec<(HumanAddr, Uint128)>,  // array of (pool address, new MIR amount)
 ) -> StdResult<()> {
     let mut state = read_state(&deps.storage)?;
 
@@ -185,14 +185,18 @@ fn spec_reward_to_pool(
 
     let share = (UDec128::from(state.spec_share_index) - pool_info.state_spec_share_index.into())
         * Uint128::from(pool_info.weight as u128);
+
+    // pool_info.total_stake_bond_amount / lp_balance = ratio for auto-stake
+    // now stake_share is additional SPEC rewards for auto-stake
     let stake_share = share * pool_info.total_stake_bond_amount / lp_balance;
 
-    // spec reward to staker is per stake bond share & auto bond share
     if !stake_share.is_zero() {
         let stake_share_per_bond = stake_share / pool_info.total_stake_bond_share;
         pool_info.stake_spec_share_index =
             pool_info.stake_spec_share_index + stake_share_per_bond.into();
     }
+
+    // auto_share is additional SPEC rewards for auto-compound
     let auto_share = share - stake_share;
     if !auto_share.is_zero() {
         let auto_share_per_bond = auto_share / pool_info.total_auto_bond_share;
