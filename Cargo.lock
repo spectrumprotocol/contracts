@@ -242,6 +242,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "pylon-token"
+version = "1.0.0"
+dependencies = [
+ "cosmwasm-bignumber",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -427,6 +440,22 @@ dependencies = [
  "cw20",
  "schemars",
  "serde",
+ "terraswap",
+]
+
+[[package]]
+name = "spectrum-pylon-farm"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "pylon-token",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
  "terraswap",
 ]
 
