@@ -549,6 +549,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "spectrum-anchor-farm"
+version = "0.2.0"
+dependencies = [
+ "anchor-token",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
+ "terraswap",
+]
+
+[[package]]
 name = "spectrum-protocol"
 version = "0.2.0-rc1"
 dependencies = [
@@ -558,20 +574,6 @@ dependencies = [
  "schemars",
  "serde",
  "terraswap",
-]
-
-[[package]]
-name = "spectrum-spec-farm"
-version = "0.2.0"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw20",
- "schemars",
- "serde",
- "spectrum-protocol",
- "terra-cosmwasm",
 ]
 
 [[package]]

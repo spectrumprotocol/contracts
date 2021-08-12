@@ -1,5 +1,5 @@
 [workspace]
-members = ["packages/*", "contracts/spectrum_spec_farm"]
+members = ["packages/*", "contracts/*"]
 
 [profile.release.package.spectrum-protocol]
 opt-level = 3
