@@ -1,25 +1,19 @@
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{from_binary, from_slice, to_binary, Api, Coin, Empty, Querier, QuerierResult, QueryRequest, SystemError, Uint128, WasmQuery, OwnedDeps, SystemResult, Addr, CanonicalAddr, ContractResult};
+use cosmwasm_std::{from_binary, from_slice, to_binary, Api, Coin, Empty, Querier, QuerierResult, QueryRequest, SystemError, Uint128, WasmQuery, OwnedDeps, SystemResult, ContractResult};
 use spectrum_protocol::gov::{BalanceResponse, QueryMsg};
 use std::collections::HashMap;
-use cosmwasm_storage::to_length_prefixed;
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
 pub fn mock_dependencies(
-    canonical_length: usize,
     contract_balance: &[Coin],
 ) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier> {
-    let contract_addr = MOCK_CONTRACT_ADDR.to_string();
-    let custom_querier: WasmMockQuerier = WasmMockQuerier::new(
-        MockQuerier::new(&[(&contract_addr, contract_balance)]),
-        canonical_length,
-        MockApi::new(canonical_length),
-    );
+    let custom_querier: WasmMockQuerier =
+        WasmMockQuerier::new(MockQuerier::new(&[(&MOCK_CONTRACT_ADDR, contract_balance)]));
 
     OwnedDeps {
         storage: MockStorage::default(),
-        api: MockApi::new(canonical_length),
+        api: MockApi::default(),
         querier: custom_querier,
     }
 }
@@ -118,7 +112,7 @@ impl WasmMockQuerier {
 }
 
 impl WasmMockQuerier {
-    pub fn new<A: Api>(base: MockQuerier<Empty>, _canonical_length: usize, _api: A) -> Self {
+    pub fn new(base: MockQuerier<Empty>) -> Self {
         WasmMockQuerier {
             base,
             token_querier: TokenQuerier::default(),
