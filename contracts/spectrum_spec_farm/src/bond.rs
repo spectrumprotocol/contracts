@@ -87,7 +87,7 @@ pub fn deposit_reward(
     }))?;
     let diff = staked.share.checked_sub(state.previous_spec_share);
     let deposit_share = if query {
-        diff.unwrap_or(Uint128::zero())
+        diff.unwrap_or_else(|_| Uint128::zero())
     } else {
         diff?
     };
@@ -114,7 +114,7 @@ fn reward_to_pool(state: &State, pool_info: &mut PoolInfo) -> StdResult<()> {
 
 fn before_share_change(pool_info: &PoolInfo, reward_info: &mut RewardInfo) -> StdResult<()> {
     let share = reward_info.bond_amount
-        * (pool_info.spec_share_index - reward_info.spec_share_index.into());
+        * (pool_info.spec_share_index - reward_info.spec_share_index);
     reward_info.spec_share += share;
     reward_info.accum_spec_share += share;
     reward_info.spec_share_index = pool_info.spec_share_index;
@@ -170,7 +170,7 @@ pub fn unbond(
                 .addr_humanize(&pool_info.staking_token)?
                 .to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: info.sender.clone().to_string(),
+                recipient: info.sender.to_string(),
                 amount,
             })?,
             funds: vec![],

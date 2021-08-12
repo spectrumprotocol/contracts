@@ -2,9 +2,6 @@ use crate::state::{config_store, read_config, Config};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    log, to_binary, Api, Binary, Coin, CosmosMsg, Decimal, Env, Extern, HandleResponse, String,
-    InitResponse, MigrateResponse, MigrateResult, Querier, StdError, StdResult, Storage, Uint128,
-    WasmMsg,
     attr, to_binary, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
     Response, StdError, StdResult, Uint128, WasmMsg,
 };
@@ -188,11 +185,12 @@ fn bond(
         ])
         .add_attributes(vec![
             attr("action", "bond"),
-            attr("asset_token", token_addr.to_string()),
+            attr("asset_token", token_addr),
             attr("tax_amount", tax_amount.to_string()),
         ]))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn bond_hook(
     deps: DepsMut,
     env: Env,
