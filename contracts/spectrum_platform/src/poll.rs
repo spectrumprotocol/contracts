@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    log, Api, Binary, CosmosMsg, Decimal, Env, Extern, HandleResponse, HandleResult, HumanAddr,
+    log, Api, Binary, CosmosMsg, Decimal, Env, Extern, HandleResponse, HandleResult, String,
     Querier, StdError, StdResult, Storage, WasmMsg,
 };
 use spectrum_protocol::common::OrderBy;
@@ -389,7 +389,7 @@ pub fn query_polls<S: Storage, A: Api, Q: Querier>(
 pub fn query_voters<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     poll_id: u64,
-    start_after: Option<HumanAddr>,
+    start_after: Option<String>,
     limit: Option<u32>,
     order_by: Option<OrderBy>,
 ) -> StdResult<VotersResponse> {
@@ -414,7 +414,7 @@ pub fn query_voters<S: Storage, A: Api, Q: Querier>(
         )?
     };
 
-    let voters_response: StdResult<Vec<(HumanAddr, VoterInfo)>> = voters
+    let voters_response: StdResult<Vec<(String, VoterInfo)>> = voters
         .into_iter()
         .map(|voter_info| {
             Ok((

@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     log, to_binary, Api, CanonicalAddr, CosmosMsg, Decimal, Env, Extern, HandleResponse,
-    HandleResult, HumanAddr, Order, Querier, QueryRequest, StdError, StdResult, Storage, Uint128,
+    HandleResult, String, Order, Querier, QueryRequest, StdError, StdResult, Storage, Uint128,
     WasmMsg, WasmQuery,
 };
 
@@ -26,8 +26,8 @@ use spectrum_protocol::pylon_farm::{RewardInfoResponse, RewardInfoResponseItem};
 pub fn bond<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    sender_addr: HumanAddr,
-    asset_token: HumanAddr,
+    sender_addr: String,
+    asset_token: String,
     amount: Uint128,
     compound_rate: Option<Decimal>,
 ) -> HandleResult {
@@ -287,7 +287,7 @@ fn stake_token<A: Api>(
 pub fn unbond<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    asset_token: HumanAddr,
+    asset_token: String,
     amount: Uint128,
 ) -> HandleResult {
     let staker_addr_raw = deps.api.canonical_address(&env.message.sender)?;
@@ -382,7 +382,7 @@ pub fn unbond<S: Storage, A: Api, Q: Querier>(
 pub fn withdraw<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    asset_token: Option<HumanAddr>,
+    asset_token: Option<String>,
 ) -> HandleResult {
     let staker_addr = deps.api.canonical_address(&env.message.sender)?;
     let asset_token = asset_token.map(|a| deps.api.canonical_address(&a).unwrap());
@@ -565,7 +565,7 @@ fn calc_spec_balance(share: Uint128, staked: &SpecBalanceResponse) -> Uint128 {
 
 pub fn query_reward_info<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
-    staker_addr: HumanAddr,
+    staker_addr: String,
     height: u64,
 ) -> StdResult<RewardInfoResponse> {
     let staker_addr_raw = deps.api.canonical_address(&staker_addr)?;

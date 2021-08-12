@@ -1,6 +1,6 @@
 use crate::contract::{handle, init, query};
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage, MOCK_CONTRACT_ADDR, mock_dependencies, MockQuerier};
-use cosmwasm_std::{Binary, CosmosMsg, Decimal, Extern, HumanAddr, Uint128, WasmMsg, from_binary, to_vec};
+use cosmwasm_std::{Binary, CosmosMsg, Decimal, Extern, String, Uint128, WasmMsg, from_binary, to_vec};
 use cw20::{Cw20HandleMsg};
 use spectrum_protocol::common::OrderBy;
 use spectrum_protocol::platform::{BoardsResponse, ConfigInfo, ExecuteMsg, HandleMsg, PollInfo, PollStatus, PollsResponse, QueryMsg, StateInfo, VoteOption, VoterInfo, VotersResponse};
@@ -28,11 +28,11 @@ fn test() {
     test_poll_expired(&mut deps);
 }
 
-fn test_config(deps: &mut Extern<MockStorage, MockApi, MockQuerier>) -> ConfigInfo {
+fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier>) -> ConfigInfo {
     // test init & read config & read state
     let env = mock_env(TEST_CREATOR, &[]);
     let mut config = ConfigInfo {
-        owner: HumanAddr::from(MOCK_CONTRACT_ADDR),
+        owner: MOCK_CONTRACT_ADDR.to_string(),
         quorum: Decimal::percent(120u64),
         threshold: Decimal::percent(DEFAULT_THRESHOLD),
         voting_period: 0,
@@ -111,14 +111,14 @@ fn test_config(deps: &mut Extern<MockStorage, MockApi, MockQuerier>) -> ConfigIn
 }
 
 fn test_board(
-    deps: &mut Extern<MockStorage, MockApi, MockQuerier>,
+    deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier>,
 ) -> (u32, u32, u32) {
     // stake, error
     let env = mock_env(TEST_VOTER, &[]);
     let weight = 25u32;
     let total_weight = weight;
     let msg = HandleMsg::upsert_board {
-        address: HumanAddr::from(TEST_VOTER),
+        address: TEST_VOTER.to_string(),
         weight,
     };
     let res = handle(deps, env.clone(), msg.clone());
@@ -142,7 +142,7 @@ fn test_board(
     let weight_2 = 75u32;
     let total_weight = total_weight + weight_2;
     let msg = HandleMsg::upsert_board {
-        address: HumanAddr::from(TEST_VOTER_2),
+        address: TEST_VOTER_2.to_string(),
         weight: weight_2,
     };
     let res = handle(deps, env.clone(), msg.clone());
@@ -163,7 +163,7 @@ fn test_board(
 }
 
 fn test_poll_executed(
-    deps: &mut Extern<MockStorage, MockApi, MockQuerier>,
+    deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier>,
     config: &ConfigInfo,
     weight: u32,
     weight_2: u32,
@@ -172,7 +172,7 @@ fn test_poll_executed(
     // start poll
     let env = mock_env(TEST_VOTER, &[]);
     let execute_msg = ExecuteMsg::execute {
-        contract: HumanAddr::from(VOTING_TOKEN),
+        contract: VOTING_TOKEN.to_string(),
         msg: String::from_utf8(
             to_vec(&Cw20HandleMsg::Burn {
                 amount: Uint128(123),
@@ -197,7 +197,7 @@ fn test_poll_executed(
 
     let poll = PollInfo {
         id: 1u64,
-        creator: HumanAddr::from(TEST_VOTER),
+        creator: TEST_VOTER.to_string(),
         status: PollStatus::in_progress,
         end_height: env.block.height + config.voting_period,
         title: "title".to_string(),
@@ -287,14 +287,14 @@ fn test_poll_executed(
         VotersResponse {
             voters: vec![
                 (
-                    HumanAddr::from(TEST_VOTER_2),
+                    TEST_VOTER_2.to_string(),
                     VoterInfo {
                         vote: VoteOption::yes,
                         balance: weight_2,
                     }
                 ),
                 (
-                    HumanAddr::from(TEST_VOTER),
+                    TEST_VOTER.to_string(),
                     VoterInfo {
                         vote: VoteOption::yes,
                         balance: weight,
@@ -355,7 +355,7 @@ fn test_poll_executed(
 }
 
 fn test_poll_low_quorum(
-    deps: &mut Extern<MockStorage, MockApi, MockQuerier>,
+    deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier>,
     total_weight: u32,
 ) {
     // start poll2
@@ -404,7 +404,7 @@ fn test_poll_low_quorum(
 }
 
 fn test_poll_low_threshold(
-    deps: &mut Extern<MockStorage, MockApi, MockQuerier>,
+    deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier>,
     total_weight: u32,
 ) {
     // start poll3
@@ -454,12 +454,12 @@ fn test_poll_low_threshold(
 }
 
 fn test_poll_expired(
-    deps: &mut Extern<MockStorage, MockApi, MockQuerier>,
+    deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier>,
 ) {
     // start poll
     let env = mock_env(TEST_VOTER, &[]);
     let execute_msg = ExecuteMsg::execute {
-        contract: HumanAddr::from(VOTING_TOKEN),
+        contract: VOTING_TOKEN.to_string(),
         msg: String::from_utf8(
             to_vec(&Cw20HandleMsg::Burn {
                 amount: Uint128(123),

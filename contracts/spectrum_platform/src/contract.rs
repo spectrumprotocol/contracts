@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    log, to_binary, Api, Binary, Decimal, Env, Extern, HandleResponse, HandleResult, HumanAddr,
+    log, to_binary, Api, Binary, Decimal, Env, Extern, HandleResponse, HandleResult, String,
     InitResponse, MigrateResponse, MigrateResult, Querier, StdError, StdResult, Storage,
 };
 use spectrum_protocol::platform::{
@@ -104,7 +104,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 fn update_config<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    owner: Option<HumanAddr>,
+    owner: Option<String>,
     quorum: Option<Decimal>,
     threshold: Option<Decimal>,
     voting_period: Option<u64>,
@@ -149,7 +149,7 @@ fn update_config<S: Storage, A: Api, Q: Querier>(
 fn upsert_board<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    address: HumanAddr,
+    address: String,
     weight: u32,
 ) -> HandleResult {
     let config = read_config(&deps.storage)?;

@@ -3,7 +3,7 @@ use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
 use crate::state::{pool_info_read, pool_info_store};
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
-    from_binary, to_binary, Api, Coin, CosmosMsg, Decimal, Extern, HumanAddr, Uint128, WasmMsg,
+    from_binary, to_binary, Api, Coin, CosmosMsg, Decimal, Extern, String, Uint128, WasmMsg,
 };
 use cw20::{Cw20HandleMsg};
 use schemars::JsonSchema;
@@ -30,13 +30,13 @@ const SPY_LP: &str = "spy_lp";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfoResponse {
-    pub staker_addr: HumanAddr,
+    pub staker_addr: String,
     pub reward_infos: Vec<RewardInfoResponseItem>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfoResponseItem {
-    pub asset_token: HumanAddr,
+    pub asset_token: String,
     pub bond_amount: Uint128,
     pub auto_bond_amount: Uint128,
     pub stake_bond_amount: Uint128,
@@ -54,14 +54,14 @@ fn test() {
         &PairInfo {
             asset_infos: [
                 AssetInfo::Token {
-                    contract_addr: HumanAddr::from(MIR_TOKEN),
+                    contract_addr: MIR_TOKEN.to_string(),
                 },
                 AssetInfo::NativeToken {
                     denom: "uusd".to_string(),
                 },
             ],
-            contract_addr: HumanAddr::from("pair0000"),
-            liquidity_token: HumanAddr::from("liquidity0001"),
+            contract_addr: "pair0000".to_string(),
+            liquidity_token: "liquidity0001".to_string(),
         },
     )]);
     deps.querier.with_tax(
@@ -81,33 +81,33 @@ fn test() {
         &PairInfo {
             asset_infos: [
                 AssetInfo::Token {
-                    contract_addr: HumanAddr::from(SPY_TOKEN),
+                    contract_addr: SPY_TOKEN.to_string(),
                 },
                 AssetInfo::NativeToken {
                     denom: "uusd".to_string(),
                 },
             ],
-            contract_addr: HumanAddr::from("pair0001"),
-            liquidity_token: HumanAddr::from("liquidity0002"),
+            contract_addr: "pair0001".to_string(),
+            liquidity_token: "liquidity0002".to_string(),
         },
     )]);
 
     test_reinvest_spy(&mut deps);
 }
 
-fn test_config(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) -> ConfigInfo {
+fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> ConfigInfo {
     // test init & read config & read state
     let env = mock_env(TEST_CREATOR, &[]);
     let mut config = ConfigInfo {
-        owner: HumanAddr::from(TEST_CREATOR),
-        spectrum_gov: HumanAddr::from(SPEC_GOV),
-        spectrum_token: HumanAddr::from(SPEC_TOKEN),
-        mirror_gov: HumanAddr::from(MIR_GOV),
-        mirror_token: HumanAddr::from(MIR_TOKEN),
-        mirror_staking: HumanAddr::from(MIR_STAKING),
-        terraswap_factory: HumanAddr::from(TERRA_SWAP),
+        owner: TEST_CREATOR.to_string(),
+        spectrum_gov: SPEC_GOV.to_string(),
+        spectrum_token: SPEC_TOKEN.to_string(),
+        mirror_gov: MIR_GOV.to_string(),
+        mirror_token: MIR_TOKEN.to_string(),
+        mirror_staking: MIR_STAKING.to_string(),
+        terraswap_factory: TERRA_SWAP.to_string(),
         platform: Option::None,
-        controller: Some(HumanAddr::from(TEST_CONTROLLER)),
+        controller: Some(TEST_CONTROLLER.to_string()),
         base_denom: "uusd".to_string(),
         community_fee: Decimal::zero(),
         platform_fee: Decimal::zero(),
@@ -142,7 +142,7 @@ fn test_config(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) -> Conf
     // alter config, validate owner
     let env = mock_env(SPEC_GOV, &[]);
     let msg = HandleMsg::update_config {
-        owner: Some(HumanAddr::from(SPEC_GOV)),
+        owner: Some(SPEC_GOV.to_string()),
         platform: None,
         controller: None,
         community_fee: None,
@@ -162,18 +162,18 @@ fn test_config(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) -> Conf
 
     let msg = QueryMsg::config {};
     let res: ConfigInfo = from_binary(&query(deps, msg).unwrap()).unwrap();
-    config.owner = HumanAddr::from(SPEC_GOV);
+    config.owner = SPEC_GOV.to_string();
     assert_eq!(res, config.clone());
 
     config
 }
 
-fn test_register_asset(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // no permission
     let env = mock_env(TEST_CREATOR, &[]);
     let msg = HandleMsg::register_asset {
-        asset_token: HumanAddr::from(MIR_TOKEN),
-        staking_token: HumanAddr::from(MIR_LP),
+        asset_token: MIR_TOKEN.to_string(),
+        staking_token: MIR_LP.to_string(),
         weight: 1u32,
         auto_compound: true,
     };
@@ -192,8 +192,8 @@ fn test_register_asset(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>)
         res,
         PoolsResponse {
             pools: vec![PoolItem {
-                asset_token: HumanAddr::from(MIR_TOKEN),
-                staking_token: HumanAddr::from(MIR_LP),
+                asset_token: MIR_TOKEN.to_string(),
+                staking_token: MIR_LP.to_string(),
                 weight: 1u32,
                 auto_compound: true,
                 farm_share: Uint128::zero(),
@@ -211,8 +211,8 @@ fn test_register_asset(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>)
 
     // vault2
     let msg = HandleMsg::register_asset {
-        asset_token: HumanAddr::from(SPY_TOKEN),
-        staking_token: HumanAddr::from(SPY_LP),
+        asset_token: SPY_TOKEN.to_string(),
+        staking_token: SPY_LP.to_string(),
         weight: 2u32,
         auto_compound: true,
     };
@@ -225,31 +225,31 @@ fn test_register_asset(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>)
     assert_eq!(res.total_weight, 3u32);
 }
 
-fn test_reinvest_unauthorized(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_reinvest_unauthorized(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // reinvest err
     let env = mock_env(TEST_CREATOR, &[]);
     let msg = HandleMsg::re_invest {
-        asset_token: HumanAddr::from(MIR_TOKEN),
+        asset_token: MIR_TOKEN.to_string(),
     };
     let res = handle(deps, env.clone(), msg.clone());
     assert!(res.is_err());
 }
 
-fn test_reinvest_invalid_pool(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_reinvest_invalid_pool(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // reinvest err
     let env = mock_env(TEST_CREATOR, &[]);
     let msg = HandleMsg::re_invest {
-        asset_token: HumanAddr::from("invalid"),
+        asset_token: "invalid".to_string(),
     };
     let res = handle(deps, env.clone(), msg.clone());
     assert!(res.is_err());
 }
 
-fn test_reinvest_zero(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_reinvest_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // reinvest zero
     let env = mock_env(TEST_CONTROLLER, &[]);
     let msg = HandleMsg::re_invest {
-        asset_token: HumanAddr::from(MIR_TOKEN),
+        asset_token: MIR_TOKEN.to_string(),
     };
     let res = handle(deps, env.clone(), msg.clone()).unwrap();
 
@@ -257,9 +257,9 @@ fn test_reinvest_zero(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) 
         res.messages,
         vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(MIR_TOKEN),
+                contract_addr: MIR_TOKEN.to_string(),
                 msg: to_binary(&Cw20HandleMsg::Send {
-                    contract: HumanAddr::from("pair0000"),
+                    contract: "pair0000".to_string(),
                     amount: Uint128::zero(),
                     msg: Some(
                         to_binary(&TerraswapCw20HookMsg::Swap {
@@ -274,9 +274,9 @@ fn test_reinvest_zero(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) 
                 send: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(MIR_TOKEN),
+                contract_addr: MIR_TOKEN.to_string(),
                 msg: to_binary(&Cw20HandleMsg::IncreaseAllowance {
-                    spender: HumanAddr::from("pair0000"),
+                    spender: "pair0000".to_string(),
                     amount: Uint128::zero(),
                     expires: None,
                 })
@@ -284,12 +284,12 @@ fn test_reinvest_zero(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) 
                 send: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from("pair0000"),
+                contract_addr: "pair0000".to_string(),
                 msg: to_binary(&TerraswapHandleMsg::ProvideLiquidity {
                     assets: [
                         Asset {
                             info: AssetInfo::Token {
-                                contract_addr: HumanAddr::from(MIR_TOKEN),
+                                contract_addr: MIR_TOKEN.to_string(),
                             },
                             amount: Uint128::zero(),
                         },
@@ -311,7 +311,7 @@ fn test_reinvest_zero(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) 
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: env.contract.address,
                 msg: to_binary(&HandleMsg::stake {
-                    asset_token: HumanAddr::from(MIR_TOKEN),
+                    asset_token: MIR_TOKEN.to_string(),
                 })
                 .unwrap(),
                 send: vec![],
@@ -320,13 +320,13 @@ fn test_reinvest_zero(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) 
     );
 }
 
-fn test_reinvest_mir(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_reinvest_mir(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // reinvest mir
     let env = mock_env(TEST_CONTROLLER, &[]);
 
     let asset_token_raw = deps
         .api
-        .canonical_address(&HumanAddr::from(MIR_TOKEN))
+        .canonical_address(&MIR_TOKEN.to_string())
         .unwrap();
     let mut pool_info = pool_info_read(&deps.storage)
         .load(asset_token_raw.as_slice())
@@ -337,7 +337,7 @@ fn test_reinvest_mir(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
         .unwrap();
 
     let msg = HandleMsg::re_invest {
-        asset_token: HumanAddr::from(MIR_TOKEN),
+        asset_token: MIR_TOKEN.to_string(),
     };
     let res = handle(deps, env.clone(), msg.clone()).unwrap();
 
@@ -351,9 +351,9 @@ fn test_reinvest_mir(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
         res.messages,
         vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(MIR_TOKEN),
+                contract_addr: MIR_TOKEN.to_string(),
                 msg: to_binary(&Cw20HandleMsg::Send {
-                    contract: HumanAddr::from("pair0000"),
+                    contract: "pair0000".to_string(),
                     amount: Uint128::from(50_000_000u128),
                     msg: Some(
                         to_binary(&TerraswapCw20HookMsg::Swap {
@@ -368,9 +368,9 @@ fn test_reinvest_mir(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
                 send: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(MIR_TOKEN),
+                contract_addr: MIR_TOKEN.to_string(),
                 msg: to_binary(&Cw20HandleMsg::IncreaseAllowance {
-                    spender: HumanAddr::from("pair0000"),
+                    spender: "pair0000".to_string(),
                     amount: Uint128::from(48_867_757u128),
                     expires: None,
                 })
@@ -378,12 +378,12 @@ fn test_reinvest_mir(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
                 send: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from("pair0000"),
+                contract_addr: "pair0000".to_string(),
                 msg: to_binary(&TerraswapHandleMsg::ProvideLiquidity {
                     assets: [
                         Asset {
                             info: AssetInfo::Token {
-                                contract_addr: HumanAddr::from(MIR_TOKEN),
+                                contract_addr: MIR_TOKEN.to_string(),
                             },
                             amount: Uint128::from(48_867_757u128),
                         },
@@ -405,7 +405,7 @@ fn test_reinvest_mir(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: env.contract.address,
                 msg: to_binary(&HandleMsg::stake {
-                    asset_token: HumanAddr::from(MIR_TOKEN),
+                    asset_token: MIR_TOKEN.to_string(),
                 })
                 .unwrap(),
                 send: vec![],
@@ -414,13 +414,13 @@ fn test_reinvest_mir(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
     );
 }
 
-fn test_reinvest_spy(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_reinvest_spy(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // reinvest SPY
     let env = mock_env(TEST_CONTROLLER, &[]);
 
     let asset_token_raw = deps
         .api
-        .canonical_address(&HumanAddr::from(SPY_TOKEN))
+        .canonical_address(&SPY_TOKEN.to_string())
         .unwrap();
     let mut pool_info = pool_info_read(&deps.storage)
         .load(asset_token_raw.as_slice())
@@ -431,7 +431,7 @@ fn test_reinvest_spy(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
         .unwrap();
 
     let msg = HandleMsg::re_invest {
-        asset_token: HumanAddr::from(SPY_TOKEN),
+        asset_token: SPY_TOKEN.to_string(),
     };
     let res = handle(deps, env.clone(), msg.clone()).unwrap();
 
@@ -452,7 +452,7 @@ fn test_reinvest_spy(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
         res.messages,
         vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from("pair0001"),
+                contract_addr: "pair0001".to_string(),
                 msg: to_binary(&TerraswapHandleMsg::Swap {
                     offer_asset: net_swap_asset,
                     max_spread: None,
@@ -466,9 +466,9 @@ fn test_reinvest_spy(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
                 }],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(SPY_TOKEN),
+                contract_addr: SPY_TOKEN.to_string(),
                 msg: to_binary(&Cw20HandleMsg::IncreaseAllowance {
-                    spender: HumanAddr::from("pair0001"),
+                    spender: "pair0001".to_string(),
                     amount: Uint128::from(49_356_436u128),
                     expires: None,
                 })
@@ -476,12 +476,12 @@ fn test_reinvest_spy(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
                 send: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from("pair0001"),
+                contract_addr: "pair0001".to_string(),
                 msg: to_binary(&TerraswapHandleMsg::ProvideLiquidity {
                     assets: [
                         Asset {
                             info: AssetInfo::Token {
-                                contract_addr: HumanAddr::from(SPY_TOKEN),
+                                contract_addr: SPY_TOKEN.to_string(),
                             },
                             amount: Uint128::from(49_356_436u128),
                         },
@@ -503,7 +503,7 @@ fn test_reinvest_spy(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: env.contract.address,
                 msg: to_binary(&HandleMsg::stake {
-                    asset_token: HumanAddr::from(SPY_TOKEN),
+                    asset_token: SPY_TOKEN.to_string(),
                 })
                 .unwrap(),
                 send: vec![],

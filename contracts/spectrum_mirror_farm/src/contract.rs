@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     from_binary, log, to_binary, Api, Binary, CanonicalAddr, Decimal, Env, Extern, HandleResponse,
-    HandleResult, HumanAddr, InitResponse, MigrateResponse, MigrateResult, Order, Querier,
+    HandleResult, String, InitResponse, MigrateResponse, MigrateResult, Order, Querier,
     StdError, StdResult, Storage, Uint128,
 };
 
@@ -155,9 +155,9 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
 pub fn update_config<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    owner: Option<HumanAddr>,
-    platform: Option<HumanAddr>,
-    controller: Option<HumanAddr>,
+    owner: Option<String>,
+    platform: Option<String>,
+    controller: Option<String>,
     community_fee: Option<Decimal>,
     platform_fee: Option<Decimal>,
     controller_fee: Option<Decimal>,
@@ -222,8 +222,8 @@ pub fn update_config<S: Storage, A: Api, Q: Querier>(
 pub fn register_asset<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    asset_token: HumanAddr,
-    staking_token: HumanAddr,
+    asset_token: String,
+    staking_token: String,
     weight: u32,
     auto_compound: bool,
 ) -> HandleResult {

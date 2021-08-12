@@ -1,6 +1,6 @@
 use crate::state::{config_store, read_config, Config};
 use cosmwasm_std::{
-    log, to_binary, Api, Binary, Coin, CosmosMsg, Decimal, Env, Extern, HandleResponse, HumanAddr,
+    log, to_binary, Api, Binary, Coin, CosmosMsg, Decimal, Env, Extern, HandleResponse, String,
     InitResponse, MigrateResponse, MigrateResult, Querier, StdError, StdResult, Storage, Uint128,
     WasmMsg,
 };
@@ -64,7 +64,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 fn bond<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    contract: HumanAddr,
+    contract: String,
     assets: [Asset; 2],
     slippage_tolerance: Option<Decimal>,
     compound_rate: Option<Decimal>,
@@ -73,7 +73,7 @@ fn bond<S: Storage, A: Api, Q: Querier>(
     let terraswap_factory = deps.api.human_address(&config.terraswap_factory)?;
 
     let mut native_asset_op: Option<Asset> = None;
-    let mut token_info_op: Option<(HumanAddr, Uint128)> = None;
+    let mut token_info_op: Option<(String, Uint128)> = None;
     for asset in assets.iter() {
         match asset.info.clone() {
             AssetInfo::Token { contract_addr } => {
@@ -178,10 +178,10 @@ fn bond<S: Storage, A: Api, Q: Querier>(
 fn bond_hook<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    contract: HumanAddr,
-    asset_token: HumanAddr,
-    staking_token: HumanAddr,
-    staker_addr: HumanAddr,
+    contract: String,
+    asset_token: String,
+    staking_token: String,
+    staker_addr: String,
     prev_staking_token_amount: Uint128,
     compound_rate: Option<Decimal>,
 ) -> StdResult<HandleResponse> {

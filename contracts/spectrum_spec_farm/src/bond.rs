@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     log, to_binary, Api, CanonicalAddr, CosmosMsg, Decimal, Env, Extern, HandleResponse,
-    HandleResult, HumanAddr, Order, Querier, QueryRequest, StdError, StdResult, Storage, Uint128,
+    HandleResult, String, Order, Querier, QueryRequest, StdError, StdResult, Storage, Uint128,
     WasmMsg, WasmQuery,
 };
 
@@ -17,8 +17,8 @@ use spectrum_protocol::spec_farm::{RewardInfoResponse, RewardInfoResponseItem};
 pub fn bond<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    staker_addr: HumanAddr,
-    asset_token: HumanAddr,
+    staker_addr: String,
+    asset_token: String,
     amount: Uint128,
 ) -> HandleResult {
     let staker_addr_raw = deps.api.canonical_address(&staker_addr)?;
@@ -130,7 +130,7 @@ fn before_share_change(pool_info: &PoolInfo, reward_info: &mut RewardInfo) -> St
 pub fn unbond<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    asset_token: HumanAddr,
+    asset_token: String,
     amount: Uint128,
 ) -> HandleResult {
     let staker_addr_raw = deps.api.canonical_address(&env.message.sender)?;
@@ -190,7 +190,7 @@ pub fn unbond<S: Storage, A: Api, Q: Querier>(
 pub fn withdraw<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    asset_token: Option<HumanAddr>,
+    asset_token: Option<String>,
 ) -> HandleResult {
     let staker_addr = deps.api.canonical_address(&env.message.sender)?;
     let asset_token = asset_token.map(|a| deps.api.canonical_address(&a).unwrap());
@@ -307,8 +307,8 @@ fn calc_spec_balace(share: Uint128, staked: &BalanceResponse) -> Uint128 {
 
 pub fn query_reward_info<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
-    staker_addr: HumanAddr,
-    asset_token: Option<HumanAddr>,
+    staker_addr: String,
+    asset_token: Option<String>,
     height: u64,
 ) -> StdResult<RewardInfoResponse> {
     let staker_addr_raw = deps.api.canonical_address(&staker_addr)?;
@@ -338,7 +338,7 @@ fn read_reward_infos<S: Storage, A: Api, Q: Querier>(
     height: u64,
     state: &State,
     staker_addr: &CanonicalAddr,
-    asset_token: &Option<HumanAddr>,
+    asset_token: &Option<String>,
     staked: &BalanceResponse,
 ) -> StdResult<Vec<RewardInfoResponseItem>> {
     let rewards_bucket = rewards_read(&deps.storage, &staker_addr);

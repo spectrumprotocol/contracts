@@ -4,7 +4,7 @@ use crate::state::{
 };
 use cosmwasm_std::{
     log, to_binary, Api, CanonicalAddr, CosmosMsg, Decimal, Env, Extern, HandleResponse,
-    HandleResult, HumanAddr, Querier, StdError, StdResult, Storage, Uint128, WasmMsg,
+    HandleResult, String, Querier, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 use cw20::Cw20HandleMsg;
 use spectrum_protocol::gov::{BalanceResponse, PollStatus, VaultInfo, VaultsResponse};
@@ -85,7 +85,7 @@ pub fn mint<S: Storage, A: Api, Q: Querier>(deps: &mut Extern<S, A, Q>, env: Env
 pub fn stake_tokens<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     _env: Env,
-    sender: HumanAddr,
+    sender: String,
     amount: Uint128,
 ) -> HandleResult {
     if amount.is_zero() {
@@ -212,7 +212,7 @@ fn compute_locked_balance<S: Storage, A: Api, Q: Querier>(
 pub fn upsert_vault<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    vault_address: HumanAddr,
+    vault_address: String,
     weight: u32,
 ) -> HandleResult {
     let config = read_config(&deps.storage)?;
@@ -248,7 +248,7 @@ pub fn upsert_vault<S: Storage, A: Api, Q: Querier>(
 
 pub fn query_balances<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
-    address: HumanAddr,
+    address: String,
     height: Option<u64>,
 ) -> StdResult<BalanceResponse> {
     let addr_raw = deps.api.canonical_address(&address).unwrap();

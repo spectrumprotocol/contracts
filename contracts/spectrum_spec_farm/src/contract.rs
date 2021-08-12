@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     from_binary, log, to_binary, Api, Binary, CanonicalAddr, Decimal, Env, Extern, HandleResponse,
-    HandleResult, HumanAddr, InitResponse, MigrateResponse, MigrateResult, Order, Querier,
+    HandleResult, String, InitResponse, MigrateResponse, MigrateResult, Order, Querier,
     StdError, StdResult, Storage, Uint128,
 };
 
@@ -89,8 +89,8 @@ fn receive_cw20<S: Storage, A: Api, Q: Querier>(
 fn register_asset<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    asset_token: HumanAddr,
-    staking_token: HumanAddr,
+    asset_token: String,
+    staking_token: String,
     weight: u32,
 ) -> HandleResult {
     let config = read_config(&deps.storage)?;
@@ -131,7 +131,7 @@ fn register_asset<S: Storage, A: Api, Q: Querier>(
 fn update_config<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    owner: Option<HumanAddr>,
+    owner: Option<String>,
     lock_start: Option<u64>,
     lock_end: Option<u64>,
 ) -> StdResult<HandleResponse> {

@@ -4,7 +4,7 @@ use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
 use crate::state::read_config;
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    from_binary, to_binary, CosmosMsg, Decimal, Extern, HumanAddr, Uint128, WasmMsg,
+    from_binary, to_binary, CosmosMsg, Decimal, Extern, String, Uint128, WasmMsg,
 };
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 use mirror_protocol::gov::HandleMsg as MirrorGovHandleMsg;
@@ -33,13 +33,13 @@ const SPY_LP: &str = "spy_lp";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfoResponse {
-    pub staker_addr: HumanAddr,
+    pub staker_addr: String,
     pub reward_infos: Vec<RewardInfoResponseItem>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfoResponseItem {
-    pub asset_token: HumanAddr,
+    pub asset_token: String,
     pub bond_amount: Uint128,
     pub auto_bond_amount: Uint128,
     pub stake_bond_amount: Uint128,
@@ -60,17 +60,17 @@ fn test() {
     test_staked_reward(&mut deps);
 }
 
-fn test_config(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) -> ConfigInfo {
+fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> ConfigInfo {
     // test init & read config & read state
     let env = mock_env(TEST_CREATOR, &[]);
     let mut config = ConfigInfo {
-        owner: HumanAddr::from(TEST_CREATOR),
-        spectrum_gov: HumanAddr::from(SPEC_GOV),
-        spectrum_token: HumanAddr::from(SPEC_TOKEN),
-        mirror_gov: HumanAddr::from(MIR_GOV),
-        mirror_token: HumanAddr::from(MIR_TOKEN),
-        mirror_staking: HumanAddr::from(MIR_STAKING),
-        terraswap_factory: HumanAddr::from(TERRA_SWAP),
+        owner: TEST_CREATOR.to_string(),
+        spectrum_gov: SPEC_GOV.to_string(),
+        spectrum_token: SPEC_TOKEN.to_string(),
+        mirror_gov: MIR_GOV.to_string(),
+        mirror_token: MIR_TOKEN.to_string(),
+        mirror_staking: MIR_STAKING.to_string(),
+        terraswap_factory: TERRA_SWAP.to_string(),
         platform: Option::None,
         controller: Option::None,
         base_denom: "uusd".to_string(),
@@ -107,7 +107,7 @@ fn test_config(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) -> Conf
     // alter config, validate owner
     let env = mock_env(SPEC_GOV, &[]);
     let msg = HandleMsg::update_config {
-        owner: Some(HumanAddr::from(SPEC_GOV)),
+        owner: Some(SPEC_GOV.to_string()),
         platform: None,
         controller: None,
         community_fee: None,
@@ -127,18 +127,18 @@ fn test_config(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) -> Conf
 
     let msg = QueryMsg::config {};
     let res: ConfigInfo = from_binary(&query(deps, msg).unwrap()).unwrap();
-    config.owner = HumanAddr::from(SPEC_GOV);
+    config.owner = SPEC_GOV.to_string();
     assert_eq!(res, config.clone());
 
     config
 }
 
-fn test_register_asset(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // no permission
     let env = mock_env(TEST_CREATOR, &[]);
     let msg = HandleMsg::register_asset {
-        asset_token: HumanAddr::from(MIR_TOKEN),
-        staking_token: HumanAddr::from(MIR_LP),
+        asset_token: MIR_TOKEN.to_string(),
+        staking_token: MIR_LP.to_string(),
         weight: 1u32,
         auto_compound: true,
     };
@@ -157,8 +157,8 @@ fn test_register_asset(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>)
         res,
         PoolsResponse {
             pools: vec![PoolItem {
-                asset_token: HumanAddr::from(MIR_TOKEN),
-                staking_token: HumanAddr::from(MIR_LP),
+                asset_token: MIR_TOKEN.to_string(),
+                staking_token: MIR_LP.to_string(),
                 weight: 1u32,
                 auto_compound: true,
                 farm_share: Uint128::zero(),
@@ -176,8 +176,8 @@ fn test_register_asset(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>)
 
     // vault2
     let msg = HandleMsg::register_asset {
-        asset_token: HumanAddr::from(SPY_TOKEN),
-        staking_token: HumanAddr::from(SPY_LP),
+        asset_token: SPY_TOKEN.to_string(),
+        staking_token: SPY_LP.to_string(),
         weight: 2u32,
         auto_compound: true,
     };
@@ -190,16 +190,16 @@ fn test_register_asset(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>)
     assert_eq!(res.total_weight, 3u32);
 }
 
-fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // bond err
     let env = mock_env(TEST_CREATOR, &[]);
     let msg = HandleMsg::receive(Cw20ReceiveMsg {
-        sender: HumanAddr::from(USER1),
+        sender: USER1.to_string(),
         amount: Uint128::from(10000u128),
         msg: Some(
             to_binary(&Cw20HookMsg::bond {
                 staker_addr: None,
-                asset_token: HumanAddr::from(MIR_TOKEN),
+                asset_token: MIR_TOKEN.to_string(),
                 compound_rate: Some(Decimal::percent(60)),
             })
             .unwrap(),
@@ -217,28 +217,28 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
     deposit_farm_share(
         deps,
         &config,
-        vec![(HumanAddr::from(MIR_TOKEN), Uint128::from(1000u128))],
+        vec![(MIR_TOKEN.to_string(), Uint128::from(1000u128))],
     )
     .unwrap();
     deps.querier.with_token_balances(&[
         (
-            &HumanAddr::from(MIR_STAKING),
+            &MIR_STAKING.to_string(),
             &[
-                (&HumanAddr::from(MIR_TOKEN), &Uint128::from(12000u128)),
-                (&HumanAddr::from(SPY_TOKEN), &Uint128::from(5000u128)),
+                (&MIR_TOKEN.to_string(), &Uint128::from(12000u128)),
+                (&SPY_TOKEN.to_string(), &Uint128::from(5000u128)),
             ],
         ),
         (
-            &HumanAddr::from(MIR_GOV),
+            &MIR_GOV.to_string(),
             &[(
-                &HumanAddr::from(MOCK_CONTRACT_ADDR),
+                &MOCK_CONTRACT_ADDR.to_string(),
                 &Uint128::from(1000u128),
             )],
         ),
         (
-            &HumanAddr::from(SPEC_GOV),
+            &SPEC_GOV.to_string(),
             &[(
-                &HumanAddr::from(MOCK_CONTRACT_ADDR),
+                &MOCK_CONTRACT_ADDR.to_string(),
                 &Uint128::from(2700u128),
             )],
         ),
@@ -246,7 +246,7 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
 
     // query balance
     let msg = QueryMsg::reward_info {
-        staker_addr: HumanAddr::from(USER1),
+        staker_addr: USER1.to_string(),
         asset_token: None,
         height: 0u64,
     };
@@ -254,7 +254,7 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: HumanAddr::from(MIR_TOKEN),
+            asset_token: MIR_TOKEN.to_string(),
             pending_farm_reward: Uint128::from(1000u128),
             pending_spec_reward: Uint128::from(900u128),
             bond_amount: Uint128::from(12000u128),
@@ -267,12 +267,12 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
     // bond SPY
     let env = mock_env(SPY_LP, &[]);
     let msg = HandleMsg::receive(Cw20ReceiveMsg {
-        sender: HumanAddr::from(USER1),
+        sender: USER1.to_string(),
         amount: Uint128::from(4000u128),
         msg: Some(
             to_binary(&Cw20HookMsg::bond {
                 staker_addr: None,
-                asset_token: HumanAddr::from(SPY_TOKEN),
+                asset_token: SPY_TOKEN.to_string(),
                 compound_rate: Some(Decimal::percent(50)),
             })
             .unwrap(),
@@ -284,7 +284,7 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
     // unbond
     let env = mock_env(USER1, &[]);
     let msg = HandleMsg::unbond {
-        asset_token: HumanAddr::from(MIR_TOKEN),
+        asset_token: MIR_TOKEN.to_string(),
         amount: Uint128::from(3000u128),
     };
     let res = handle(deps, env.clone(), msg);
@@ -293,19 +293,19 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
         res.unwrap().messages,
         [
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(MIR_STAKING),
+                contract_addr: MIR_STAKING.to_string(),
                 send: vec![],
                 msg: to_binary(&MirrorStakingHandleMsg::unbond {
                     amount: Uint128::from(3000u128),
-                    asset_token: HumanAddr::from(MIR_TOKEN),
+                    asset_token: MIR_TOKEN.to_string(),
                 })
                 .unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(MIR_LP),
+                contract_addr: MIR_LP.to_string(),
                 send: vec![],
                 msg: to_binary(&Cw20HandleMsg::Transfer {
-                    recipient: HumanAddr::from(USER1),
+                    recipient: USER1.to_string(),
                     amount: Uint128::from(3000u128),
                 })
                 .unwrap(),
@@ -321,7 +321,7 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
         res.unwrap().messages,
         vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(SPEC_GOV),
+                contract_addr: SPEC_GOV.to_string(),
                 send: vec![],
                 msg: to_binary(&GovHandleMsg::withdraw {
                     amount: Some(Uint128::from(2700u128)),
@@ -329,16 +329,16 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
                 .unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(SPEC_TOKEN),
+                contract_addr: SPEC_TOKEN.to_string(),
                 send: vec![],
                 msg: to_binary(&Cw20HandleMsg::Transfer {
-                    recipient: HumanAddr::from(USER1),
+                    recipient: USER1.to_string(),
                     amount: Uint128::from(2700u128),
                 })
                 .unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(MIR_GOV),
+                contract_addr: MIR_GOV.to_string(),
                 send: vec![],
                 msg: to_binary(&MirrorGovHandleMsg::WithdrawVotingTokens {
                     amount: Some(Uint128::from(1000u128)),
@@ -346,10 +346,10 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
                 .unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(MIR_TOKEN),
+                contract_addr: MIR_TOKEN.to_string(),
                 send: vec![],
                 msg: to_binary(&Cw20HandleMsg::Transfer {
-                    recipient: HumanAddr::from(USER1),
+                    recipient: USER1.to_string(),
                     amount: Uint128::from(1000u128),
                 })
                 .unwrap(),
@@ -361,30 +361,30 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
         deps,
         &config,
         vec![
-            (HumanAddr::from(MIR_TOKEN), Uint128::from(500u128)),
-            (HumanAddr::from(SPY_TOKEN), Uint128::from(1000u128)),
+            (MIR_TOKEN.to_string(), Uint128::from(500u128)),
+            (SPY_TOKEN.to_string(), Uint128::from(1000u128)),
         ],
     )
     .unwrap();
     deps.querier.with_token_balances(&[
         (
-            &HumanAddr::from(MIR_STAKING),
+            &MIR_STAKING.to_string(),
             &[
-                (&HumanAddr::from(MIR_TOKEN), &Uint128::from(10000u128)),
-                (&HumanAddr::from(SPY_TOKEN), &Uint128::from(6000u128)),
+                (&MIR_TOKEN.to_string(), &Uint128::from(10000u128)),
+                (&SPY_TOKEN.to_string(), &Uint128::from(6000u128)),
             ],
         ),
         (
-            &HumanAddr::from(MIR_GOV),
+            &MIR_GOV.to_string(),
             &[(
-                &HumanAddr::from(MOCK_CONTRACT_ADDR),
+                &MOCK_CONTRACT_ADDR.to_string(),
                 &Uint128::from(3000u128),
             )],
         ),
         (
-            &HumanAddr::from(SPEC_GOV),
+            &SPEC_GOV.to_string(),
             &[(
-                &HumanAddr::from(MOCK_CONTRACT_ADDR),
+                &MOCK_CONTRACT_ADDR.to_string(),
                 &Uint128::from(1800u128),
             )],
         ),
@@ -392,7 +392,7 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
 
     // query balance
     let msg = QueryMsg::reward_info {
-        staker_addr: HumanAddr::from(USER1),
+        staker_addr: USER1.to_string(),
         asset_token: None,
         height: 0u64,
     };
@@ -401,7 +401,7 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
         res.reward_infos,
         vec![
             RewardInfoResponseItem {
-                asset_token: HumanAddr::from(MIR_TOKEN),
+                asset_token: MIR_TOKEN.to_string(),
                 pending_farm_reward: Uint128::from(998u128),
                 pending_spec_reward: Uint128::from(599u128),
                 bond_amount: Uint128::from(10000u128),
@@ -410,7 +410,7 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
                 accum_spec_share: Uint128::from(1499u128),
             },
             RewardInfoResponseItem {
-                asset_token: HumanAddr::from(SPY_TOKEN),
+                asset_token: SPY_TOKEN.to_string(),
                 pending_farm_reward: Uint128::from(2000u128),
                 pending_spec_reward: Uint128::from(1200u128),
                 bond_amount: Uint128::from(6000u128),
@@ -424,12 +424,12 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
     // bond user2
     let env = mock_env(MIR_LP, &[]);
     let msg = HandleMsg::receive(Cw20ReceiveMsg {
-        sender: HumanAddr::from(USER2),
+        sender: USER2.to_string(),
         amount: Uint128::from(5000u128),
         msg: Some(
             to_binary(&Cw20HookMsg::bond {
                 staker_addr: None,
-                asset_token: HumanAddr::from(MIR_TOKEN),
+                asset_token: MIR_TOKEN.to_string(),
                 compound_rate: None,
             })
             .unwrap(),
@@ -440,12 +440,12 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
 
     let env = mock_env(SPY_LP, &[]);
     let msg = HandleMsg::receive(Cw20ReceiveMsg {
-        sender: HumanAddr::from(USER2),
+        sender: USER2.to_string(),
         amount: Uint128::from(4000u128),
         msg: Some(
             to_binary(&Cw20HookMsg::bond {
                 staker_addr: None,
-                asset_token: HumanAddr::from(SPY_TOKEN),
+                asset_token: SPY_TOKEN.to_string(),
                 compound_rate: None,
             })
             .unwrap(),
@@ -458,30 +458,30 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
         deps,
         &config,
         vec![
-            (HumanAddr::from(MIR_TOKEN), Uint128::from(4000u128)),
-            (HumanAddr::from(SPY_TOKEN), Uint128::from(7200u128)),
+            (MIR_TOKEN.to_string(), Uint128::from(4000u128)),
+            (SPY_TOKEN.to_string(), Uint128::from(7200u128)),
         ],
     )
     .unwrap();
     deps.querier.with_token_balances(&[
         (
-            &HumanAddr::from(MIR_STAKING),
+            &MIR_STAKING.to_string(),
             &[
-                (&HumanAddr::from(MIR_TOKEN), &Uint128::from(16000u128)),
-                (&HumanAddr::from(SPY_TOKEN), &Uint128::from(12000u128)),
+                (&MIR_TOKEN.to_string(), &Uint128::from(16000u128)),
+                (&SPY_TOKEN.to_string(), &Uint128::from(12000u128)),
             ],
         ),
         (
-            &HumanAddr::from(MIR_GOV),
+            &MIR_GOV.to_string(),
             &[(
-                &HumanAddr::from(MOCK_CONTRACT_ADDR),
+                &MOCK_CONTRACT_ADDR.to_string(),
                 &Uint128::from(14200u128),
             )],
         ),
         (
-            &HumanAddr::from(SPEC_GOV),
+            &SPEC_GOV.to_string(),
             &[(
-                &HumanAddr::from(MOCK_CONTRACT_ADDR),
+                &MOCK_CONTRACT_ADDR.to_string(),
                 &Uint128::from(16200u128),
             )],
         ),
@@ -511,7 +511,7 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
 
     // query balance1
     let msg = QueryMsg::reward_info {
-        staker_addr: HumanAddr::from(USER1),
+        staker_addr: USER1.to_string(),
         asset_token: None,
         height: 0u64,
     };
@@ -520,7 +520,7 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
         res.reward_infos,
         vec![
             RewardInfoResponseItem {
-                asset_token: HumanAddr::from(MIR_TOKEN),
+                asset_token: MIR_TOKEN.to_string(),
                 pending_farm_reward: Uint128::from(2498u128),
                 pending_spec_reward: Uint128::from(3899u128),
                 bond_amount: Uint128::from(11000u128),
@@ -529,7 +529,7 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
                 accum_spec_share: Uint128::from(4799u128),
             },
             RewardInfoResponseItem {
-                asset_token: HumanAddr::from(SPY_TOKEN),
+                asset_token: SPY_TOKEN.to_string(),
                 pending_farm_reward: Uint128::from(4400u128),
                 pending_spec_reward: Uint128::from(7600u128),
                 bond_amount: Uint128::from(8000u128),
@@ -542,7 +542,7 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
 
     // query balance2
     let msg = QueryMsg::reward_info {
-        staker_addr: HumanAddr::from(USER2),
+        staker_addr: USER2.to_string(),
         asset_token: None,
         height: 0u64,
     };
@@ -551,7 +551,7 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
         res.reward_infos,
         vec![
             RewardInfoResponseItem {
-                asset_token: HumanAddr::from(MIR_TOKEN),
+                asset_token: MIR_TOKEN.to_string(),
                 pending_farm_reward: Uint128::from(2500u128),
                 pending_spec_reward: Uint128::from(1500u128),
                 bond_amount: Uint128::from(5000u128),
@@ -560,7 +560,7 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
                 accum_spec_share: Uint128::from(1500u128),
             },
             RewardInfoResponseItem {
-                asset_token: HumanAddr::from(SPY_TOKEN),
+                asset_token: SPY_TOKEN.to_string(),
                 pending_farm_reward: Uint128::from(4800u128),
                 pending_spec_reward: Uint128::from(3200u128),
                 bond_amount: Uint128::from(4000u128),
@@ -572,7 +572,7 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
     );
 }
 
-fn test_deposit_fee(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_deposit_fee(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // alter config, deposit fee
     let env = mock_env(SPEC_GOV, &[]);
     let msg = HandleMsg::update_config {
@@ -592,12 +592,12 @@ fn test_deposit_fee(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
     // bond user3
     let env = mock_env(MIR_LP, &[]);
     let msg = HandleMsg::receive(Cw20ReceiveMsg {
-        sender: HumanAddr::from(USER3),
+        sender: USER3.to_string(),
         amount: Uint128::from(80000u128),
         msg: Some(
             to_binary(&Cw20HookMsg::bond {
                 staker_addr: None,
-                asset_token: HumanAddr::from(MIR_TOKEN),
+                asset_token: MIR_TOKEN.to_string(),
                 compound_rate: Some(Decimal::percent(50)),
             })
             .unwrap(),
@@ -608,12 +608,12 @@ fn test_deposit_fee(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
 
     let env = mock_env(SPY_LP, &[]);
     let msg = HandleMsg::receive(Cw20ReceiveMsg {
-        sender: HumanAddr::from(USER3),
+        sender: USER3.to_string(),
         amount: Uint128::from(60000u128),
         msg: Some(
             to_binary(&Cw20HookMsg::bond {
                 staker_addr: None,
-                asset_token: HumanAddr::from(SPY_TOKEN),
+                asset_token: SPY_TOKEN.to_string(),
                 compound_rate: Some(Decimal::percent(50)),
             })
             .unwrap(),
@@ -624,23 +624,23 @@ fn test_deposit_fee(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
 
     deps.querier.with_token_balances(&[
         (
-            &HumanAddr::from(MIR_STAKING),
+            &MIR_STAKING.to_string(),
             &[
-                (&HumanAddr::from(MIR_TOKEN), &Uint128::from(96000u128)),
-                (&HumanAddr::from(SPY_TOKEN), &Uint128::from(72000u128)),
+                (&MIR_TOKEN.to_string(), &Uint128::from(96000u128)),
+                (&SPY_TOKEN.to_string(), &Uint128::from(72000u128)),
             ],
         ),
         (
-            &HumanAddr::from(MIR_GOV),
+            &MIR_GOV.to_string(),
             &[(
-                &HumanAddr::from(MOCK_CONTRACT_ADDR),
+                &MOCK_CONTRACT_ADDR.to_string(),
                 &Uint128::from(14200u128),
             )],
         ),
         (
-            &HumanAddr::from(SPEC_GOV),
+            &SPEC_GOV.to_string(),
             &[(
-                &HumanAddr::from(MOCK_CONTRACT_ADDR),
+                &MOCK_CONTRACT_ADDR.to_string(),
                 &Uint128::from(16200u128),
             )],
         ),
@@ -648,7 +648,7 @@ fn test_deposit_fee(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
 
     // query balance1
     let msg = QueryMsg::reward_info {
-        staker_addr: HumanAddr::from(USER1),
+        staker_addr: USER1.to_string(),
         asset_token: None,
         height: 0u64,
     };
@@ -657,7 +657,7 @@ fn test_deposit_fee(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
         res.reward_infos,
         vec![
             RewardInfoResponseItem {
-                asset_token: HumanAddr::from(MIR_TOKEN),
+                asset_token: MIR_TOKEN.to_string(),
                 pending_farm_reward: Uint128::from(2498u128),
                 pending_spec_reward: Uint128::from(3899u128),
                 bond_amount: Uint128::from(13200u128),
@@ -666,7 +666,7 @@ fn test_deposit_fee(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
                 accum_spec_share: Uint128::from(4799u128),
             },
             RewardInfoResponseItem {
-                asset_token: HumanAddr::from(SPY_TOKEN),
+                asset_token: SPY_TOKEN.to_string(),
                 pending_farm_reward: Uint128::from(4400u128),
                 pending_spec_reward: Uint128::from(7600u128),
                 bond_amount: Uint128::from(9600u128),
@@ -679,7 +679,7 @@ fn test_deposit_fee(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
 
     // query balance2
     let msg = QueryMsg::reward_info {
-        staker_addr: HumanAddr::from(USER2),
+        staker_addr: USER2.to_string(),
         asset_token: None,
         height: 0u64,
     };
@@ -688,7 +688,7 @@ fn test_deposit_fee(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
         res.reward_infos,
         vec![
             RewardInfoResponseItem {
-                asset_token: HumanAddr::from(MIR_TOKEN),
+                asset_token: MIR_TOKEN.to_string(),
                 pending_farm_reward: Uint128::from(2500u128),
                 pending_spec_reward: Uint128::from(1500u128),
                 bond_amount: Uint128::from(6000u128),
@@ -697,7 +697,7 @@ fn test_deposit_fee(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
                 accum_spec_share: Uint128::from(1500u128),
             },
             RewardInfoResponseItem {
-                asset_token: HumanAddr::from(SPY_TOKEN),
+                asset_token: SPY_TOKEN.to_string(),
                 pending_farm_reward: Uint128::from(4800u128),
                 pending_spec_reward: Uint128::from(3200u128),
                 bond_amount: Uint128::from(4800u128),
@@ -710,7 +710,7 @@ fn test_deposit_fee(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
 
     // query balance3
     let msg = QueryMsg::reward_info {
-        staker_addr: HumanAddr::from(USER3),
+        staker_addr: USER3.to_string(),
         asset_token: None,
         height: 0u64,
     };
@@ -719,7 +719,7 @@ fn test_deposit_fee(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
         res.reward_infos,
         vec![
             RewardInfoResponseItem {
-                asset_token: HumanAddr::from(MIR_TOKEN),
+                asset_token: MIR_TOKEN.to_string(),
                 pending_farm_reward: Uint128::zero(),
                 pending_spec_reward: Uint128::zero(),
                 bond_amount: Uint128::from(76800u128),
@@ -728,7 +728,7 @@ fn test_deposit_fee(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
                 accum_spec_share: Uint128::zero(),
             },
             RewardInfoResponseItem {
-                asset_token: HumanAddr::from(SPY_TOKEN),
+                asset_token: SPY_TOKEN.to_string(),
                 pending_farm_reward: Uint128::zero(),
                 pending_spec_reward: Uint128::zero(),
                 bond_amount: Uint128::from(57600u128),
@@ -740,11 +740,11 @@ fn test_deposit_fee(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
     );
 }
 
-fn test_staked_reward(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_staked_reward(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // unbond user1
     let env = mock_env(USER1, &[]);
     let msg = HandleMsg::unbond {
-        asset_token: HumanAddr::from(MIR_TOKEN),
+        asset_token: MIR_TOKEN.to_string(),
         amount: Uint128::from(13200u128),
     };
     let res = handle(deps, env.clone(), msg);
@@ -753,19 +753,19 @@ fn test_staked_reward(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) 
         res.unwrap().messages,
         [
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(MIR_STAKING),
+                contract_addr: MIR_STAKING.to_string(),
                 send: vec![],
                 msg: to_binary(&MirrorStakingHandleMsg::unbond {
                     amount: Uint128::from(13200u128),
-                    asset_token: HumanAddr::from(MIR_TOKEN),
+                    asset_token: MIR_TOKEN.to_string(),
                 })
                 .unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(MIR_LP),
+                contract_addr: MIR_LP.to_string(),
                 send: vec![],
                 msg: to_binary(&Cw20HandleMsg::Transfer {
-                    recipient: HumanAddr::from(USER1),
+                    recipient: USER1.to_string(),
                     amount: Uint128::from(13200u128),
                 })
                 .unwrap(),
@@ -782,7 +782,7 @@ fn test_staked_reward(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) 
         res.unwrap().messages,
         vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(SPEC_GOV),
+                contract_addr: SPEC_GOV.to_string(),
                 send: vec![],
                 msg: to_binary(&GovHandleMsg::withdraw {
                     amount: Some(Uint128::from(4700u128)),
@@ -790,16 +790,16 @@ fn test_staked_reward(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) 
                 .unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(SPEC_TOKEN),
+                contract_addr: SPEC_TOKEN.to_string(),
                 send: vec![],
                 msg: to_binary(&Cw20HandleMsg::Transfer {
-                    recipient: HumanAddr::from(USER2),
+                    recipient: USER2.to_string(),
                     amount: Uint128::from(4700u128),
                 })
                 .unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(MIR_GOV),
+                contract_addr: MIR_GOV.to_string(),
                 send: vec![],
                 msg: to_binary(&MirrorGovHandleMsg::WithdrawVotingTokens {
                     amount: Some(Uint128::from(7300u128)),
@@ -807,10 +807,10 @@ fn test_staked_reward(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) 
                 .unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(MIR_TOKEN),
+                contract_addr: MIR_TOKEN.to_string(),
                 send: vec![],
                 msg: to_binary(&Cw20HandleMsg::Transfer {
-                    recipient: HumanAddr::from(USER2),
+                    recipient: USER2.to_string(),
                     amount: Uint128::from(7300u128),
                 })
                 .unwrap(),
@@ -820,23 +820,23 @@ fn test_staked_reward(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) 
     deps.querier.with_balance_percent(120);
     deps.querier.with_token_balances(&[
         (
-            &HumanAddr::from(MIR_STAKING),
+            &MIR_STAKING.to_string(),
             &[
-                (&HumanAddr::from(MIR_TOKEN), &Uint128::from(90000u128)),
-                (&HumanAddr::from(SPY_TOKEN), &Uint128::from(72000u128)),
+                (&MIR_TOKEN.to_string(), &Uint128::from(90000u128)),
+                (&SPY_TOKEN.to_string(), &Uint128::from(72000u128)),
             ],
         ),
         (
-            &HumanAddr::from(MIR_GOV),
+            &MIR_GOV.to_string(),
             &[(
-                &HumanAddr::from(MOCK_CONTRACT_ADDR),
+                &MOCK_CONTRACT_ADDR.to_string(),
                 &Uint128::from(9200u128),
             )],
         ),
         (
-            &HumanAddr::from(SPEC_GOV),
+            &SPEC_GOV.to_string(),
             &[(
-                &HumanAddr::from(MOCK_CONTRACT_ADDR),
+                &MOCK_CONTRACT_ADDR.to_string(),
                 &Uint128::from(24600u128), //+9000 +20%
             )],
         ),
@@ -844,7 +844,7 @@ fn test_staked_reward(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) 
 
     // query balance1 (still earn gov income even there is no bond)
     let msg = QueryMsg::reward_info {
-        staker_addr: HumanAddr::from(USER1),
+        staker_addr: USER1.to_string(),
         asset_token: None,
         height: 0u64,
     };
@@ -853,7 +853,7 @@ fn test_staked_reward(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) 
         res.reward_infos,
         vec![
             RewardInfoResponseItem {
-                asset_token: HumanAddr::from(MIR_TOKEN),
+                asset_token: MIR_TOKEN.to_string(),
                 pending_farm_reward: Uint128::from(3330u128), //+33%
                 pending_spec_reward: Uint128::from(4678u128), //+20%
                 bond_amount: Uint128::from(0u128),
@@ -862,7 +862,7 @@ fn test_staked_reward(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) 
                 accum_spec_share: Uint128::from(4799u128),
             },
             RewardInfoResponseItem {
-                asset_token: HumanAddr::from(SPY_TOKEN),
+                asset_token: SPY_TOKEN.to_string(),
                 pending_farm_reward: Uint128::from(5866u128), //+33%
                 pending_spec_reward: Uint128::from(10080u128), //+800+20%
                 bond_amount: Uint128::from(9600u128),
@@ -875,7 +875,7 @@ fn test_staked_reward(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) 
 
     // query balance2
     let msg = QueryMsg::reward_info {
-        staker_addr: HumanAddr::from(USER2),
+        staker_addr: USER2.to_string(),
         asset_token: None,
         height: 0u64,
     };
@@ -884,7 +884,7 @@ fn test_staked_reward(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) 
         res.reward_infos,
         vec![
             RewardInfoResponseItem {
-                asset_token: HumanAddr::from(MIR_TOKEN),
+                asset_token: MIR_TOKEN.to_string(),
                 pending_farm_reward: Uint128::from(0u128),
                 pending_spec_reward: Uint128::from(240u128), //+200+20%
                 bond_amount: Uint128::from(6000u128),
@@ -893,7 +893,7 @@ fn test_staked_reward(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) 
                 accum_spec_share: Uint128::from(1700u128),
             },
             RewardInfoResponseItem {
-                asset_token: HumanAddr::from(SPY_TOKEN),
+                asset_token: SPY_TOKEN.to_string(),
                 pending_farm_reward: Uint128::from(0u128),
                 pending_spec_reward: Uint128::from(480u128), //+400+20%
                 bond_amount: Uint128::from(4800u128),
@@ -906,7 +906,7 @@ fn test_staked_reward(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) 
 
     // query balance3
     let msg = QueryMsg::reward_info {
-        staker_addr: HumanAddr::from(USER3),
+        staker_addr: USER3.to_string(),
         asset_token: None,
         height: 0u64,
     };
@@ -915,7 +915,7 @@ fn test_staked_reward(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) 
         res.reward_infos,
         vec![
             RewardInfoResponseItem {
-                asset_token: HumanAddr::from(MIR_TOKEN),
+                asset_token: MIR_TOKEN.to_string(),
                 pending_farm_reward: Uint128::zero(),
                 pending_spec_reward: Uint128::from(3358u128), //+2799+20%
                 bond_amount: Uint128::from(84000u128),
@@ -924,7 +924,7 @@ fn test_staked_reward(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) 
                 accum_spec_share: Uint128::from(2799u128),
             },
             RewardInfoResponseItem {
-                asset_token: HumanAddr::from(SPY_TOKEN),
+                asset_token: SPY_TOKEN.to_string(),
                 pending_farm_reward: Uint128::zero(),
                 pending_spec_reward: Uint128::from(5760u128), //+4800+20%
                 bond_amount: Uint128::from(57600u128),

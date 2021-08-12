@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use cosmwasm_std::{
     log, to_binary, Api, CanonicalAddr, Coin, CosmosMsg, Decimal, Env, Extern, HandleResponse,
-    HandleResult, HumanAddr, LogAttribute, Querier, StdError, Storage, Uint128, WasmMsg,
+    HandleResult, String, LogAttribute, Querier, StdError, Storage, Uint128, WasmMsg,
 };
 
 use crate::{
@@ -50,8 +50,8 @@ pub fn harvest_all<S: Storage, A: Api, Q: Querier>(
     let mut total_mir_swap_amount = Uint128::zero();
     let mut total_mir_stake_amount = Uint128::zero();
     let mut total_mir_commission = Uint128::zero();
-    let mut swap_amount_map: HashMap<HumanAddr, Uint128> = HashMap::new();
-    let mut stake_amount_pairs: Vec<(HumanAddr, Uint128)> = vec![];
+    let mut swap_amount_map: HashMap<String, Uint128> = HashMap::new();
+    let mut stake_amount_pairs: Vec<(String, Uint128)> = vec![];
 
     let mut logs: Vec<LogAttribute> = vec![];
     let community_fee = config.community_fee;

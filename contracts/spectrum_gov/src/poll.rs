@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     log, to_binary, Api, Binary, CosmosMsg, Decimal, Env, Extern, HandleResponse, HandleResult,
-    HumanAddr, Querier, StdError, StdResult, Storage, Uint128, WasmMsg,
+    String, Querier, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 use spectrum_protocol::common::OrderBy;
 use spectrum_protocol::gov::{
@@ -20,7 +20,7 @@ use std::ops::Mul;
 pub fn poll_start<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    proposer: HumanAddr,
+    proposer: String,
     deposit_amount: Uint128,
     title: String,
     description: String,
@@ -457,7 +457,7 @@ pub fn query_polls<S: Storage, A: Api, Q: Querier>(
 pub fn query_voters<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     poll_id: u64,
-    start_after: Option<HumanAddr>,
+    start_after: Option<String>,
     limit: Option<u32>,
     order_by: Option<OrderBy>,
 ) -> StdResult<VotersResponse> {
@@ -482,7 +482,7 @@ pub fn query_voters<S: Storage, A: Api, Q: Querier>(
         )?
     };
 
-    let voters_response: StdResult<Vec<(HumanAddr, VoterInfo)>> = voters
+    let voters_response: StdResult<Vec<(String, VoterInfo)>> = voters
         .into_iter()
         .map(|voter_info| {
             Ok((

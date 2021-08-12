@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     from_binary, to_binary, Api, Binary, CanonicalAddr, Decimal, Env, Extern, HandleResponse,
-    HandleResult, HumanAddr, InitResponse, MigrateResponse, MigrateResult, Querier, StdError,
+    HandleResult, String, InitResponse, MigrateResponse, MigrateResult, Querier, StdError,
     StdResult, Storage, Uint128,
 };
 use spectrum_protocol::gov::{ConfigInfo, Cw20HookMsg, HandleMsg, MigrateMsg, QueryMsg, StateInfo};
@@ -177,8 +177,8 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
 fn update_config<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    owner: Option<HumanAddr>,
-    spec_token: Option<HumanAddr>,
+    owner: Option<String>,
+    spec_token: Option<String>,
     quorum: Option<Decimal>,
     threshold: Option<Decimal>,
     voting_period: Option<u64>,
@@ -188,7 +188,7 @@ fn update_config<S: Storage, A: Api, Q: Querier>(
     mint_per_block: Option<Uint128>,
     mint_start: Option<u64>,
     mint_end: Option<u64>,
-    warchest_address: Option<HumanAddr>,
+    warchest_address: Option<String>,
     warchest_ratio: Option<Decimal>,
 ) -> HandleResult {
     let mut config = config_store(&mut deps.storage).load()?;

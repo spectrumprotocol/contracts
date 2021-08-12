@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     log, to_binary, Api, CanonicalAddr, Coin, CosmosMsg, Decimal, Env, Extern, HandleResponse,
-    HandleResult, HumanAddr, LogAttribute, Querier, StdError, StdResult, Storage, Uint128, WasmMsg,
+    HandleResult, String, LogAttribute, Querier, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 
 use crate::{
@@ -401,7 +401,7 @@ fn deduct_tax<S: Storage, A: Api, Q: Querier>(
 pub fn stake<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    asset_token: HumanAddr,
+    asset_token: String,
 ) -> HandleResult {
     // only pylon farm contract can execute this message
     if env.message.sender != env.contract.address {

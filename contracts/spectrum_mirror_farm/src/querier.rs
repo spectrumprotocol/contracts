@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    to_binary, Api, CanonicalAddr, Extern, HumanAddr, Querier, QueryRequest, StdResult, Storage,
+    to_binary, Api, CanonicalAddr, Extern, String, Querier, QueryRequest, StdResult, Storage,
     Uint128, WasmQuery,
 };
 
@@ -7,14 +7,14 @@ use mirror_protocol::staking::{PoolInfoResponse, QueryMsg, RewardInfoResponse};
 
 pub fn query_mirror_reward_info<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
-    mirror_staking: &HumanAddr,
-    staker: &HumanAddr,
+    mirror_staking: &String,
+    staker: &String,
 ) -> StdResult<RewardInfoResponse> {
     let res: RewardInfoResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: HumanAddr::from(mirror_staking),
+        contract_addr: mirror_staking.to_string(),
         msg: to_binary(&QueryMsg::RewardInfo {
             asset_token: None,
-            staker_addr: HumanAddr::from(staker),
+            staker_addr: staker.to_string(),
         })?,
     }))?;
 
@@ -41,13 +41,13 @@ pub fn query_mirror_pool_balance<S: Storage, A: Api, Q: Querier>(
 
 pub fn query_mirror_pool_info<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
-    mirror_staking: &HumanAddr,
-    asset_token: &HumanAddr,
+    mirror_staking: &String,
+    asset_token: &String,
 ) -> StdResult<PoolInfoResponse> {
     let res: PoolInfoResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: HumanAddr::from(mirror_staking),
+        contract_addr: mirror_staking.to_string(),
         msg: to_binary(&QueryMsg::PoolInfo {
-            asset_token: HumanAddr::from(asset_token),
+            asset_token: asset_token.to_string(),
         })?,
     }))?;
 

@@ -3,7 +3,7 @@ use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
 use crate::stake::calc_mintable;
 use crate::state::{Config, State};
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{Binary, CanonicalAddr, CosmosMsg, Decimal, Extern, HumanAddr, Uint128, WasmMsg, from_binary, to_binary, to_vec};
+use cosmwasm_std::{Binary, CanonicalAddr, CosmosMsg, Decimal, Extern, String, Uint128, WasmMsg, from_binary, to_binary, to_vec};
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 use spectrum_protocol::common::OrderBy;
 use spectrum_protocol::gov::{
@@ -43,12 +43,12 @@ fn test() {
     test_reward(&mut deps, stake);
 }
 
-fn test_config(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) -> ConfigInfo {
+fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> ConfigInfo {
     // test init & read config & read state
     let env = mock_env(TEST_CREATOR, &[]);
     let mut config = ConfigInfo {
-        owner: HumanAddr::from(MOCK_CONTRACT_ADDR),
-        spec_token: Some(HumanAddr::from(VOTING_TOKEN)),
+        owner: MOCK_CONTRACT_ADDR.to_string(),
+        spec_token: Some(VOTING_TOKEN.to_string()),
         quorum: Decimal::percent(120u64),
         threshold: Decimal::percent(DEFAULT_THRESHOLD),
         voting_period: 0,
@@ -152,18 +152,18 @@ fn test_config(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) -> Conf
 }
 
 fn test_stake(
-    deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>,
+    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>,
 ) -> (Uint128, Uint128, Uint128) {
     // stake, error
     let env = mock_env(TEST_VOTER, &[]);
     let stake_amount = Uint128::from(25u128);
     let total_amount = stake_amount;
     deps.querier.with_token_balances(&[(
-        &HumanAddr::from(VOTING_TOKEN),
-        &[(&HumanAddr::from(MOCK_CONTRACT_ADDR), &total_amount)],
+        &VOTING_TOKEN.to_string(),
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &total_amount)],
     )]);
     let msg = HandleMsg::receive(Cw20ReceiveMsg {
-        sender: HumanAddr::from(TEST_VOTER),
+        sender: TEST_VOTER.to_string(),
         amount: stake_amount,
         msg: Some(to_binary(&Cw20HookMsg::stake_tokens { staker_addr: None }).unwrap()),
     });
@@ -181,7 +181,7 @@ fn test_stake(
 
     // query account
     let msg = QueryMsg::balance {
-        address: HumanAddr::from(TEST_VOTER),
+        address: TEST_VOTER.to_string(),
         height: None,
     };
     let res: BalanceResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
@@ -190,7 +190,7 @@ fn test_stake(
 
     // query account not found
     let msg = QueryMsg::balance {
-        address: HumanAddr::from(TEST_VOTER_2),
+        address: TEST_VOTER_2.to_string(),
         height: None,
     };
     let res: BalanceResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
@@ -201,11 +201,11 @@ fn test_stake(
     let stake_amount_2 = Uint128::from(75u128);
     let total_amount = total_amount + stake_amount_2;
     deps.querier.with_token_balances(&[(
-        &HumanAddr::from(VOTING_TOKEN),
-        &[(&HumanAddr::from(MOCK_CONTRACT_ADDR), &total_amount)],
+        &VOTING_TOKEN.to_string(),
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &total_amount)],
     )]);
     let msg = HandleMsg::receive(Cw20ReceiveMsg {
-        sender: HumanAddr::from(TEST_VOTER_2),
+        sender: TEST_VOTER_2.to_string(),
         amount: Uint128::zero(),
         msg: Some(to_binary(&Cw20HookMsg::stake_tokens { staker_addr: None }).unwrap()),
     });
@@ -223,7 +223,7 @@ fn test_stake(
     // stake voter2
     let env = mock_env(VOTING_TOKEN, &[]);
     let msg = HandleMsg::receive(Cw20ReceiveMsg {
-        sender: HumanAddr::from(TEST_VOTER_2),
+        sender: TEST_VOTER_2.to_string(),
         amount: stake_amount_2,
         msg: Some(to_binary(&Cw20HookMsg::stake_tokens { staker_addr: None }).unwrap()),
     });
@@ -237,7 +237,7 @@ fn test_stake(
 
     // query account
     let msg = QueryMsg::balance {
-        address: HumanAddr::from(TEST_VOTER),
+        address: TEST_VOTER.to_string(),
         height: None,
     };
     let res: BalanceResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
@@ -246,7 +246,7 @@ fn test_stake(
 
     // query account 2
     let msg = QueryMsg::balance {
-        address: HumanAddr::from(TEST_VOTER_2),
+        address: TEST_VOTER_2.to_string(),
         height: None,
     };
     let res: BalanceResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
@@ -257,7 +257,7 @@ fn test_stake(
 }
 
 fn test_poll_executed(
-    deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>,
+    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>,
     config: &ConfigInfo,
     (stake_amount, stake_amount_2, total_amount): (Uint128, Uint128, Uint128),
 ) -> (Uint128, Uint128, Uint128) {
@@ -265,7 +265,7 @@ fn test_poll_executed(
     let env = mock_env(VOTING_TOKEN, &[]);
     let deposit = Uint128::from(DEFAULT_PROPOSAL_DEPOSIT);
     let execute_msg = ExecuteMsg::execute {
-        contract: HumanAddr::from(VOTING_TOKEN),
+        contract: VOTING_TOKEN.to_string(),
         msg: String::from_utf8(
             to_vec(&Cw20HandleMsg::Burn {
                 amount: Uint128(123),
@@ -275,7 +275,7 @@ fn test_poll_executed(
         .unwrap(),
     };
     let msg = HandleMsg::receive(Cw20ReceiveMsg {
-        sender: HumanAddr::from(TEST_VOTER),
+        sender: TEST_VOTER.to_string(),
         amount: deposit,
         msg: Some(
             to_binary(&Cw20HookMsg::poll_start {
@@ -291,8 +291,8 @@ fn test_poll_executed(
     assert!(res.is_ok());
     let total_amount = total_amount + deposit;
     deps.querier.with_token_balances(&[(
-        &HumanAddr::from(VOTING_TOKEN),
-        &[(&HumanAddr::from(MOCK_CONTRACT_ADDR), &total_amount)],
+        &VOTING_TOKEN.to_string(),
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &total_amount)],
     )]);
 
     // read state
@@ -303,7 +303,7 @@ fn test_poll_executed(
 
     let poll = PollInfo {
         id: 1u64,
-        creator: HumanAddr::from(TEST_VOTER),
+        creator: TEST_VOTER.to_string(),
         status: PollStatus::in_progress,
         end_height: env.block.height + config.voting_period,
         title: "title".to_string(),
@@ -372,7 +372,7 @@ fn test_poll_executed(
 
     // query account
     let msg = QueryMsg::balance {
-        address: HumanAddr::from(TEST_VOTER),
+        address: TEST_VOTER.to_string(),
         height: None,
     };
     let res: BalanceResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
@@ -426,13 +426,13 @@ fn test_poll_executed(
     assert!(res.is_ok());
     let total_amount = (total_amount - withdraw_amount).unwrap();
     deps.querier.with_token_balances(&[(
-        &HumanAddr::from(VOTING_TOKEN),
-        &[(&HumanAddr::from(MOCK_CONTRACT_ADDR), &total_amount)],
+        &VOTING_TOKEN.to_string(),
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &total_amount)],
     )]);
 
     // query account 2
     let msg = QueryMsg::balance {
-        address: HumanAddr::from(TEST_VOTER_2),
+        address: TEST_VOTER_2.to_string(),
         height: None,
     };
     let res: BalanceResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
@@ -452,14 +452,14 @@ fn test_poll_executed(
         VotersResponse {
             voters: vec![
                 (
-                    HumanAddr::from(TEST_VOTER_2),
+                    TEST_VOTER_2.to_string(),
                     VoterInfo {
                         vote: VoteOption::yes,
                         balance: stake_amount,
                     }
                 ),
                 (
-                    HumanAddr::from(TEST_VOTER),
+                    TEST_VOTER.to_string(),
                     VoterInfo {
                         vote: VoteOption::yes,
                         balance: stake_amount,
@@ -478,10 +478,10 @@ fn test_poll_executed(
     assert_eq!(
         res.unwrap().messages[0],
         CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: HumanAddr::from(VOTING_TOKEN),
+            contract_addr: VOTING_TOKEN.to_string(),
             send: vec![],
             msg: to_binary(&Cw20HandleMsg::Transfer {
-                recipient: HumanAddr::from(&poll.creator),
+                recipient: &poll.creator.to_string(),
                 amount: poll.deposit_amount,
             })
             .unwrap(),
@@ -500,8 +500,8 @@ fn test_poll_executed(
     assert_eq!(res.status, PollStatus::passed);
     assert_eq!(res.total_balance_at_end_poll, Some(total_amount));
     deps.querier.with_token_balances(&[(
-        &HumanAddr::from(VOTING_TOKEN),
-        &[(&HumanAddr::from(MOCK_CONTRACT_ADDR), &total_amount)],
+        &VOTING_TOKEN.to_string(),
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &total_amount)],
     )]);
 
     // withdraw all success after end poll
@@ -510,13 +510,13 @@ fn test_poll_executed(
     assert!(res.is_ok());
     let total_amount = (total_amount - stake_amount).unwrap();
     deps.querier.with_token_balances(&[(
-        &HumanAddr::from(VOTING_TOKEN),
-        &[(&HumanAddr::from(MOCK_CONTRACT_ADDR), &total_amount)],
+        &VOTING_TOKEN.to_string(),
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &total_amount)],
     )]);
 
     // query account 2
     let msg = QueryMsg::balance {
-        address: HumanAddr::from(TEST_VOTER_2),
+        address: TEST_VOTER_2.to_string(),
         height: None,
     };
     let res: BalanceResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
@@ -526,12 +526,12 @@ fn test_poll_executed(
     // stake voter2
     let total_amount = total_amount + stake_amount_2;
     deps.querier.with_token_balances(&[(
-        &HumanAddr::from(VOTING_TOKEN),
-        &[(&HumanAddr::from(MOCK_CONTRACT_ADDR), &total_amount)],
+        &VOTING_TOKEN.to_string(),
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &total_amount)],
     )]);
-    env.message.sender = HumanAddr::from(VOTING_TOKEN);
+    env.message.sender = VOTING_TOKEN.to_string();
     let msg = HandleMsg::receive(Cw20ReceiveMsg {
-        sender: HumanAddr::from(TEST_VOTER_2),
+        sender: TEST_VOTER_2.to_string(),
         amount: stake_amount_2,
         msg: Some(to_binary(&Cw20HookMsg::stake_tokens { staker_addr: None }).unwrap()),
     });
@@ -540,7 +540,7 @@ fn test_poll_executed(
 
     // query account 2
     let msg = QueryMsg::balance {
-        address: HumanAddr::from(TEST_VOTER_2),
+        address: TEST_VOTER_2.to_string(),
         height: None,
     };
     let res: BalanceResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
@@ -587,14 +587,14 @@ fn test_poll_executed(
 }
 
 fn test_poll_low_quorum(
-    deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>,
+    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>,
     (stake_amount, stake_amount_2, total_amount): (Uint128, Uint128, Uint128),
 ) -> (Uint128, Uint128, Uint128) {
     // start poll2
     let deposit = Uint128::from(DEFAULT_PROPOSAL_DEPOSIT);
     let env = mock_env(VOTING_TOKEN, &[]);
     let msg = HandleMsg::receive(Cw20ReceiveMsg {
-        sender: HumanAddr::from(TEST_VOTER),
+        sender: TEST_VOTER.to_string(),
         amount: deposit,
         msg: Some(
             to_binary(&Cw20HookMsg::poll_start {
@@ -610,8 +610,8 @@ fn test_poll_low_quorum(
     assert!(res.is_ok());
     let total_amount = total_amount + deposit;
     deps.querier.with_token_balances(&[(
-        &HumanAddr::from(VOTING_TOKEN),
-        &[(&HumanAddr::from(MOCK_CONTRACT_ADDR), &total_amount)],
+        &VOTING_TOKEN.to_string(),
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &total_amount)],
     )]);
 
     // vote poll2
@@ -658,7 +658,7 @@ fn test_poll_low_quorum(
     let total_shares = stake_amount + stake_amount_2;
     let stake_amount = stake_amount.multiply_ratio(total_amount, total_shares);
     let msg = QueryMsg::balance {
-        address: HumanAddr::from(TEST_VOTER),
+        address: TEST_VOTER.to_string(),
         height: None,
     };
     let res: BalanceResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
@@ -667,7 +667,7 @@ fn test_poll_low_quorum(
     // query account 2
     let stake_amount_2 = stake_amount_2.multiply_ratio(total_amount, total_shares);
     let msg = QueryMsg::balance {
-        address: HumanAddr::from(TEST_VOTER_2),
+        address: TEST_VOTER_2.to_string(),
         height: None,
     };
     let res: BalanceResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
@@ -677,14 +677,14 @@ fn test_poll_low_quorum(
 }
 
 fn test_poll_low_threshold(
-    deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>,
+    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>,
     (stake_amount, stake_amount_2, total_amount): (Uint128, Uint128, Uint128),
 ) -> (Uint128, Uint128, Uint128) {
     // start poll3
     let deposit = Uint128::from(DEFAULT_PROPOSAL_DEPOSIT);
     let env = mock_env(VOTING_TOKEN, &[]);
     let msg = HandleMsg::receive(Cw20ReceiveMsg {
-        sender: HumanAddr::from(TEST_VOTER),
+        sender: TEST_VOTER.to_string(),
         amount: deposit,
         msg: Some(
             to_binary(&Cw20HookMsg::poll_start {
@@ -700,8 +700,8 @@ fn test_poll_low_threshold(
     assert!(res.is_ok());
     let total_amount = total_amount + deposit;
     deps.querier.with_token_balances(&[(
-        &HumanAddr::from(VOTING_TOKEN),
-        &[(&HumanAddr::from(MOCK_CONTRACT_ADDR), &total_amount)],
+        &VOTING_TOKEN.to_string(),
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &total_amount)],
     )]);
 
     // vote poll3
@@ -749,7 +749,7 @@ fn test_poll_low_threshold(
     let total_shares = stake_amount + stake_amount_2;
     let stake_amount = stake_amount.multiply_ratio(total_amount, total_shares);
     let msg = QueryMsg::balance {
-        address: HumanAddr::from(TEST_VOTER),
+        address: TEST_VOTER.to_string(),
         height: None,
     };
     let res: BalanceResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
@@ -758,7 +758,7 @@ fn test_poll_low_threshold(
     // query account 2
     let stake_amount_2 = stake_amount_2.multiply_ratio(total_amount, total_shares);
     let msg = QueryMsg::balance {
-        address: HumanAddr::from(TEST_VOTER_2),
+        address: TEST_VOTER_2.to_string(),
         height: None,
     };
     let res: BalanceResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
@@ -768,14 +768,14 @@ fn test_poll_low_threshold(
 }
 
 fn test_poll_expired(
-    deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>,
+    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>,
     (stake_amount, stake_amount_2, total_amount): (Uint128, Uint128, Uint128),
 ) -> (Uint128, Uint128, Uint128) {
     // start poll
     let env = mock_env(VOTING_TOKEN, &[]);
     let deposit = Uint128::from(DEFAULT_PROPOSAL_DEPOSIT);
     let execute_msg = ExecuteMsg::execute {
-        contract: HumanAddr::from(VOTING_TOKEN),
+        contract: VOTING_TOKEN.to_string(),
         msg: String::from_utf8(
             to_vec(&Cw20HandleMsg::Burn {
                 amount: Uint128(123),
@@ -785,7 +785,7 @@ fn test_poll_expired(
         .unwrap(),
     };
     let msg = HandleMsg::receive(Cw20ReceiveMsg {
-        sender: HumanAddr::from(TEST_VOTER),
+        sender: TEST_VOTER.to_string(),
         amount: deposit,
         msg: Some(
             to_binary(&Cw20HookMsg::poll_start {
@@ -801,8 +801,8 @@ fn test_poll_expired(
     assert!(res.is_ok());
     let total_amount = total_amount + deposit;
     deps.querier.with_token_balances(&[(
-        &HumanAddr::from(VOTING_TOKEN),
-        &[(&HumanAddr::from(MOCK_CONTRACT_ADDR), &total_amount)],
+        &VOTING_TOKEN.to_string(),
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &total_amount)],
     )]);
 
     // vote success
@@ -834,8 +834,8 @@ fn test_poll_expired(
 
     let total_amount = (total_amount - deposit).unwrap();
     deps.querier.with_token_balances(&[(
-        &HumanAddr::from(VOTING_TOKEN),
-        &[(&HumanAddr::from(MOCK_CONTRACT_ADDR), &total_amount)],
+        &VOTING_TOKEN.to_string(),
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &total_amount)],
     )]);
 
     // expired failed (wait period)
@@ -874,14 +874,14 @@ fn test_poll_expired(
 }
 
 fn test_reward(
-    deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>,
+    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>,
     (stake_amount, stake_amount_2, total_amount): (Uint128, Uint128, Uint128),
 ) -> () {
     let env = mock_env(MOCK_CONTRACT_ADDR, &[]);
 
     // add vault 1
     let msg = HandleMsg::upsert_vault {
-        vault_address: HumanAddr::from(TEST_VAULT),
+        vault_address: TEST_VAULT.to_string(),
         weight: 1,
     };
     let res = handle(deps, env.clone(), msg);
@@ -889,7 +889,7 @@ fn test_reward(
 
     // add vault 2
     let msg = HandleMsg::upsert_vault {
-        vault_address: HumanAddr::from(TEST_VAULT_2),
+        vault_address: TEST_VAULT_2.to_string(),
         weight: 4,
     };
     let res = handle(deps, env.clone(), msg);
@@ -897,7 +897,7 @@ fn test_reward(
 
     // modify vault 1
     let msg = HandleMsg::upsert_vault {
-        vault_address: HumanAddr::from(TEST_VAULT),
+        vault_address: TEST_VAULT.to_string(),
         weight: 5,
     };
     let res = handle(deps, env.clone(), msg);
@@ -913,14 +913,14 @@ fn test_reward(
     let res: VaultsResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
     assert_eq!(
         VaultInfo {
-            address: HumanAddr::from(TEST_VAULT_2),
+            address: TEST_VAULT_2.to_string(),
             weight: 4
         },
         res.vaults[0]
     );
     assert_eq!(
         VaultInfo {
-            address: HumanAddr::from(TEST_VAULT),
+            address: TEST_VAULT.to_string(),
             weight: 5
         },
         res.vaults[1]
@@ -938,7 +938,7 @@ fn test_reward(
         mint_per_block: Some(Uint128::from(DEFAULT_MINT_PER_BLOCK)),
         mint_start: Some(env.block.height),
         mint_end: Some(env.block.height + 5),
-        warchest_address: Some(HumanAddr::from(WARCHEST)),
+        warchest_address: Some(WARCHEST.to_string()),
         warchest_ratio: Some(Decimal::percent(DEFAULT_WARCHEST_RATIO)),
     };
     let res = handle(deps, env.clone(), msg);
@@ -958,10 +958,10 @@ fn test_reward(
     assert_eq!(
         res.unwrap().messages,
         vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: HumanAddr::from(VOTING_TOKEN),
+            contract_addr: VOTING_TOKEN.to_string(),
             msg: to_binary(&Cw20HandleMsg::Mint {
                 amount: mint,
-                recipient: HumanAddr::from(MOCK_CONTRACT_ADDR),
+                recipient: MOCK_CONTRACT_ADDR.to_string(),
             })
             .unwrap(),
             send: vec![],
@@ -970,8 +970,8 @@ fn test_reward(
 
     let total_amount = total_amount + mint;
     deps.querier.with_token_balances(&[(
-        &HumanAddr::from(VOTING_TOKEN),
-        &[(&HumanAddr::from(MOCK_CONTRACT_ADDR), &total_amount)],
+        &VOTING_TOKEN.to_string(),
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &total_amount)],
     )]);
 
     let warchest_amount = Uint128::from(15u128);
@@ -980,35 +980,35 @@ fn test_reward(
 
     // check balance all users
     let msg = QueryMsg::balance {
-        address: HumanAddr::from(TEST_VOTER),
+        address: TEST_VOTER.to_string(),
         height: None,
     };
     let res: BalanceResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
     assert_eq!(res.balance, stake_amount);
 
     let msg = QueryMsg::balance {
-        address: HumanAddr::from(TEST_VOTER_2),
+        address: TEST_VOTER_2.to_string(),
         height: None,
     };
     let res: BalanceResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
     assert_eq!(res.balance, stake_amount_2);
 
     let msg = QueryMsg::balance {
-        address: HumanAddr::from(TEST_VAULT),
+        address: TEST_VAULT.to_string(),
         height: None,
     };
     let res: BalanceResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
     assert_eq!(res.balance, vault_amount);
 
     let msg = QueryMsg::balance {
-        address: HumanAddr::from(TEST_VAULT_2),
+        address: TEST_VAULT_2.to_string(),
         height: None,
     };
     let res: BalanceResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
     assert_eq!(res.balance, vault_amount_2);
 
     let msg = QueryMsg::balance {
-        address: HumanAddr::from(WARCHEST),
+        address: WARCHEST.to_string(),
         height: None,
     };
     let res: BalanceResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
@@ -1016,13 +1016,13 @@ fn test_reward(
 
     let new_amount = total_amount + reward;
     deps.querier.with_token_balances(&[(
-        &HumanAddr::from(VOTING_TOKEN),
-        &[(&HumanAddr::from(MOCK_CONTRACT_ADDR), &new_amount)],
+        &VOTING_TOKEN.to_string(),
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &new_amount)],
     )]);
     let vault_amount = vault_amount + reward.multiply_ratio(vault_amount, total_amount);
 
     let msg = QueryMsg::balance {
-        address: HumanAddr::from(TEST_VAULT),
+        address: TEST_VAULT.to_string(),
         height: None,
     };
     let res: BalanceResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
@@ -1030,8 +1030,8 @@ fn test_reward(
 
     let total_amount = new_amount;
     deps.querier.with_token_balances(&[(
-        &HumanAddr::from(VOTING_TOKEN),
-        &[(&HumanAddr::from(MOCK_CONTRACT_ADDR), &total_amount)],
+        &VOTING_TOKEN.to_string(),
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &total_amount)],
     )]);
 
     // get balance with height (with exceed mint_end)
@@ -1041,7 +1041,7 @@ fn test_reward(
     let add_vault_amount = (mint - warchest_amount).unwrap();
     let vault_amount = vault_amount + add_vault_amount.multiply_ratio(5u32, 9u32);
     let msg = QueryMsg::balance {
-        address: HumanAddr::from(TEST_VAULT),
+        address: TEST_VAULT.to_string(),
         height: Some(env.block.height),
     };
     let res: BalanceResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
@@ -1054,8 +1054,8 @@ fn test_reward(
 
     let total_amount = total_amount + mint;
     deps.querier.with_token_balances(&[(
-        &HumanAddr::from(VOTING_TOKEN),
-        &[(&HumanAddr::from(MOCK_CONTRACT_ADDR), &total_amount)],
+        &VOTING_TOKEN.to_string(),
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &total_amount)],
     )]);
 
     // withdraw all
@@ -1066,9 +1066,9 @@ fn test_reward(
     assert_eq!(
         res.unwrap().messages[0],
         CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: HumanAddr::from(VOTING_TOKEN),
+            contract_addr: VOTING_TOKEN.to_string(),
             msg: to_binary(&Cw20HandleMsg::Transfer {
-                recipient: HumanAddr::from(TEST_VAULT),
+                recipient: TEST_VAULT.to_string(),
                 amount: Uint128::from(vault_amount),
             })
             .unwrap(),

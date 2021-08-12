@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     log, to_binary, Api, CanonicalAddr, Coin, CosmosMsg, Decimal, Env, Extern, HandleResponse,
-    HandleResult, HumanAddr, Querier, StdError, StdResult, Storage, Uint128, WasmMsg,
+    HandleResult, String, Querier, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 
 use crate::state::{read_config, Config, PoolInfo};
@@ -21,7 +21,7 @@ const TERRASWAP_COMMISSION_RATE: &str = "0.003";
 pub fn re_invest<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    asset_token: HumanAddr,
+    asset_token: String,
 ) -> StdResult<HandleResponse> {
     let config = read_config(&deps.storage)?;
 
@@ -62,7 +62,7 @@ pub fn re_invest_asset<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     config: Config,
-    asset_token: HumanAddr,
+    asset_token: String,
 ) -> StdResult<HandleResponse> {
     let terraswap_factory = deps.api.human_address(&config.terraswap_factory)?;
 
@@ -187,7 +187,7 @@ pub fn re_invest_mir<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     config: Config,
-    mir_token: HumanAddr,
+    mir_token: String,
 ) -> StdResult<HandleResponse> {
     let terraswap_factory = deps.api.human_address(&config.terraswap_factory)?;
 
@@ -315,7 +315,7 @@ pub fn re_invest_mir<S: Storage, A: Api, Q: Querier>(
 pub fn stake<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    asset_token: HumanAddr,
+    asset_token: String,
 ) -> HandleResult {
     if &env.message.sender != &env.contract.address {
         return Err(StdError::unauthorized());
