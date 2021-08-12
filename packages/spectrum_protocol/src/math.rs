@@ -42,16 +42,6 @@ impl ops::Sub for UDec128 {
     }
 }
 
-// NOTE: this is already supported in cosmwasm 0.14.x
-impl ops::Sub<UDec128> for Decimal {
-    type Output = Self;
-
-    fn sub(self, other: UDec128) -> Self {
-        let me: UDec128 = self.into();
-        (me - other).into()
-    }
-}
-
 impl ops::Mul<Uint128> for UDec128 {
     type Output = Self;
 

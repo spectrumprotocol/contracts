@@ -280,7 +280,7 @@ fn deposit_reward(
     }))?;
     let diff = staked.share.checked_sub(state.previous_share);
     let deposit_share = if query {
-        diff.unwrap_or(Uint128::zero())
+        diff.unwrap_or_else(|_| Uint128::zero())
     } else {
         diff?
     };
@@ -293,13 +293,14 @@ fn deposit_reward(
 
 fn before_share_change(state: &State, reward_info: &mut RewardInfo) -> StdResult<()> {
     let share = Uint128::from(reward_info.weight as u128)
-        * (state.share_index - reward_info.share_index.into());
+        * (state.share_index - reward_info.share_index);
     reward_info.share += share;
     reward_info.share_index = state.share_index;
 
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn upsert_share(
     deps: DepsMut,
     info: MessageInfo,
@@ -328,7 +329,7 @@ fn upsert_share(
     reward_info.weight = weight;
     reward_info.lock_start = lock_start.unwrap_or(0u64);
     reward_info.lock_end = lock_end.unwrap_or(0u64);
-    reward_info.lock_amount = lock_amount.unwrap_or(Uint128::zero());
+    reward_info.lock_amount = lock_amount.unwrap_or_else(Uint128::zero);
 
     state_store(deps.storage).save(&state)?;
 

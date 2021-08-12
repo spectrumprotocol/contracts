@@ -1,10 +1,13 @@
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     from_binary, from_slice, to_binary, Coin, ContractResult, Empty, OwnedDeps, Querier,
     QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
 };
-use cw20::{BalanceResponse as Cw20BalanceResponse, Cw20QueryMsg};
 use std::collections::HashMap;
+use spectrum_protocol::gov::{BalanceResponse, StateInfo};
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
@@ -30,12 +33,14 @@ pub struct WasmMockQuerier {
 pub struct TokenQuerier {
     // this lets us iterate over all pairs that match the first string
     balances: HashMap<String, HashMap<String, Uint128>>,
+    balance_percent: u128,
 }
 
 impl TokenQuerier {
-    pub fn new(balances: &[(&String, &[(&String, &Uint128)])]) -> Self {
+    pub fn new(balances: &[(&String, &[(&String, &Uint128)])], balance_percent: u128) -> Self {
         TokenQuerier {
             balances: balances_to_map(balances),
+            balance_percent,
         }
     }
 }
@@ -71,45 +76,44 @@ impl Querier for WasmMockQuerier {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[allow(non_camel_case_types)]
+pub enum MockQueryMsg {
+    balance {
+        address: String,
+        height: Option<u64>,
+    },
+    state {
+        height: u64,
+    },
+}
+
 impl WasmMockQuerier {
     pub fn handle_query(&self, request: &QueryRequest<Empty>) -> QuerierResult {
         match &request {
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 match from_binary(&msg).unwrap() {
-                    Cw20QueryMsg::Balance { address } => {
-                        let balances: &HashMap<String, Uint128> =
-                            match self.token_querier.balances.get(contract_addr) {
-                                Some(balances) => balances,
-                                None => {
-                                    return SystemResult::Err(SystemError::InvalidRequest {
-                                        error: format!(
-                                            "No balance info exists for the contract {}",
-                                            contract_addr
-                                        ),
-                                        request: msg.as_slice().into(),
-                                    })
-                                }
-                            };
-
-                        let balance = match balances.get(&address) {
-                            Some(v) => *v,
-                            None => {
-                                return SystemResult::Ok(ContractResult::Ok(
-                                    to_binary(&Cw20BalanceResponse {
-                                        balance: Uint128::zero(),
-                                    })
-                                    .unwrap(),
-                                ));
-                            }
-                        };
-
-                        SystemResult::Ok(ContractResult::Ok(
-                            to_binary(&Cw20BalanceResponse { balance }).unwrap(),
-                        ))
-                    }
-                    _ => panic!("DO NOT ENTER HERE"),
+                    MockQueryMsg::balance { address, height: _ } => {
+                        let balance = self.read_token_balance(contract_addr, address);
+                        SystemResult::Ok(ContractResult::from(to_binary(&BalanceResponse {
+                            balance,
+                            share: balance
+                                .multiply_ratio(100u128, self.token_querier.balance_percent),
+                            locked_balance: vec![],
+                        })))
+                    },
+                    MockQueryMsg::state { height: _ } => {
+                        SystemResult::Ok(ContractResult::from(to_binary(&StateInfo {
+                            poll_count: 0u64,
+                            last_mint: 0u64,
+                            poll_deposit: Uint128::zero(),
+                            total_weight: 0u32,
+                            total_staked: Uint128::from(100u128),
+                            total_share: Uint128::from(self.token_querier.balance_percent),
+                        })))
+                    },
                 }
-            }
+            },
             _ => self.base.handle_query(request),
         }
     }
@@ -123,8 +127,25 @@ impl WasmMockQuerier {
         }
     }
 
+    pub fn with_balance_percent(&mut self, balance_percent: u128) {
+        self.token_querier.balance_percent = balance_percent;
+    }
+
     // configure the mint whitelist mock querier
     pub fn with_token_balances(&mut self, balances: &[(&String, &[(&String, &Uint128)])]) {
-        self.token_querier = TokenQuerier::new(balances);
+        self.token_querier = TokenQuerier::new(balances, self.token_querier.balance_percent);
+    }
+
+    pub fn read_token_balance(&self, contract_addr: &String, address: String) -> Uint128 {
+        let balances: &HashMap<String, Uint128> =
+            match self.token_querier.balances.get(contract_addr) {
+                Some(balances) => balances,
+                None => return Uint128::zero(),
+            };
+
+        match balances.get(&address) {
+            Some(v) => *v,
+            None => Uint128::zero(),
+}
     }
 }
