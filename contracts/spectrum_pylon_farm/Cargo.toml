@@ -1,6 +1,6 @@
 [package]
 name = "spectrum-pylon-farm"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Spectrum team"]
 edition = "2018"
 description = "Contract to stake LP token and auto collect rewards"
@@ -34,7 +34,7 @@ overflow-checks = true
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cw20 = { version = "0.8.0" } 
+cw20 = { version = "0.8.0" }
 cosmwasm-std = { version = "0.10.1", features = ["iterator"] }
 cosmwasm-storage = { version = "0.10.1", features = ["iterator"] }
 spectrum-protocol = { version = "0.2.0-rc1", path = "../../packages/spectrum_protocol" }
@@ -45,4 +45,4 @@ pylon-token = { version = "0.2.0-rc1", path = "../../packages/pylon_token" }
 
 [dev-dependencies]
 cosmwasm-schema = "0.16.0"
-terra-cosmwasm = "2.2.0" 
+terra-cosmwasm = "2.2.0"

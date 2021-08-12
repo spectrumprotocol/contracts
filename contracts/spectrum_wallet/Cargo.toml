@@ -1,6 +1,6 @@
 [package]
 name = "spectrum-wallet"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Spectrum team"]
 edition = "2018"
 description = "Contract to store dev fund"
@@ -43,4 +43,4 @@ serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 
 [dev-dependencies]
 cosmwasm-schema = "0.16.0"
-terra-cosmwasm = "2.2.0" 
+terra-cosmwasm = "2.2.0"

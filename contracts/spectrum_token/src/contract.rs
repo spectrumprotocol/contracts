@@ -2,11 +2,11 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 
-use cw20_base::ContractError;
-use cw20_base::contract::{
-    execute as cw20_execute, instantiate as cw20_instantiate, query as cw20_query,
+use cw20_legacy::{
+    contract::{execute as cw20_execute, query as cw20_query, instantiate as cw20_instantiate},
+    msg::{ExecuteMsg, QueryMsg, InstantiateMsg},
+    ContractError,
 };
-use cw20_base::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -14,7 +14,7 @@ pub fn instantiate(
     env: Env,
     info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, ContractError> {
+) -> StdResult<Response> {
     cw20_instantiate(deps, env, info, msg)
 }
 

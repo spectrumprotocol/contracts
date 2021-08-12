@@ -1,6 +1,6 @@
 [package]
 name = "spectrum-platform"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Spectrum team"]
 edition = "2018"
 description = "Contract for platform spending"
@@ -42,5 +42,5 @@ serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 
 [dev-dependencies]
 cosmwasm-schema = "0.16.0"
-terra-cosmwasm = "2.2.0" 
-cw20 = { version = "0.8.0" } 
+terra-cosmwasm = "2.2.0"
+cw20 = { version = "0.8.0" }
