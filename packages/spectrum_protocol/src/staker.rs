@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use terraswap::asset::Asset;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg {
+pub struct InstantiateMsg {
     pub terraswap_factory: String,
 }
 

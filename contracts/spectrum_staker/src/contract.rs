@@ -1,34 +1,42 @@
 use crate::state::{config_store, read_config, Config};
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     log, to_binary, Api, Binary, Coin, CosmosMsg, Decimal, Env, Extern, HandleResponse, String,
     InitResponse, MigrateResponse, MigrateResult, Querier, StdError, StdResult, Storage, Uint128,
     WasmMsg,
+    attr, to_binary, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Response, StdError, StdResult, Uint128, WasmMsg,
 };
-use cw20::Cw20HandleMsg;
+use cw20::Cw20ExecuteMsg;
 use spectrum_protocol::mirror_farm::Cw20HookMsg;
-use spectrum_protocol::staker::{HandleMsg, InitMsg, MigrateMsg, QueryMsg};
+use spectrum_protocol::staker::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use terraswap::asset::{Asset, AssetInfo};
-use terraswap::pair::HandleMsg as PairHandleMsg;
+use terraswap::pair::ExecuteMsg as PairExecuteMsg;
 use terraswap::querier::{query_pair_info, query_token_balance};
 
-pub fn init<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
+    deps: DepsMut,
     _env: Env,
-    msg: InitMsg,
-) -> StdResult<InitResponse> {
-    config_store(&mut deps.storage).save(&Config {
-        terraswap_factory: deps.api.canonical_address(&msg.terraswap_factory)?,
+    _info: MessageInfo,
+    msg: InstantiateMsg,
+) -> StdResult<Response> {
+    config_store(deps.storage).save(&Config {
+        terraswap_factory: deps.api.addr_canonicalize(&msg.terraswap_factory)?,
     })?;
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
-pub fn handle<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
+    deps: DepsMut,
     env: Env,
-    msg: HandleMsg,
-) -> StdResult<HandleResponse> {
+    info: MessageInfo,
+    msg: ExecuteMsg,
+) -> StdResult<Response> {
     match msg {
-        HandleMsg::bond {
+        ExecuteMsg::bond {
             contract,
             assets,
             slippage_tolerance,
@@ -36,12 +44,13 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         } => bond(
             deps,
             env,
+            info,
             contract,
             assets,
             slippage_tolerance,
             compound_rate,
         ),
-        HandleMsg::bond_hook {
+        ExecuteMsg::bond_hook {
             contract,
             asset_token,
             staking_token,
@@ -51,6 +60,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         } => bond_hook(
             deps,
             env,
+            info,
             contract,
             asset_token,
             staking_token,
@@ -61,16 +71,20 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     }
 }
 
-fn bond<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+fn bond(
+    deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     contract: String,
     assets: [Asset; 2],
     slippage_tolerance: Option<Decimal>,
     compound_rate: Option<Decimal>,
-) -> StdResult<HandleResponse> {
-    let config = read_config(&deps.storage)?;
-    let terraswap_factory = deps.api.human_address(&config.terraswap_factory)?;
+) -> StdResult<Response> {
+    let config = read_config(deps.storage)?;
+    let terraswap_factory = deps
+        .api
+        .addr_humanize(&config.terraswap_factory)?
+        .to_string();
 
     let mut native_asset_op: Option<Asset> = None;
     let mut token_info_op: Option<(String, Uint128)> = None;
@@ -80,7 +94,7 @@ fn bond<S: Storage, A: Api, Q: Querier>(
                 token_info_op = Some((contract_addr, asset.amount))
             }
             AssetInfo::NativeToken { .. } => {
-                asset.assert_sent_native_token_balance(&env)?;
+                asset.assert_sent_native_token_balance(&info)?;
                 native_asset_op = Some(asset.clone())
             }
         }
@@ -98,19 +112,23 @@ fn bond<S: Storage, A: Api, Q: Querier>(
 
     // query pair info to obtain pair contract address
     let asset_infos = [assets[0].info.clone(), assets[1].info.clone()];
-    let terraswap_pair = query_pair_info(deps, &terraswap_factory, &asset_infos)?;
+    let terraswap_pair = query_pair_info(
+        &deps.querier,
+        deps.api.addr_validate(&terraswap_factory)?,
+        &asset_infos,
+    )?;
 
     // get current lp token amount to later compute the received amount
     let prev_staking_token_amount = query_token_balance(
-        &deps,
-        &terraswap_pair.liquidity_token,
-        &env.contract.address,
+        &deps.querier,
+        deps.api.addr_validate(&terraswap_pair.liquidity_token)?,
+        env.contract.address.clone(),
     )?;
 
     // compute tax
-    let tax_amount = native_asset.compute_tax(deps)?;
+    let tax_amount = native_asset.compute_tax(&deps.querier)?;
     let native_asset = Asset {
-        amount: (native_asset.amount - tax_amount)?,
+        amount: native_asset.amount.checked_sub(tax_amount)?,
         info: native_asset.info,
     };
 
@@ -118,113 +136,110 @@ fn bond<S: Storage, A: Api, Q: Querier>(
     // 2. Increase allowance of token for pair contract
     // 3. Provide liquidity
     // 4. Execute staking hook, will stake in the name of the sender
-    Ok(HandleResponse {
-        messages: vec![
+
+    Ok(Response::new()
+        .add_messages(vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: token_addr.clone(),
-                msg: to_binary(&Cw20HandleMsg::TransferFrom {
-                    owner: env.message.sender.clone(),
-                    recipient: env.contract.address.clone(),
+                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                    owner: info.sender.to_string(),
+                    recipient: env.contract.address.to_string(),
                     amount: token_amount,
                 })?,
-                send: vec![],
+                funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: token_addr.clone(),
-                msg: to_binary(&Cw20HandleMsg::IncreaseAllowance {
+                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
                     spender: terraswap_pair.contract_addr.clone(),
                     amount: token_amount,
                     expires: None,
                 })?,
-                send: vec![],
+                funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: terraswap_pair.contract_addr,
-                msg: to_binary(&PairHandleMsg::ProvideLiquidity {
+                msg: to_binary(&PairExecuteMsg::ProvideLiquidity {
                     assets: if let AssetInfo::NativeToken { .. } = assets[0].info.clone() {
                         [native_asset.clone(), assets[1].clone()]
                     } else {
                         [assets[0].clone(), native_asset.clone()]
                     },
                     slippage_tolerance,
+                    receiver: None,
                 })?,
-                send: vec![Coin {
+                funds: vec![Coin {
                     denom: native_asset.info.to_string(),
                     amount: native_asset.amount,
                 }],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: env.contract.address,
-                msg: to_binary(&HandleMsg::bond_hook {
+                contract_addr: env.contract.address.to_string(),
+                msg: to_binary(&ExecuteMsg::bond_hook {
                     contract,
                     asset_token: token_addr.clone(),
                     staking_token: terraswap_pair.liquidity_token,
-                    staker_addr: env.message.sender,
+                    staker_addr: info.sender.to_string(),
                     prev_staking_token_amount,
                     compound_rate,
                 })?,
-                send: vec![],
+                funds: vec![],
             }),
-        ],
-        log: vec![
-            log("action", "bond"),
-            log("asset_token", token_addr.to_string()),
-            log("tax_amount", tax_amount.to_string()),
-        ],
-        data: None,
-    })
+        ])
+        .add_attributes(vec![
+            attr("action", "bond"),
+            attr("asset_token", token_addr.to_string()),
+            attr("tax_amount", tax_amount.to_string()),
+        ]))
 }
 
-fn bond_hook<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+fn bond_hook(
+    deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     contract: String,
     asset_token: String,
     staking_token: String,
     staker_addr: String,
     prev_staking_token_amount: Uint128,
     compound_rate: Option<Decimal>,
-) -> StdResult<HandleResponse> {
+) -> StdResult<Response> {
     // only can be called by itself
-    if env.message.sender != env.contract.address {
-        return Err(StdError::unauthorized());
+    if info.sender != env.contract.address {
+        return Err(StdError::generic_err("unauthorized"));
     }
 
     // stake all lp tokens received, compare with staking token amount before liquidity provision was executed
-    let current_staking_token_amount =
-        query_token_balance(&deps, &staking_token, &env.contract.address)?;
-    let amount_to_stake = (current_staking_token_amount - prev_staking_token_amount)?;
+    let current_staking_token_amount = query_token_balance(
+        &deps.querier,
+        deps.api.addr_validate(&staking_token)?,
+        env.contract.address,
+    )?;
+    let amount_to_stake = current_staking_token_amount.checked_sub(prev_staking_token_amount)?;
 
-    Ok(HandleResponse {
-        messages: vec![CosmosMsg::Wasm(WasmMsg::Execute {
+    Ok(
+        Response::new().add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: staking_token,
-            msg: to_binary(&Cw20HandleMsg::Send {
+            msg: to_binary(&Cw20ExecuteMsg::Send {
                 amount: amount_to_stake,
                 contract,
-                msg: Some(to_binary(&Cw20HookMsg::bond {
+                msg: to_binary(&Cw20HookMsg::bond {
                     asset_token,
                     staker_addr: Some(staker_addr),
                     compound_rate,
-                })?),
+                })?,
             })?,
-            send: vec![],
-        })],
-        log: vec![],
-        data: None,
-    })
+            funds: vec![],
+        })]),
+    )
 }
 
-pub fn query<S: Storage, A: Api, Q: Querier>(
-    _deps: &Extern<S, A, Q>,
-    _msg: QueryMsg,
-) -> StdResult<Binary> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn query(_deps: Deps, _msg: QueryMsg) -> StdResult<Binary> {
     Err(StdError::generic_err("query not support"))
 }
 
-pub fn migrate<S: Storage, A: Api, Q: Querier>(
-    _deps: &mut Extern<S, A, Q>,
-    _env: Env,
-    _msg: MigrateMsg,
-) -> MigrateResult {
-    Ok(MigrateResponse::default())
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }

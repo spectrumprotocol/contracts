@@ -21,17 +21,12 @@
       "minimum": 0.0
     },
     "owner": {
-      "$ref": "#/definitions/HumanAddr"
+      "type": "string"
     },
     "spectrum_gov": {
-      "$ref": "#/definitions/HumanAddr"
+      "type": "string"
     },
     "spectrum_token": {
-      "$ref": "#/definitions/HumanAddr"
-    }
-  },
-  "definitions": {
-    "HumanAddr": {
       "type": "string"
     }
   }
