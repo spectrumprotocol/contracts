@@ -24,6 +24,7 @@ pub struct ConfigInfo {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[allow(clippy::large_enum_variant)]
 pub enum ExecuteMsg {
     mint {},
     poll_end {
