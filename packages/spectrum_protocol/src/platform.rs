@@ -1,4 +1,4 @@
-use cosmwasm_std::{Decimal, HumanAddr};
+use cosmwasm_std::{Decimal};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -7,7 +7,7 @@ use crate::common::OrderBy;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigInfo {
-    pub owner: HumanAddr,
+    pub owner: String,
     pub quorum: Decimal,
     pub threshold: Decimal,
     pub voting_period: u64,
@@ -16,7 +16,7 @@ pub struct ConfigInfo {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     poll_end {
         poll_id: u64,
     },
@@ -37,7 +37,7 @@ pub enum HandleMsg {
         vote: VoteOption,
     },
     update_config {
-        owner: Option<HumanAddr>,
+        owner: Option<String>,
         quorum: Option<Decimal>,
         threshold: Option<Decimal>,
         voting_period: Option<u64>,
@@ -45,7 +45,7 @@ pub enum HandleMsg {
         expiration_period: Option<u64>,
     },
     upsert_board {
-        address: HumanAddr,
+        address: String,
         weight: u32,
     },
 }
@@ -67,8 +67,8 @@ impl fmt::Display for VoteOption {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub enum ExecuteMsg {
-    execute { contract: HumanAddr, msg: String },
+pub enum PollExecuteMsg {
+    execute { contract: String, msg: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -102,7 +102,7 @@ pub enum QueryMsg {
     state {},
     voters {
         poll_id: u64,
-        start_after: Option<HumanAddr>,
+        start_after: Option<String>,
         limit: Option<u32>,
         order_by: Option<OrderBy>,
     },
@@ -110,7 +110,7 @@ pub enum QueryMsg {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct BoardInfo {
-    pub address: HumanAddr,
+    pub address: String,
     pub weight: u32,
 }
 
@@ -128,13 +128,13 @@ pub struct VoterInfo {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct PollInfo {
     pub id: u64,
-    pub creator: HumanAddr,
+    pub creator: String,
     pub status: PollStatus,
     pub end_height: u64,
     pub title: String,
     pub description: String,
     pub link: Option<String>,
-    pub execute_msgs: Vec<ExecuteMsg>,
+    pub execute_msgs: Vec<PollExecuteMsg>,
     pub yes_votes: u32, // balance
     pub no_votes: u32,  // balance
     pub total_balance_at_end_poll: Option<u32>,
@@ -153,7 +153,7 @@ pub struct StateInfo {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct VotersResponse {
-    pub voters: Vec<(HumanAddr, VoterInfo)>,
+    pub voters: Vec<(String, VoterInfo)>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

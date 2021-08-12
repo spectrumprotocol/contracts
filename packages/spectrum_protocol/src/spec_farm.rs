@@ -1,44 +1,44 @@
-use cosmwasm_std::{Decimal, HumanAddr, Uint128};
+use cosmwasm_std::{Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigInfo {
-    pub owner: HumanAddr,
-    pub spectrum_token: HumanAddr,
-    pub spectrum_gov: HumanAddr,
+    pub owner: String,
+    pub spectrum_token: String,
+    pub spectrum_gov: String,
     pub lock_start: u64,
     pub lock_end: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     receive(Cw20ReceiveMsg),
     register_asset {
-        asset_token: HumanAddr,
-        staking_token: HumanAddr,
+        asset_token: String,
+        staking_token: String,
         weight: u32,
     },
     unbond {
-        asset_token: HumanAddr,
+        asset_token: String,
         amount: Uint128,
     },
     update_config {
-        owner: Option<HumanAddr>,
+        owner: Option<String>,
         lock_start: Option<u64>,
         lock_end: Option<u64>,
     },
     withdraw {
-        asset_token: Option<HumanAddr>,
+        asset_token: Option<String>,
     },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum Cw20HookMsg {
     bond {
-        staker_addr: Option<HumanAddr>,
-        asset_token: HumanAddr,
+        staker_addr: Option<String>,
+        asset_token: String,
     },
 }
 
@@ -47,8 +47,8 @@ pub enum QueryMsg {
     config {},
     pools {},
     reward_info {
-        staker_addr: HumanAddr,
-        asset_token: Option<HumanAddr>,
+        staker_addr: String,
+        asset_token: Option<String>,
         height: u64,
     },
     state {},
@@ -61,8 +61,8 @@ pub struct PoolsResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolItem {
-    pub asset_token: HumanAddr,
-    pub staking_token: HumanAddr,
+    pub asset_token: String,
+    pub staking_token: String,
     pub total_bond_amount: Uint128,
     pub weight: u32,
     pub state_spec_share_index: Decimal,
@@ -72,13 +72,13 @@ pub struct PoolItem {
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfoResponse {
-    pub staker_addr: HumanAddr,
+    pub staker_addr: String,
     pub reward_infos: Vec<RewardInfoResponseItem>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfoResponseItem {
-    pub asset_token: HumanAddr,
+    pub asset_token: String,
     pub bond_amount: Uint128,
     pub pending_spec_reward: Uint128,
     pub spec_share: Uint128,

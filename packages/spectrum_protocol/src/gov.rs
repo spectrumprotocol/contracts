@@ -1,4 +1,4 @@
-use cosmwasm_std::{Decimal, HumanAddr, Uint128};
+use cosmwasm_std::{Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -8,8 +8,8 @@ use crate::common::OrderBy;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigInfo {
-    pub owner: HumanAddr,
-    pub spec_token: Option<HumanAddr>,
+    pub owner: String,
+    pub spec_token: Option<String>,
     pub quorum: Decimal,
     pub threshold: Decimal,
     pub voting_period: u64,
@@ -19,12 +19,12 @@ pub struct ConfigInfo {
     pub mint_per_block: Uint128,
     pub mint_start: u64,
     pub mint_end: u64,
-    pub warchest_address: Option<HumanAddr>,
+    pub warchest_address: Option<String>,
     pub warchest_ratio: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     mint {},
     poll_end {
         poll_id: u64,
@@ -42,8 +42,8 @@ pub enum HandleMsg {
     },
     receive(Cw20ReceiveMsg),
     update_config {
-        owner: Option<HumanAddr>,
-        spec_token: Option<HumanAddr>,
+        owner: Option<String>,
+        spec_token: Option<String>,
         quorum: Option<Decimal>,
         threshold: Option<Decimal>,
         voting_period: Option<u64>,
@@ -53,11 +53,11 @@ pub enum HandleMsg {
         mint_per_block: Option<Uint128>,
         mint_start: Option<u64>,
         mint_end: Option<u64>,
-        warchest_address: Option<HumanAddr>,
+        warchest_address: Option<String>,
         warchest_ratio: Option<Decimal>,
     },
     upsert_vault {
-        vault_address: HumanAddr,
+        vault_address: String,
         weight: u32,
     },
     withdraw {
@@ -87,16 +87,16 @@ pub enum Cw20HookMsg {
         title: String,
         description: String,
         link: Option<String>,
-        execute_msgs: Vec<ExecuteMsg>,
+        execute_msgs: Vec<PollExecuteMsg>,
     },
     stake_tokens {
-        staker_addr: Option<HumanAddr>,
+        staker_addr: Option<String>,
     },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub enum ExecuteMsg {
-    execute { contract: HumanAddr, msg: String },
+pub enum PollExecuteMsg {
+    execute { contract: String, msg: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -117,7 +117,7 @@ impl fmt::Display for PollStatus {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum QueryMsg {
     balance {
-        address: HumanAddr,
+        address: String,
         height: Option<u64>,
     },
     config {},
@@ -136,7 +136,7 @@ pub enum QueryMsg {
     vaults {},
     voters {
         poll_id: u64,
-        start_after: Option<HumanAddr>,
+        start_after: Option<String>,
         limit: Option<u32>,
         order_by: Option<OrderBy>,
     },
@@ -158,7 +158,7 @@ pub struct BalanceResponse {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct PollInfo {
     pub id: u64,
-    pub creator: HumanAddr,
+    pub creator: String,
     pub status: PollStatus,
     pub end_height: u64,
     pub title: String,
@@ -188,7 +188,7 @@ pub struct StateInfo {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct VaultInfo {
-    pub address: HumanAddr,
+    pub address: String,
     pub weight: u32,
 }
 
@@ -199,7 +199,7 @@ pub struct VaultsResponse {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct VotersResponse {
-    pub voters: Vec<(HumanAddr, VoterInfo)>,
+    pub voters: Vec<(String, VoterInfo)>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
