@@ -14,7 +14,7 @@
     }
   },
   "definitions": {
-    "ExecuteMsg": {
+    "PollExecuteMsg": {
       "anyOf": [
         {
           "type": "object",
@@ -30,19 +30,17 @@
               ],
               "properties": {
                 "contract": {
-                  "$ref": "#/definitions/HumanAddr"
+                  "type": "string"
                 },
                 "msg": {
                   "type": "string"
                 }
               }
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
-    },
-    "HumanAddr": {
-      "type": "string"
     },
     "PollInfo": {
       "type": "object",
@@ -59,7 +57,7 @@
       ],
       "properties": {
         "creator": {
-          "$ref": "#/definitions/HumanAddr"
+          "type": "string"
         },
         "description": {
           "type": "string"
@@ -72,7 +70,7 @@
         "execute_msgs": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/ExecuteMsg"
+            "$ref": "#/definitions/PollExecuteMsg"
           }
         },
         "id": {

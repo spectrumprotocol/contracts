@@ -29,7 +29,12 @@ fn validate_percentage(value: Decimal, field: &str) -> StdResult<()> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn instantiate(deps: DepsMut, env: Env, msg: ConfigInfo) -> StdResult<Response> {
+pub fn instantiate(
+    deps: DepsMut,
+    env: Env,
+    _info: MessageInfo,
+    msg: ConfigInfo,
+) -> StdResult<Response> {
     validate_percentage(msg.community_fee, "community_fee")?;
     validate_percentage(msg.platform_fee, "platform_fee")?;
     validate_percentage(msg.controller_fee, "controller_fee")?;

@@ -9,7 +9,7 @@ use cosmwasm_storage::{
 use spectrum_protocol::common::{
     calc_range_end, calc_range_end_addr, calc_range_start, calc_range_start_addr, OrderBy,
 };
-use spectrum_protocol::platform::{ExecuteMsg, PollStatus, VoterInfo};
+use spectrum_protocol::platform::{PollExecuteMsg, PollStatus, VoterInfo};
 
 static KEY_CONFIG: &[u8] = b"config";
 
@@ -61,7 +61,7 @@ pub struct Poll {
     pub title: String,
     pub description: String,
     pub link: Option<String>,
-    pub execute_msgs: Vec<ExecuteMsg>,
+    pub execute_msgs: Vec<PollExecuteMsg>,
     pub total_balance_at_end_poll: Option<u32>,
 }
 

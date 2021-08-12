@@ -30,7 +30,7 @@ pub enum ExecuteMsg {
         title: String,
         description: String,
         link: Option<String>,
-        execute_msgs: Vec<ExecuteMsg>,
+        execute_msgs: Vec<PollExecuteMsg>,
     },
     poll_vote {
         poll_id: u64,

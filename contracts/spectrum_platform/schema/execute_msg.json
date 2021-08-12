@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "HandleMsg",
+  "title": "ExecuteMsg",
   "anyOf": [
     {
       "type": "object",
@@ -21,7 +21,8 @@
             }
           }
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "type": "object",
@@ -42,7 +43,8 @@
             }
           }
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "type": "object",
@@ -63,7 +65,8 @@
             }
           }
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "type": "object",
@@ -85,7 +88,7 @@
             "execute_msgs": {
               "type": "array",
               "items": {
-                "$ref": "#/definitions/ExecuteMsg"
+                "$ref": "#/definitions/PollExecuteMsg"
               }
             },
             "link": {
@@ -99,7 +102,8 @@
             }
           }
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "type": "object",
@@ -124,7 +128,8 @@
             }
           }
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "type": "object",
@@ -152,13 +157,9 @@
               "minimum": 0.0
             },
             "owner": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/HumanAddr"
-                },
-                {
-                  "type": "null"
-                }
+              "type": [
+                "string",
+                "null"
               ]
             },
             "quorum": {
@@ -191,7 +192,8 @@
             }
           }
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "type": "object",
@@ -207,7 +209,7 @@
           ],
           "properties": {
             "address": {
-              "$ref": "#/definitions/HumanAddr"
+              "type": "string"
             },
             "weight": {
               "type": "integer",
@@ -216,7 +218,8 @@
             }
           }
         }
-      }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
@@ -224,7 +227,7 @@
       "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
       "type": "string"
     },
-    "ExecuteMsg": {
+    "PollExecuteMsg": {
       "anyOf": [
         {
           "type": "object",
@@ -240,19 +243,17 @@
               ],
               "properties": {
                 "contract": {
-                  "$ref": "#/definitions/HumanAddr"
+                  "type": "string"
                 },
                 "msg": {
                   "type": "string"
                 }
               }
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
-    },
-    "HumanAddr": {
-      "type": "string"
     },
     "VoteOption": {
       "type": "string",
