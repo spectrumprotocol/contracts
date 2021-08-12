@@ -233,8 +233,8 @@ pub fn withdraw<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-fn withdraw_reward<S: Storage>(
-    storage: &mut S,
+fn withdraw_reward(
+    storage: &mut dyn Storage,
     config: &Config,
     height: u64,
     state: &State,

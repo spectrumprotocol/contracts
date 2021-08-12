@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{CanonicalAddr, Decimal, Order, ReadonlyStorage, StdResult, Storage, Uint128};
+use cosmwasm_std::{CanonicalAddr, Decimal, Order, StdResult, Storage, Uint128};
 use cosmwasm_storage::{
     bucket, bucket_read, singleton, singleton_read, Bucket, ReadonlyBucket, Singleton,
 };
@@ -30,11 +30,11 @@ pub struct Config {
     pub warchest_ratio: Decimal,
 }
 
-pub fn config_store<S: Storage>(storage: &mut S) -> Singleton<S, Config> {
+pub fn config_store(storage: &mut dyn Storage) -> Singleton<Config> {
     singleton(storage, KEY_CONFIG)
 }
 
-pub fn read_config<S: Storage>(storage: &S) -> StdResult<Config> {
+pub fn read_config(storage: &dyn Storage) -> StdResult<Config> {
     singleton_read(storage, KEY_CONFIG).load()
 }
 
@@ -60,11 +60,11 @@ impl State {
     }
 }
 
-pub fn state_store<S: Storage>(storage: &mut S) -> Singleton<S, State> {
+pub fn state_store(storage: &mut dyn Storage) -> Singleton<State> {
     singleton(storage, KEY_STATE)
 }
 
-pub fn read_state<S: Storage>(storage: &S) -> StdResult<State> {
+pub fn read_state(storage: &dyn Storage) -> StdResult<State> {
     singleton_read(storage, KEY_STATE).load()
 }
 
@@ -86,12 +86,12 @@ pub struct Poll {
     pub total_balance_at_end_poll: Option<Uint128>,
 }
 
-pub fn poll_store<S: Storage>(storage: &mut S) -> Bucket<S, Poll> {
-    bucket(PREFIX_POLL, storage)
+pub fn poll_store(storage: &mut dyn Storage) -> Bucket<Poll> {
+    bucket(storage, PREFIX_POLL)
 }
 
-pub fn read_poll<S: ReadonlyStorage>(storage: &S, key: &[u8]) -> StdResult<Option<Poll>> {
-    bucket_read(PREFIX_POLL, storage).may_load(key)
+pub fn read_poll(storage: &dyn Storage, key: &[u8]) -> StdResult<Option<Poll>> {
+    bucket_read(storage, PREFIX_POLL).may_load(key)
 }
 
 static PREFIX_ACCOUNT: &[u8] = b"account";
@@ -112,30 +112,30 @@ impl Account {
     }
 }
 
-pub fn account_store<S: Storage>(storage: &mut S) -> Bucket<S, Account> {
-    bucket(PREFIX_ACCOUNT, storage)
+pub fn account_store(storage: &mut dyn Storage) -> Bucket<Account> {
+    bucket(storage, PREFIX_ACCOUNT)
 }
 
-pub fn read_account<S: ReadonlyStorage>(storage: &S, key: &[u8]) -> StdResult<Option<Account>> {
-    bucket_read(PREFIX_ACCOUNT, storage).may_load(key)
+pub fn read_account(storage: &dyn Storage, key: &[u8]) -> StdResult<Option<Account>> {
+    bucket_read(storage, PREFIX_ACCOUNT).may_load(key)
 }
 
 static PREFIX_POLL_INDEXER: &[u8] = b"poll_indexer";
 
-pub fn poll_indexer_store<'a, S: Storage>(
-    storage: &'a mut S,
+pub fn poll_indexer_store<'a>(
+    storage: &'a mut dyn Storage,
     status: &PollStatus,
-) -> Bucket<'a, S, bool> {
+) -> Bucket<'a, bool> {
     Bucket::multilevel(
-        &[PREFIX_POLL_INDEXER, status.to_string().as_bytes()],
         storage,
+        &[PREFIX_POLL_INDEXER, status.to_string().as_bytes()],
     )
 }
 
 const MAX_LIMIT: u32 = 30;
 const DEFAULT_LIMIT: u32 = 10;
-pub fn read_polls<'a, S: ReadonlyStorage>(
-    storage: &'a S,
+pub fn read_polls<'a>(
+    storage: &'a dyn Storage,
     filter: Option<PollStatus>,
     start_after: Option<u64>,
     limit: Option<u32>,
@@ -148,9 +148,9 @@ pub fn read_polls<'a, S: ReadonlyStorage>(
     };
 
     if let Some(status) = filter {
-        let poll_indexer: ReadonlyBucket<'a, S, bool> = ReadonlyBucket::multilevel(
-            &[PREFIX_POLL_INDEXER, status.to_string().as_bytes()],
+        let poll_indexer: ReadonlyBucket<'a, bool> = ReadonlyBucket::multilevel(
             storage,
+            &[PREFIX_POLL_INDEXER, status.to_string().as_bytes()],
         );
         poll_indexer
             .range(start.as_deref(), end.as_deref(), order_by.into())
@@ -161,7 +161,7 @@ pub fn read_polls<'a, S: ReadonlyStorage>(
             })
             .collect()
     } else {
-        let polls: ReadonlyBucket<'a, S, Poll> = ReadonlyBucket::new(PREFIX_POLL, storage);
+        let polls: ReadonlyBucket<'a, Poll> = ReadonlyBucket::new(storage, PREFIX_POLL);
 
         polls
             .range(start.as_deref(), end.as_deref(), order_by.into())
@@ -176,21 +176,21 @@ pub fn read_polls<'a, S: ReadonlyStorage>(
 
 static PREFIX_POLL_VOTER: &[u8] = b"poll_voter";
 
-pub fn poll_voter_store<S: Storage>(storage: &mut S, poll_id: u64) -> Bucket<S, VoterInfo> {
-    Bucket::multilevel(&[PREFIX_POLL_VOTER, &poll_id.to_be_bytes()], storage)
+pub fn poll_voter_store(storage: &mut dyn Storage, poll_id: u64) -> Bucket<VoterInfo> {
+    Bucket::multilevel(storage,&[PREFIX_POLL_VOTER, &poll_id.to_be_bytes()])
 }
 
-pub fn read_poll_voter<S: ReadonlyStorage>(
-    storage: &S,
+pub fn read_poll_voter(
+    storage: &dyn Storage,
     poll_id: u64,
     key: &CanonicalAddr,
 ) -> StdResult<VoterInfo> {
-    ReadonlyBucket::multilevel(&[PREFIX_POLL_VOTER, &poll_id.to_be_bytes()], storage)
+    ReadonlyBucket::multilevel(storage, &[PREFIX_POLL_VOTER, &poll_id.to_be_bytes()])
         .load(key.as_slice())
 }
 
-pub fn read_poll_voters<'a, S: ReadonlyStorage>(
-    storage: &'a S,
+pub fn read_poll_voters<'a>(
+    storage: &'a dyn Storage,
     poll_id: u64,
     start_after: Option<CanonicalAddr>,
     limit: Option<u32>,
@@ -202,8 +202,8 @@ pub fn read_poll_voters<'a, S: ReadonlyStorage>(
         _ => (None, calc_range_end_addr(start_after), OrderBy::Desc),
     };
 
-    let voters: ReadonlyBucket<'a, S, VoterInfo> =
-        ReadonlyBucket::multilevel(&[PREFIX_POLL_VOTER, &poll_id.to_be_bytes()], storage);
+    let voters: ReadonlyBucket<'a, VoterInfo> =
+        ReadonlyBucket::multilevel(storage, &[PREFIX_POLL_VOTER, &poll_id.to_be_bytes()]);
     voters
         .range(start.as_deref(), end.as_deref(), order_by.into())
         .take(limit)
@@ -221,16 +221,16 @@ pub struct Vault {
     pub weight: u32,
 }
 
-pub fn vault_store<S: Storage>(storage: &mut S) -> Bucket<S, Vault> {
-    bucket(PREFIX_VAULT, storage)
+pub fn vault_store(storage: &mut dyn Storage) -> Bucket<Vault> {
+    bucket(storage, PREFIX_VAULT)
 }
 
-pub fn read_vault<S: ReadonlyStorage>(storage: &S, key: &[u8]) -> StdResult<Option<Vault>> {
-    bucket_read(PREFIX_VAULT, storage).may_load(key)
+pub fn read_vault(storage: &dyn Storage, key: &[u8]) -> StdResult<Option<Vault>> {
+    bucket_read(storage, PREFIX_VAULT).may_load(key)
 }
 
-pub fn read_vaults<S: ReadonlyStorage>(storage: &S) -> StdResult<Vec<(CanonicalAddr, Vault)>> {
-    bucket_read(PREFIX_VAULT, storage)
+pub fn read_vaults(storage: &dyn Storage) -> StdResult<Vec<(CanonicalAddr, Vault)>> {
+    bucket_read(storage, PREFIX_VAULT)
         .range(None, None, Order::Descending)
         .map(|item| {
             let (k, v) = item?;
