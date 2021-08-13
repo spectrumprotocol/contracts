@@ -166,7 +166,7 @@ pub struct PollInfo {
     pub description: String,
     pub link: Option<String>,
     pub deposit_amount: Uint128,
-    pub execute_msgs: Vec<ExecuteMsg>,
+    pub execute_msgs: Vec<PollExecuteMsg>,
     pub yes_votes: Uint128, // balance
     pub no_votes: Uint128,  // balance
     pub total_balance_at_end_poll: Option<Uint128>,
