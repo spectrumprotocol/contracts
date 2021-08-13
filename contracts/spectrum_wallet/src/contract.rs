@@ -365,7 +365,7 @@ fn update_config(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::config {} => to_binary(&query_config(deps)?),
         QueryMsg::balance { address, height } => to_binary(&query_balance(deps, address, height)?),

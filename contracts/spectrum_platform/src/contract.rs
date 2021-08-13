@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdError,
-    StdResult, Storage,
+    StdResult,
 };
 use spectrum_protocol::platform::{
     BoardInfo, BoardsResponse, ConfigInfo, ExecuteMsg, MigrateMsg, QueryMsg, StateInfo,
@@ -105,9 +105,10 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn update_config(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     owner: Option<String>,
     quorum: Option<Decimal>,
@@ -153,7 +154,7 @@ fn update_config(
 
 fn upsert_board(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     address: String,
     weight: u32,
@@ -239,6 +240,6 @@ fn query_state(deps: Deps) -> StdResult<StateInfo> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
 }

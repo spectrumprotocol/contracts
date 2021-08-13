@@ -280,7 +280,7 @@ pub fn register_asset(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::config {} => to_binary(&query_config(deps)?),
         QueryMsg::pools {} => to_binary(&query_pools(deps)?),

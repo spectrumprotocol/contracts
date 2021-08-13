@@ -178,7 +178,7 @@ fn test_stake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         address: USER1.to_string(),
         height: 0u64,
     };
-    let res: BalanceResponse = from_binary(&query(deps.as_ref(), msg).unwrap()).unwrap();
+    let res: BalanceResponse = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(res, BalanceResponse {
         share: Uint128::from(80u128),
         staked_amount: Uint128::from(80u128),
@@ -213,7 +213,7 @@ fn test_reward(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         address: USER1.to_string(),
         height: env.block.height + 12u64,
     };
-    let res: BalanceResponse = from_binary(&query(deps.as_ref(), msg).unwrap()).unwrap();
+    let res: BalanceResponse = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(res, BalanceResponse {
         share: Uint128::from(100u128),
         staked_amount: Uint128::from(110u128),

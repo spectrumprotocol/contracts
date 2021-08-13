@@ -51,7 +51,7 @@ pub fn poll_start(
         title,
         description,
         link,
-        execute_msgs: execute_msgs,
+        execute_msgs,
         total_balance_at_end_poll: None,
     };
 
@@ -246,7 +246,7 @@ pub fn poll_execute(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response
         return Err(StdError::generic_err("Effective delay has not expired"));
     }
 
-    if a_poll.execute_msgs.len() == 0 {
+    if a_poll.execute_msgs.is_empty() {
         return Err(StdError::generic_err("The poll does not have execute_data"));
     }
 
@@ -281,7 +281,7 @@ pub fn poll_expire(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response>
         return Err(StdError::generic_err("Poll is not in passed status"));
     }
 
-    if a_poll.execute_msgs.len() == 0 {
+    if a_poll.execute_msgs.is_empty() {
         return Err(StdError::generic_err(
             "Cannot make a text proposal to expired state",
         ));

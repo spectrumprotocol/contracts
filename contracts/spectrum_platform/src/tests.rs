@@ -1,16 +1,16 @@
 use crate::contract::{execute, instantiate, query};
 use cosmwasm_std::testing::{
-    mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR,
+    mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR,
 };
 use cosmwasm_std::{
     from_binary, to_vec, Binary, CosmosMsg, Decimal, DepsMut, SubMsg, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
-use spectrum_protocol::common::OrderBy;
 use spectrum_protocol::platform::{
     BoardsResponse, ConfigInfo, ExecuteMsg, PollExecuteMsg, PollInfo, PollStatus, PollsResponse,
     QueryMsg, StateInfo, VoteOption, VoterInfo, VotersResponse,
 };
+use spectrum_protocol::common::OrderBy;
 
 const VOTING_TOKEN: &str = "voting_token";
 const TEST_CREATOR: &str = "creator";
@@ -30,9 +30,9 @@ fn test() {
     let (weight, weight_2, total_weight) = test_board(deps.as_mut());
 
     test_poll_executed(deps.as_mut(), &config, weight, weight_2, total_weight);
-    // test_poll_low_quorum(deps.as_mut(), total_weight);
-    // test_poll_low_threshold(deps.as_mut(), total_weight);
-    // test_poll_expired(deps.as_mut());
+    test_poll_low_quorum(deps.as_mut(), total_weight);
+    test_poll_low_threshold(deps.as_mut(), total_weight);
+    test_poll_expired(deps.as_mut());
 }
 
 fn test_config(mut deps: DepsMut) -> ConfigInfo {
@@ -93,7 +93,6 @@ fn test_config(mut deps: DepsMut) -> ConfigInfo {
 
     // success
     let info = mock_info(MOCK_CONTRACT_ADDR, &[]);
-    let env = mock_env();
     let res = execute(deps.branch(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
 
@@ -113,7 +112,7 @@ fn test_config(mut deps: DepsMut) -> ConfigInfo {
         effective_delay: None,
         expiration_period: None,
     };
-    let res = execute(deps, env.clone(), info, msg);
+    let res = execute(deps.branch(), env.clone(), info, msg);
     assert!(res.is_err());
 
     config
@@ -132,7 +131,6 @@ fn test_board(mut deps: DepsMut) -> (u32, u32, u32) {
     let res = execute(deps.branch(), env.clone(), info.clone(), msg.clone());
     assert!(res.is_err());
 
-    let env = mock_env();
     let info = mock_info(MOCK_CONTRACT_ADDR, &[]);
     let res = execute(deps.branch(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
@@ -167,8 +165,8 @@ fn test_board(mut deps: DepsMut) -> (u32, u32, u32) {
     let msg = QueryMsg::boards {};
     let res: BoardsResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
-    assert_eq!(res.boards[1].weight, weight);
-    assert_eq!(res.boards[0].weight, weight_2);
+    assert_eq!(res.boards[0].weight, weight);
+    assert_eq!(res.boards[1].weight, weight_2);
 
     (weight, weight_2, total_weight)
 }
@@ -181,7 +179,7 @@ fn test_poll_executed(
     total_weight: u32,
 ) {
     // start poll
-    let env = mock_env();
+    let mut env = mock_env();
     let info = mock_info(TEST_VOTER, &[]);
     let execute_msg = PollExecuteMsg::execute {
         contract: VOTING_TOKEN.to_string(),
@@ -242,7 +240,6 @@ fn test_poll_executed(
     assert_eq!(res, poll);
 
     // vote failed (id not found)
-    let env = mock_env();
     let info = mock_info(TEST_VOTER, &[]);
     let msg = ExecuteMsg::poll_vote {
         poll_id: 2,
@@ -279,7 +276,6 @@ fn test_poll_executed(
     assert!(res.is_err());
 
     // vote 2
-    let env = mock_env();
     let info = mock_info(TEST_VOTER_2, &[]);
     let msg = ExecuteMsg::poll_vote {
         poll_id: 1,
@@ -302,17 +298,17 @@ fn test_poll_executed(
         VotersResponse {
             voters: vec![
                 (
-                    TEST_VOTER_2.to_string(),
-                    VoterInfo {
-                        vote: VoteOption::yes,
-                        balance: weight_2,
-                    }
-                ),
-                (
                     TEST_VOTER.to_string(),
                     VoterInfo {
                         vote: VoteOption::yes,
                         balance: weight,
+                    }
+                ),
+                (
+                    TEST_VOTER_2.to_string(),
+                    VoterInfo {
+                        vote: VoteOption::yes,
+                        balance: weight_2,
                     }
                 ),
             ]
@@ -320,7 +316,6 @@ fn test_poll_executed(
     );
 
     // end poll success
-    let mut env = mock_env();
     let info = mock_info(TEST_VOTER_2, &[]);
     env.block.height = env.block.height + DEFAULT_VOTING_PERIOD;
     let msg = ExecuteMsg::poll_end { poll_id: 1 };
@@ -370,183 +365,186 @@ fn test_poll_executed(
     assert!(res.is_err());
 }
 
-// fn test_poll_low_quorum(
-//     deps: DepsMut,
-//     total_weight: u32,
-// ) {
-//     // start poll2
-//     let env = mock_env(TEST_VOTER, &[]);
-//     let msg = ExecuteMsg::poll_start {
-//         title: "title".to_string(),
-//         description: "description".to_string(),
-//         link: None,
-//         execute_msgs: vec![],
-//     };
-//     let res = execute(deps, env.clone(), msg);
-//     assert!(res.is_ok());
+fn test_poll_low_quorum(
+    mut deps: DepsMut,
+    total_weight: u32,
+) {
+    // start poll2
+    let mut env = mock_env();
+    let info = mock_info(TEST_VOTER, &[]);
+    let msg = ExecuteMsg::poll_start {
+        title: "title".to_string(),
+        description: "description".to_string(),
+        link: None,
+        execute_msgs: vec![],
+    };
+    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    assert!(res.is_ok());
 
-//     // vote poll2
-//     let env = mock_env(TEST_VOTER, &[]);
-//     let msg = ExecuteMsg::poll_vote {
-//         poll_id: 2,
-//         vote: VoteOption::yes,
-//     };
-//     let res = execute(deps, env.clone(), msg);
-//     assert!(res.is_ok());
+    // vote poll2
+    let info = mock_info(TEST_VOTER, &[]);
+    let msg = ExecuteMsg::poll_vote {
+        poll_id: 2,
+        vote: VoteOption::yes,
+    };
+    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    assert!(res.is_ok());
 
-//     // vote poll failed (expired)
-//     let mut env = mock_env(TEST_VOTER, &[]);
-//     env.block.height = env.block.height + DEFAULT_VOTING_PERIOD;
-//     let msg = ExecuteMsg::poll_vote {
-//         poll_id: 2,
-//         vote: VoteOption::no,
-//     };
-//     let res = execute(deps, env.clone(), msg);
-//     assert!(res.is_err());
+    // vote poll failed (expired)
+    let info = mock_info(TEST_VOTER, &[]);
+    env.block.height = env.block.height + DEFAULT_VOTING_PERIOD;
+    let msg = ExecuteMsg::poll_vote {
+        poll_id: 2,
+        vote: VoteOption::no,
+    };
+    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    assert!(res.is_err());
 
-//     // end poll success
-//     let msg = ExecuteMsg::poll_end { poll_id: 2 };
-//     let res = execute(deps, env.clone(), msg);
-//     assert!(res.is_ok());
+    // end poll success
+    let msg = ExecuteMsg::poll_end { poll_id: 2 };
+    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    assert!(res.is_ok());
 
-//     // get poll
-//     let msg = QueryMsg::poll { poll_id: 2 };
-//     let res: PollInfo = from_binary(&query(deps, msg).unwrap()).unwrap();
-//     assert_eq!(res.status, PollStatus::rejected);
-//     assert_eq!(
-//         res.total_balance_at_end_poll,
-//         Some(total_weight)
-//     );
-// }
+    // get poll
+    let msg = QueryMsg::poll { poll_id: 2 };
+    let res: PollInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+    assert_eq!(res.status, PollStatus::rejected);
+    assert_eq!(
+        res.total_balance_at_end_poll,
+        Some(total_weight)
+    );
+}
 
-// fn test_poll_low_threshold(
-//     deps: DepsMut,
-//     total_weight: u32,
-// ) {
-//     // start poll3
-//     let env = mock_env(TEST_VOTER, &[]);
-//     let msg = ExecuteMsg::poll_start {
-//         title: "title".to_string(),
-//         description: "description".to_string(),
-//         link: None,
-//         execute_msgs: vec![],
-//     };
-//     let res = execute(deps, env.clone(), msg);
-//     assert!(res.is_ok());
+fn test_poll_low_threshold(
+    mut deps: DepsMut,
+    total_weight: u32,
+) {
+    // start poll3
+    let mut env = mock_env();
+    let info = mock_info(TEST_VOTER, &[]);
+    let msg = ExecuteMsg::poll_start {
+        title: "title".to_string(),
+        description: "description".to_string(),
+        link: None,
+        execute_msgs: vec![],
+    };
+    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    assert!(res.is_ok());
 
-//     // vote poll3
-//     let env = mock_env(TEST_VOTER, &[]);
-//     let msg = ExecuteMsg::poll_vote {
-//         poll_id: 3,
-//         vote: VoteOption::yes,
-//     };
-//     let res = execute(deps, env.clone(), msg);
-//     assert!(res.is_ok());
+    // vote poll3
+    let info = mock_info(TEST_VOTER, &[]);
+    let msg = ExecuteMsg::poll_vote {
+        poll_id: 3,
+        vote: VoteOption::yes,
+    };
+    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    assert!(res.is_ok());
 
-//     // vote poll3 as no
-//     let env = mock_env(TEST_VOTER_2, &[]);
-//     let msg = ExecuteMsg::poll_vote {
-//         poll_id: 3,
-//         vote: VoteOption::no,
-//     };
-//     let res = execute(deps, env.clone(), msg);
-//     assert!(res.is_ok());
+    // vote poll3 as no
+    let info = mock_info(TEST_VOTER_2, &[]);
+    let msg = ExecuteMsg::poll_vote {
+        poll_id: 3,
+        vote: VoteOption::no,
+    };
+    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    assert!(res.is_ok());
 
-//     // end poll success
-//     let mut env = mock_env(TEST_CREATOR, &[]);
-//     env.block.height = env.block.height + DEFAULT_VOTING_PERIOD;
-//     let msg = ExecuteMsg::poll_end { poll_id: 3 };
-//     let res = execute(deps, env.clone(), msg);
-//     assert!(res.is_ok());
+    // end poll success
+    let info = mock_info(TEST_CREATOR, &[]);
+    env.block.height = env.block.height + DEFAULT_VOTING_PERIOD;
+    let msg = ExecuteMsg::poll_end { poll_id: 3 };
+    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    assert!(res.is_ok());
 
-//     // get poll
-//     let msg = QueryMsg::poll { poll_id: 3 };
-//     let res: PollInfo = from_binary(&query(deps, msg).unwrap()).unwrap();
-//     assert_eq!(res.status, PollStatus::rejected);
-//     assert_eq!(
-//         res.total_balance_at_end_poll,
-//         Some(total_weight)
-//     );
-// }
+    // get poll
+    let msg = QueryMsg::poll { poll_id: 3 };
+    let res: PollInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+    assert_eq!(res.status, PollStatus::rejected);
+    assert_eq!(
+        res.total_balance_at_end_poll,
+        Some(total_weight)
+    );
+}
 
-// fn test_poll_expired(
-//     deps: DepsMut,
-// ) {
-//     // start poll
-//     let env = mock_env(TEST_VOTER, &[]);
-//     let execute_msg = ExecuteMsg::execute {
-//         contract: VOTING_TOKEN.to_string(),
-//         msg: String::from_utf8(
-//             to_vec(&Cw20ExecuteMsg::Burn {
-//                 amount: Uint128(123),
-//             })
-//                 .unwrap(),
-//         )
-//             .unwrap(),
-//     };
-//     let msg = ExecuteMsg::poll_start {
-//         title: "title".to_string(),
-//         description: "description".to_string(),
-//         link: None,
-//         execute_msgs: vec![execute_msg.clone()],
-//     };
-//     let res = execute(deps, env.clone(), msg);
-//     assert!(res.is_ok());
+fn test_poll_expired(
+    mut deps: DepsMut,
+) {
+    // start poll
+    let mut env = mock_env();
+    let info = mock_info(TEST_VOTER, &[]);
+    let execute_msg = PollExecuteMsg::execute {
+        contract: VOTING_TOKEN.to_string(),
+        msg: String::from_utf8(
+            to_vec(&Cw20ExecuteMsg::Burn {
+                amount: Uint128::new(123),
+            })
+                .unwrap(),
+        )
+            .unwrap(),
+    };
+    let msg = ExecuteMsg::poll_start {
+        title: "title".to_string(),
+        description: "description".to_string(),
+        link: None,
+        execute_msgs: vec![execute_msg.clone()],
+    };
+    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    assert!(res.is_ok());
 
-//     // vote success
-//     let env = mock_env(TEST_VOTER, &[]);
-//     let msg = ExecuteMsg::poll_vote {
-//         poll_id: 4,
-//         vote: VoteOption::yes,
-//     };
-//     let res = execute(deps, env.clone(), msg);
-//     assert!(res.is_ok());
+    // vote success
+    let info = mock_info(TEST_VOTER, &[]);
+    let msg = ExecuteMsg::poll_vote {
+        poll_id: 4,
+        vote: VoteOption::yes,
+    };
+    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    assert!(res.is_ok());
 
-//     // vote 2
-//     let env = mock_env(TEST_VOTER_2, &[]);
-//     let msg = ExecuteMsg::poll_vote {
-//         poll_id: 4,
-//         vote: VoteOption::yes,
-//     };
-//     let res = execute(deps, env.clone(), msg);
-//     assert!(res.is_ok());
+    // vote 2
+    let info = mock_info(TEST_VOTER_2, &[]);
+    let msg = ExecuteMsg::poll_vote {
+        poll_id: 4,
+        vote: VoteOption::yes,
+    };
+    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    assert!(res.is_ok());
 
-//     // end poll success
-//     let mut env = mock_env(TEST_CREATOR, &[]);
-//     env.block.height = env.block.height + DEFAULT_VOTING_PERIOD;
-//     let msg = ExecuteMsg::poll_end { poll_id: 4 };
-//     let res = execute(deps, env.clone(), msg);
-//     assert!(res.is_ok());
+    // end poll success
+    let info = mock_info(TEST_CREATOR, &[]);
+    env.block.height = env.block.height + DEFAULT_VOTING_PERIOD;
+    let msg = ExecuteMsg::poll_end { poll_id: 4 };
+    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    assert!(res.is_ok());
 
-//     // expired failed (wait period)
-//     env.block.height = env.block.height + DEFAULT_EFFECTIVE_DELAY;
-//     let msg = ExecuteMsg::poll_expire { poll_id: 4 };
-//     let res = execute(deps, env.clone(), msg.clone());
-//     assert!(res.is_err());
+    // expired failed (wait period)
+    env.block.height = env.block.height + DEFAULT_EFFECTIVE_DELAY;
+    let msg = ExecuteMsg::poll_expire { poll_id: 4 };
+    let res = execute(deps.branch(), env.clone(), info.clone(), msg.clone());
+    assert!(res.is_err());
 
-//     // execute success
-//     env.block.height = env.block.height + DEFAULT_EFFECTIVE_DELAY;
-//     let res = execute(deps, env.clone(), msg);
-//     assert!(res.is_ok());
+    // execute success
+    env.block.height = env.block.height + DEFAULT_EFFECTIVE_DELAY;
+    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    assert!(res.is_ok());
 
-//     // get poll
-//     let msg = QueryMsg::poll { poll_id: 4 };
-//     let res: PollInfo = from_binary(&query(deps, msg).unwrap()).unwrap();
-//     assert_eq!(res.status, PollStatus::expired);
+    // get poll
+    let msg = QueryMsg::poll { poll_id: 4 };
+    let res: PollInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+    assert_eq!(res.status, PollStatus::expired);
 
-//     // expired failed (status)
-//     let msg = ExecuteMsg::poll_expire { poll_id: 4 };
-//     let res = execute(deps, env.clone(), msg);
-//     assert!(res.is_err());
+    // expired failed (status)
+    let msg = ExecuteMsg::poll_expire { poll_id: 4 };
+    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    assert!(res.is_err());
 
-//     // query polls
-//     let msg = QueryMsg::polls {
-//         filter: Some(PollStatus::rejected),
-//         start_after: None,
-//         limit: None,
-//         order_by: Some(OrderBy::Asc),
-//     };
-//     let res: PollsResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
-//     assert_eq!(res.polls[0].id, 2);
-//     assert_eq!(res.polls[1].id, 3);
-// }
+    // query polls
+    let msg = QueryMsg::polls {
+        filter: Some(PollStatus::rejected),
+        start_after: None,
+        limit: None,
+        order_by: Some(OrderBy::Asc),
+    };
+    let res: PollsResponse = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+    assert_eq!(res.polls[0].id, 2);
+    assert_eq!(res.polls[1].id, 3);
+}
