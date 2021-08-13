@@ -19,19 +19,16 @@ const ANC_STAKING: &str = "anc_staking";
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
 pub fn mock_dependencies(
-    canonical_length: usize,
     contract_balance: &[Coin],
 ) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier> {
     let contract_addr = MOCK_CONTRACT_ADDR.to_string();
     let custom_querier: WasmMockQuerier = WasmMockQuerier::new(
         MockQuerier::new(&[(&contract_addr, contract_balance)]),
-        canonical_length,
-        MockApi::new(canonical_length),
     );
 
     OwnedDeps {
         storage: MockStorage::default(),
-        api: MockApi::new(canonical_length),
+        api: MockApi::default(),
         querier: custom_querier,
     }
 }
@@ -41,19 +38,18 @@ pub struct WasmMockQuerier {
     token_querier: TokenQuerier,
     tax_querier: TaxQuerier,
     terraswap_factory_querier: TerraswapFactoryQuerier,
-    canonical_length: usize,
 }
 
 #[derive(Clone, Default)]
 pub struct TokenQuerier {
-    // this lets us iterate over all pairs that match the first string
+    // this lets us iterate over all pairs that match the first String
     balances: HashMap<String, HashMap<String, Uint128>>,
     balance_percent: u128,
 }
 
 impl TokenQuerier {
     pub fn new(
-        balances: &[(&string, &[(&string, &Uint128)])],
+        balances: &[(&String, &[(&String, &Uint128)])],
         balance_percent: u128,
     ) -> Self {
         TokenQuerier {
@@ -64,7 +60,7 @@ impl TokenQuerier {
 }
 
 pub(crate) fn balances_to_map(
-    balances: &[(&string, &[(&string, &Uint128)])],
+    balances: &[(&String, &[(&String, &Uint128)])],
 ) -> HashMap<String, HashMap<String, Uint128>> {
     let mut balances_map: HashMap<String, HashMap<String, Uint128>> = HashMap::new();
     for (contract_addr, balances) in balances.iter() {
@@ -81,12 +77,12 @@ pub(crate) fn balances_to_map(
 #[derive(Clone, Default)]
 pub struct TaxQuerier {
     rate: Decimal,
-    // this lets us iterate over all pairs that match the first string
+    // this lets us iterate over all pairs that match the first String
     caps: HashMap<String, Uint128>,
 }
 
 impl TaxQuerier {
-    pub fn new(rate: Decimal, caps: &[(&string, &Uint128)]) -> Self {
+    pub fn new(rate: Decimal, caps: &[(&String, &Uint128)]) -> Self {
         TaxQuerier {
             rate,
             caps: caps_to_map(caps),
@@ -94,7 +90,7 @@ impl TaxQuerier {
     }
 }
 
-pub(crate) fn caps_to_map(caps: &[(&string, &Uint128)]) -> HashMap<String, Uint128> {
+pub(crate) fn caps_to_map(caps: &[(&String, &Uint128)]) -> HashMap<String, Uint128> {
     let mut owner_map: HashMap<String, Uint128> = HashMap::new();
     for (denom, cap) in caps.iter() {
         owner_map.insert(denom.to_string(), **cap);
@@ -108,14 +104,14 @@ pub struct TerraswapFactoryQuerier {
 }
 
 impl TerraswapFactoryQuerier {
-    pub fn new(pairs: &[(&string, &PairInfo)]) -> Self {
+    pub fn new(pairs: &[(&String, &PairInfo)]) -> Self {
         TerraswapFactoryQuerier {
             pairs: pairs_to_map(pairs),
         }
     }
 }
 
-pub(crate) fn pairs_to_map(pairs: &[(&string, &PairInfo)]) -> HashMap<String, PairInfo> {
+pub(crate) fn pairs_to_map(pairs: &[(&String, &PairInfo)]) -> HashMap<String, PairInfo> {
     let mut pairs_map: HashMap<String, PairInfo> = HashMap::new();
     for (key, pair) in pairs.iter() {
         pairs_map.insert(key.to_string(), (*pair).clone());
@@ -193,7 +189,7 @@ impl WasmMockQuerier {
                 match from_binary(&msg).unwrap() {
                     MockQueryMsg::balance { address, height: _ } => {
                         let balance = self.read_token_balance(contract_addr, address);
-                        SystemResult::Ok(ContractResult::from(to_binary(&specBalanceResponse {
+                        SystemResult::Ok(ContractResult::from(to_binary(&SpecBalanceResponse {
                             balance,
                             share: balance
                                 .multiply_ratio(100u128, self.token_querier.balance_percent),
@@ -234,9 +230,9 @@ impl WasmMockQuerier {
                     }
                     MockQueryMsg::Simulation { offer_asset } => {
                         let commission_amount = offer_asset.amount.multiply_ratio(3u128, 1000u128);
-                        let return_amount = offer_asset.amount - commission_amount;
-                        match return_amount.into() {
-                            Ok(amount) => SystemResult::Ok(ContractResult::from(to_binary(&simulationResponse {
+                        let return_amount = offer_asset.amount.checked_sub(commission_amount);
+                        match return_amount {
+                            Ok(amount) => SystemResult::Ok(ContractResult::from(to_binary(&SimulationResponse {
                                 return_amount: amount,
                                 commission_amount,
                                 spread_amount: Uint128::from(100u128),
@@ -254,11 +250,11 @@ impl WasmMockQuerier {
                 }
                 let key_address = &key[prefix_balance.len()..];
                 let address_raw = CanonicalAddr::from(key_address);
-                let api = MockApi::new(self.canonical_length);
+                let api = MockApi::default();
                 let address = api.addr_humanize(&address_raw).unwrap();
 
                 SystemResult::Ok(ContractResult::from(
-                    to_binary(&self.read_token_balance(contract_addr, address)),
+                    to_binary(&self.read_token_balance(contract_addr, address.to_string())),
                 ))
             }
             _ => self.base.handle_query(request),
@@ -267,30 +263,27 @@ impl WasmMockQuerier {
 }
 
 impl WasmMockQuerier {
-    pub fn new<A: Api>(
+    pub fn new(
         base: MockQuerier<TerraQueryWrapper>,
-        canonical_length: usize,
-        _api: A,
     ) -> Self {
         WasmMockQuerier {
             base,
             token_querier: TokenQuerier::default(),
             tax_querier: TaxQuerier::default(),
             terraswap_factory_querier: TerraswapFactoryQuerier::default(),
-            canonical_length,
         }
     }
 
-    pub fn with_balance_percent(&mut dyn Storageelf, balance_percent: u128) {
+    pub fn with_balance_percent(&mut self, balance_percent: u128) {
         self.token_querier.balance_percent = balance_percent;
     }
 
     // configure the mint whitelist mock querier
-    pub fn with_token_balances(&mut dyn Storageelf, balances: &[(&string, &[(&string, &Uint128)])]) {
+    pub fn with_token_balances(&mut self, balances: &[(&String, &[(&String, &Uint128)])]) {
         self.token_querier = TokenQuerier::new(balances, self.token_querier.balance_percent);
     }
 
-    pub fn read_token_balance(&self, contract_addr: &string, address: String) -> Uint128 {
+    pub fn read_token_balance(&self, contract_addr: &String, address: String) -> Uint128 {
         let balances: &HashMap<String, Uint128> =
             match self.token_querier.balances.get(contract_addr) {
                 Some(balances) => balances,
@@ -304,12 +297,12 @@ impl WasmMockQuerier {
     }
 
     // configure the token owner mock querier
-    pub fn with_tax(&mut dyn Storageelf, rate: Decimal, caps: &[(&string, &Uint128)]) {
+    pub fn with_tax(&mut self, rate: Decimal, caps: &[(&String, &Uint128)]) {
         self.tax_querier = TaxQuerier::new(rate, caps);
     }
 
     // configure the terraswap pair
-    pub fn with_terraswap_pairs(&mut dyn Storageelf, pairs: &[(&string, &PairInfo)]) {
+    pub fn with_terraswap_pairs(&mut self, pairs: &[(&String, &PairInfo)]) {
         self.terraswap_factory_querier = TerraswapFactoryQuerier::new(pairs);
     }
 }

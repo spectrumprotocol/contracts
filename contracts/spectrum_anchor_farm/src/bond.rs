@@ -1,4 +1,4 @@
-use cosmwasm_std::{Api, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Order, Querier, QuerierWrapper, QueryRequest, Response, StdError, StdResult, Storage, Uint128, WasmMsg, WasmQuery, attr, to_binary};
+use cosmwasm_std::{Api, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Order, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery, attr, to_binary};
 
 use crate::state::{
     pool_info_read, pool_info_store, read_config, read_state, rewards_read, rewards_store,
@@ -98,14 +98,13 @@ pub fn bond(
 
 pub fn deposit_farm_share(
     deps: Deps,
-    querier: &QuerierWrapper,
     state: &mut State,
     pool_info: &mut PoolInfo,
     config: &Config,
     amount: Uint128,
 ) -> StdResult<()> {
     let staked: AnchorStakerResponse =
-        querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: deps.api.addr_humanize(&config.anchor_gov)?.to_string(),
             msg: to_binary(&AnchorGovQueryMsg::Staker {
                 address: deps.api.addr_humanize(&state.contract_addr)?.to_string(),
@@ -152,7 +151,7 @@ pub fn deposit_spec_reward(
 
     let diff = staked.share.checked_sub(state.previous_spec_share);
     let deposit_share = if query {
-        diff.unwrap_or(Uint128::zero())
+        diff.unwrap_or_else(|_| Uint128::zero())
     } else {
         diff?
     };
@@ -194,15 +193,15 @@ fn spec_reward_to_pool(
 
 // withdraw reward to pending reward
 fn before_share_change(pool_info: &PoolInfo, reward_info: &mut RewardInfo) -> StdResult<()> {
-    let farm_share = (pool_info.farm_share_index - reward_info.farm_share_index.into())
+    let farm_share = (pool_info.farm_share_index - reward_info.farm_share_index)
         * reward_info.stake_bond_share;
     reward_info.farm_share += farm_share;
     reward_info.farm_share_index = pool_info.farm_share_index;
 
     let stake_spec_share = reward_info.stake_bond_share
-        * (pool_info.stake_spec_share_index - reward_info.stake_spec_share_index.into());
+        * (pool_info.stake_spec_share_index - reward_info.stake_spec_share_index);
     let auto_spec_share = reward_info.auto_bond_share
-        * (pool_info.auto_spec_share_index - reward_info.auto_spec_share_index.into());
+        * (pool_info.auto_spec_share_index - reward_info.auto_spec_share_index);
     let spec_share = stake_spec_share + auto_spec_share;
     reward_info.spec_share += spec_share;
     reward_info.accum_spec_share += spec_share;
@@ -222,7 +221,7 @@ fn increase_bond_amount(
     lp_balance: Uint128,
 ) -> StdResult<()> {
     // calculate target state
-    let compound_rate = compound_rate.unwrap_or(Decimal::zero());
+    let compound_rate = compound_rate.unwrap_or_else(Decimal::zero);
     let amount_to_auto = amount * compound_rate;
     let amount_to_stake = amount.checked_sub(amount_to_auto)?;
     let new_balance = lp_balance + amount;
@@ -369,7 +368,7 @@ pub fn unbond(
                     .addr_humanize(&pool_info.staking_token)?
                     .to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: info.sender.clone().to_string(),
+                    recipient: info.sender.to_string(),
                     amount,
                 })?,
                 funds: vec![],
@@ -397,7 +396,7 @@ pub fn withdraw(
     let config = read_config(deps.storage)?;
     let spec_staked =
         deposit_spec_reward(deps.as_ref(), &mut state, &config, env.block.height, false)?;
-    
+
     let (spec_amount, spec_share, farm_amount, farm_share) = withdraw_reward(
     deps.branch(),
         &config,
@@ -425,7 +424,7 @@ pub fn withdraw(
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.spectrum_token)?.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: info.sender.clone().to_string(),
+                recipient: info.sender.to_string(),
                 amount: spec_amount,
             })?,
             funds: vec![],
@@ -443,7 +442,7 @@ pub fn withdraw(
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: info.sender.clone().to_string(),
+                recipient: info.sender.to_string(),
                 amount: farm_amount,
             })?,
             funds: vec![],

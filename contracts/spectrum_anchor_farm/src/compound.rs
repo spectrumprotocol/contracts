@@ -91,9 +91,9 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         total_anc_stake_amount += stake_amount;
     }
     let mut state = read_state(deps.storage)?;
-    deposit_farm_share(deps.as_ref(), &deps.querier, &mut state, &mut pool_info, &config, total_anc_stake_amount)?;
+    deposit_farm_share(deps.as_ref(), &mut state, &mut pool_info, &config, total_anc_stake_amount)?;
     state_store(deps.storage).save(&state)?;
-    
+
     // get reinvest amount
     let reinvest_allowance = pool_info.reinvest_allowance + compound_amount;
     // split reinvest amount
@@ -109,7 +109,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
                 denom: config.base_denom.clone(),
             },
             AssetInfo::Token {
-                contract_addr: anchor_token.clone().to_string(),
+                contract_addr: anchor_token.to_string(),
             },
         ],
     )?;
@@ -117,7 +117,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     // find ANC swap rate
     let anc = Asset {
         info: AssetInfo::Token {
-            contract_addr: anchor_token.clone().to_string(),
+            contract_addr: anchor_token.to_string(),
         },
         amount: total_anc_swap_amount,
     };
@@ -398,7 +398,7 @@ fn deduct_tax(deps: Deps, amount: Uint128, base_denom: String) -> Uint128 {
     };
     let after_tax = Asset {
         info: AssetInfo::NativeToken {
-            denom: base_denom.clone(),
+            denom: base_denom,
         },
         amount: asset.deduct_tax(&deps.querier).unwrap().amount,
     };
