@@ -138,7 +138,7 @@ impl Querier for WasmMockQuerier {
                 })
             }
         };
-        self.handle_query(&request)
+        self.execute_query(&request)
     }
 }
 
@@ -165,7 +165,7 @@ enum MockQueryMsg {
 }
 
 impl WasmMockQuerier {
-    pub fn handle_query(&self, request: &QueryRequest<TerraQueryWrapper>) -> QuerierResult {
+    pub fn execute_query(&self, request: &QueryRequest<TerraQueryWrapper>) -> QuerierResult {
         match &request {
             QueryRequest::Custom(TerraQueryWrapper { route, query_data }) => {
                 if &TerraRoute::Treasury == route {
@@ -284,13 +284,13 @@ impl WasmMockQuerier {
                 let key_address = &key[prefix_balance.len()..];
                 let address_raw = CanonicalAddr::from(key_address);
                 let api = MockApi::new(self.canonical_length);
-                let address = api.human_address(&address_raw).unwrap();
+                let address = api.addr_humanize(&address_raw).unwrap();
 
                 SystemResult::Ok(ContractResult::from(
                     to_binary(&self.read_token_balance(contract_addr, address)),
                 ))
             }
-            _ => self.base.handle_query(request),
+            _ => self.base.execute_query(request),
         }
     }
 }

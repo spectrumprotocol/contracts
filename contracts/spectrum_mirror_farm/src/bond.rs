@@ -1,7 +1,6 @@
 use cosmwasm_std::{
-    log, to_binary, Api, CanonicalAddr, CosmosMsg, Decimal, Env, Extern, HandleResponse,
-    HandleResult, String, Order, Querier, QueryRequest, StdError, StdResult, Storage, Uint128,
-    WasmMsg, WasmQuery,
+    attr, to_binary, Api, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Order, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
 };
 
 use crate::state::{
@@ -9,46 +8,47 @@ use crate::state::{
     state_store, Config, PoolInfo, RewardInfo, State,
 };
 
-use cw20::Cw20HandleMsg;
+use cw20::Cw20ExecuteMsg;
 
 use crate::querier::{query_mirror_pool_balance, query_mirror_reward_info};
 use mirror_protocol::gov::{
-    HandleMsg as MirrorGovHandleMsg, QueryMsg as MirrorGovQueryMsg,
+    ExecuteMsg as MirrorGovExecuteMsg, QueryMsg as MirrorGovQueryMsg,
     StakerResponse as MirrorStakerResponse,
 };
 use mirror_protocol::staking::{
-    Cw20HookMsg as MirrorCw20HookMsg, HandleMsg as MirrorStakingHandleMsg,
+    Cw20HookMsg as MirrorCw20HookMsg, ExecuteMsg as MirrorStakingExecuteMsg,
 };
 use spectrum_protocol::gov::{
-    BalanceResponse as SpecBalanceResponse, HandleMsg as SpecHandleMsg, QueryMsg as SpecQueryMsg,
+    BalanceResponse as SpecBalanceResponse, ExecuteMsg as SpecExecuteMsg, QueryMsg as SpecQueryMsg,
 };
 use spectrum_protocol::math::UDec128;
 use spectrum_protocol::mirror_farm::{RewardInfoResponse, RewardInfoResponseItem};
 use std::collections::HashMap;
 
-pub fn try_bond<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub fn bond(
+    deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     sender_addr: String,
     asset_token: String,
     amount: Uint128,
     compound_rate: Option<Decimal>,
-) -> HandleResult {
-    let asset_token_raw = deps.api.canonical_address(&asset_token)?;
-    let sender_addr_raw = deps.api.canonical_address(&sender_addr)?;
+) -> StdResult<Response> {
+    let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
+    let sender_addr_raw = deps.api.addr_canonicalize(&sender_addr)?;
 
-    let mut pool_info = pool_info_read(&deps.storage).load(asset_token_raw.as_slice())?;
+    let mut pool_info = pool_info_read(deps.storage).load(asset_token_raw.as_slice())?;
 
     // only staking token contract can execute this message
-    if pool_info.staking_token != deps.api.canonical_address(&env.message.sender)? {
-        return Err(StdError::unauthorized());
+    if pool_info.staking_token != deps.api.addr_canonicalize(&info.sender.as_str())? {
+        return Err(StdError::generic_err("unauthorized"));
     }
 
-    let mut state = read_state(&deps.storage)?;
+    let mut state = read_state(deps.storage)?;
 
-    let config = read_config(&deps.storage)?;
+    let config = read_config(deps.storage)?;
     let lp_balance = query_mirror_pool_balance(
-        deps,
+        deps.as_ref(),
         &config.mirror_staking,
         &asset_token_raw,
         &state.contract_addr,
@@ -56,12 +56,12 @@ pub fn try_bond<S: Storage, A: Api, Q: Querier>(
 
     // update reward index; before changing share
     if !pool_info.total_auto_bond_share.is_zero() || !pool_info.total_stake_bond_share.is_zero() {
-        deposit_spec_reward(deps, &mut state, &config, env.block.height, false)?;
+        deposit_spec_reward(deps.as_ref(), &mut state, &config, env.block.height, false)?;
         spec_reward_to_pool(&state, &mut pool_info, lp_balance)?;
     }
 
     // withdraw reward to pending reward; before changing share
-    let mut reward_info = rewards_read(&deps.storage, &sender_addr_raw)
+    let mut reward_info = rewards_read(deps.storage, &sender_addr_raw)
         .may_load(asset_token_raw.as_slice())?
         .unwrap_or_else(|| RewardInfo {
             farm_share_index: pool_info.farm_share_index,
@@ -85,13 +85,13 @@ pub fn try_bond<S: Storage, A: Api, Q: Querier>(
         lp_balance,
     )?;
 
-    rewards_store(&mut deps.storage, &sender_addr_raw)
+    rewards_store(deps.storage, &sender_addr_raw)
         .save(&asset_token_raw.as_slice(), &reward_info)?;
-    pool_info_store(&mut deps.storage).save(asset_token_raw.as_slice(), &pool_info)?;
-    state_store(&mut deps.storage).save(&state)?;
+    pool_info_store(deps.storage).save(asset_token_raw.as_slice(), &pool_info)?;
+    state_store(deps.storage).save(&state)?;
 
     stake_token(
-        &deps.api,
+        deps.api,
         &config.mirror_staking,
         &pool_info.staking_token,
         &asset_token_raw,
@@ -99,26 +99,26 @@ pub fn try_bond<S: Storage, A: Api, Q: Querier>(
     )
 }
 
-pub fn deposit_farm_share<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub fn deposit_farm_share(
+    deps: DepsMut,
     config: &Config,
-    pool_pairs: Vec<(String, Uint128)>,  // array of (pool address, new MIR amount)
+    pool_pairs: Vec<(String, Uint128)>, // array of (pool address, new MIR amount)
 ) -> StdResult<()> {
-    let mut state = read_state(&deps.storage)?;
+    let mut state = read_state(deps.storage)?;
 
     let staked: MirrorStakerResponse =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: deps.api.human_address(&config.mirror_gov)?,
+            contract_addr: deps.api.addr_humanize(&config.mirror_gov)?.to_string(),
             msg: to_binary(&MirrorGovQueryMsg::Staker {
-                address: deps.api.human_address(&state.contract_addr)?,
+                address: deps.api.addr_humanize(&state.contract_addr)?.to_string(),
             })?,
         }))?;
 
     let mut new_total_share = Uint128::zero();
     for (asset_token, amount) in pool_pairs {
-        let asset_token_raw = deps.api.canonical_address(&asset_token)?;
+        let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
         let key = asset_token_raw.as_slice();
-        let mut pool_info = pool_info_read(&deps.storage).load(key)?;
+        let mut pool_info = pool_info_read(deps.storage).load(key)?;
         if pool_info.total_stake_bond_share.is_zero() {
             continue;
         }
@@ -129,16 +129,16 @@ pub fn deposit_farm_share<S: Storage, A: Api, Q: Querier>(
         pool_info.farm_share += new_share;
         new_total_share += new_share;
 
-        pool_info_store(&mut deps.storage).save(key, &pool_info)?;
+        pool_info_store(deps.storage).save(key, &pool_info)?;
     }
     state.total_farm_share += new_total_share;
-    state_store(&mut deps.storage).save(&state)?;
+    state_store(deps.storage).save(&state)?;
 
     Ok(())
 }
 
-pub fn deposit_spec_reward<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
+pub fn deposit_spec_reward(
+    deps: Deps,
     state: &mut State,
     config: &Config,
     height: u64,
@@ -154,16 +154,16 @@ pub fn deposit_spec_reward<S: Storage, A: Api, Q: Querier>(
 
     let staked: SpecBalanceResponse =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: deps.api.human_address(&config.spectrum_gov)?,
+            contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
             msg: to_binary(&SpecQueryMsg::balance {
-                address: deps.api.human_address(&state.contract_addr)?,
+                address: deps.api.addr_humanize(&state.contract_addr)?.to_string(),
                 height: Some(height),
             })?,
         }))?;
 
-    let diff = staked.share - state.previous_spec_share;
+    let diff = staked.share.checked_sub(state.previous_spec_share);
     let deposit_share = if query {
-        diff.unwrap_or(Uint128::zero())
+        diff.unwrap_or_else(|_| Uint128::zero())
     } else {
         diff?
     };
@@ -209,15 +209,15 @@ fn spec_reward_to_pool(
 
 // withdraw reward to pending reward
 fn before_share_change(pool_info: &PoolInfo, reward_info: &mut RewardInfo) -> StdResult<()> {
-    let farm_share = (pool_info.farm_share_index - reward_info.farm_share_index.into())
+    let farm_share = (pool_info.farm_share_index - reward_info.farm_share_index)
         * reward_info.stake_bond_share;
     reward_info.farm_share += farm_share;
     reward_info.farm_share_index = pool_info.farm_share_index;
 
     let stake_spec_share = reward_info.stake_bond_share
-        * (pool_info.stake_spec_share_index - reward_info.stake_spec_share_index.into());
+        * (pool_info.stake_spec_share_index - reward_info.stake_spec_share_index);
     let auto_spec_share = reward_info.auto_bond_share
-        * (pool_info.auto_spec_share_index - reward_info.auto_spec_share_index.into());
+        * (pool_info.auto_spec_share_index - reward_info.auto_spec_share_index);
     let spec_share = stake_spec_share + auto_spec_share;
     reward_info.spec_share += spec_share;
     reward_info.accum_spec_share += spec_share;
@@ -237,22 +237,22 @@ fn increase_bond_amount(
     lp_balance: Uint128,
 ) -> StdResult<()> {
     // calculate target state
-    let compound_rate = compound_rate.unwrap_or(Decimal::zero());
+    let compound_rate = compound_rate.unwrap_or_else(Decimal::zero);
     let amount_to_auto = amount * compound_rate;
-    let amount_to_stake = (amount - amount_to_auto)?;
+    let amount_to_stake = amount.checked_sub(amount_to_auto)?;
     let new_balance = lp_balance + amount;
     let new_auto_bond_amount =
-        (new_balance - (pool_info.total_stake_bond_amount + amount_to_stake))?;
+        new_balance.checked_sub(pool_info.total_stake_bond_amount + amount_to_stake)?;
 
     // calculate deposit fee; split based on auto balance & stake balance
     let deposit_fee = amount * config.deposit_fee;
     let auto_bond_fee = deposit_fee.multiply_ratio(new_auto_bond_amount, new_balance);
-    let stake_bond_fee = (deposit_fee - auto_bond_fee)?;
+    let stake_bond_fee = deposit_fee.checked_sub(auto_bond_fee)?;
 
     // calculate amount after fee
-    let remaining_amount = (amount - deposit_fee)?;
+    let remaining_amount = amount.checked_sub(deposit_fee)?;
     let auto_bond_amount = remaining_amount * compound_rate;
-    let stake_bond_amount = (remaining_amount - auto_bond_amount)?;
+    let stake_bond_amount = remaining_amount.checked_sub(auto_bond_amount)?;
 
     // convert amount to share & update
     let auto_bond_share = pool_info.calc_auto_bond_share(auto_bond_amount, lp_balance);
@@ -267,56 +267,54 @@ fn increase_bond_amount(
 }
 
 // stake LP token to Mirror Staking
-fn stake_token<A: Api>(
-    api: &A,
+fn stake_token(
+    api: &dyn Api,
     mirror_staking: &CanonicalAddr,
     staking_token: &CanonicalAddr,
     asset_token: &CanonicalAddr,
     amount: Uint128,
-) -> HandleResult {
-    let asset_token = api.human_address(asset_token)?;
-    let mirror_staking = api.human_address(mirror_staking)?;
-    let staking_token = api.human_address(staking_token)?;
-    let response = HandleResponse {
-        messages: vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: staking_token.clone(),
-            send: vec![],
-            msg: to_binary(&Cw20HandleMsg::Send {
-                contract: mirror_staking,
+) -> StdResult<Response> {
+    let asset_token = api.addr_humanize(asset_token)?;
+    let mirror_staking = api.addr_humanize(mirror_staking)?;
+    let staking_token = api.addr_humanize(staking_token)?;
+    Ok(Response::new()
+        .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: staking_token.to_string(),
+            funds: vec![],
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: mirror_staking.to_string(),
                 amount,
-                msg: Some(to_binary(&MirrorCw20HookMsg::Bond {
-                    asset_token: asset_token.clone(),
-                })?),
+                msg: to_binary(&MirrorCw20HookMsg::Bond {
+                    asset_token: asset_token.to_string(),
+                })?,
             })?,
-        })],
-        log: vec![
-            log("action", "bond"),
-            log("staking_token", staking_token.as_str()),
-            log("asset_token", asset_token.as_str()),
-            log("amount", amount.to_string()),
-        ],
-        data: None,
-    };
-    Ok(response)
+        })])
+        .add_attributes(vec![
+            attr("action", "bond"),
+            attr("staking_token", staking_token.as_str()),
+            attr("asset_token", asset_token.as_str()),
+            attr("amount", amount.to_string()),
+        ]))
 }
 
-pub fn unbond<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub fn unbond(
+    deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     asset_token: String,
     amount: Uint128,
-) -> HandleResult {
-    let staker_addr_raw = deps.api.canonical_address(&env.message.sender)?;
-    let asset_token_raw = deps.api.canonical_address(&asset_token)?;
+) -> StdResult<Response> {
+    let staker_addr_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
+    let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
 
-    let config = read_config(&deps.storage)?;
-    let mut state = read_state(&deps.storage)?;
-    let mut pool_info = pool_info_read(&deps.storage).load(asset_token_raw.as_slice())?;
+    let config = read_config(deps.storage)?;
+    let mut state = read_state(deps.storage)?;
+    let mut pool_info = pool_info_read(deps.storage).load(asset_token_raw.as_slice())?;
     let mut reward_info =
-        rewards_read(&deps.storage, &staker_addr_raw).load(asset_token_raw.as_slice())?;
+        rewards_read(deps.storage, &staker_addr_raw).load(asset_token_raw.as_slice())?;
 
     let lp_balance = query_mirror_pool_balance(
-        deps,
+        deps.as_ref(),
         &config.mirror_staking,
         &asset_token_raw,
         &state.contract_addr,
@@ -331,8 +329,8 @@ pub fn unbond<S: Storage, A: Api, Q: Querier>(
     }
 
     // distribute reward to pending reward; before changing share
-    let config = read_config(&deps.storage)?;
-    deposit_spec_reward(deps, &mut state, &config, env.block.height, false)?;
+    let config = read_config(deps.storage)?;
+    deposit_spec_reward(deps.as_ref(), &mut state, &config, env.block.height, false)?;
     spec_reward_to_pool(&state, &mut pool_info, lp_balance)?;
     before_share_change(&pool_info, &mut reward_info)?;
 
@@ -342,15 +340,21 @@ pub fn unbond<S: Storage, A: Api, Q: Querier>(
     } else {
         amount.multiply_ratio(user_auto_balance, user_balance)
     };
-    let stake_bond_amount = (amount - auto_bond_amount)?;
+    let stake_bond_amount = amount.checked_sub(auto_bond_amount)?;
     let auto_bond_share = pool_info.calc_auto_bond_share(auto_bond_amount, lp_balance);
     let stake_bond_share = pool_info.calc_stake_bond_share(stake_bond_amount);
 
-    pool_info.total_auto_bond_share = (pool_info.total_auto_bond_share - auto_bond_share)?;
-    pool_info.total_stake_bond_amount = (pool_info.total_stake_bond_amount - stake_bond_amount)?;
-    pool_info.total_stake_bond_share = (pool_info.total_stake_bond_share - stake_bond_share)?;
-    reward_info.auto_bond_share = (reward_info.auto_bond_share - auto_bond_share)?;
-    reward_info.stake_bond_share = (reward_info.stake_bond_share - stake_bond_share)?;
+    pool_info.total_auto_bond_share = pool_info
+        .total_auto_bond_share
+        .checked_sub(auto_bond_share)?;
+    pool_info.total_stake_bond_amount = pool_info
+        .total_stake_bond_amount
+        .checked_sub(stake_bond_amount)?;
+    pool_info.total_stake_bond_share = pool_info
+        .total_stake_bond_share
+        .checked_sub(stake_bond_share)?;
+    reward_info.auto_bond_share = reward_info.auto_bond_share.checked_sub(auto_bond_share)?;
+    reward_info.stake_bond_share = reward_info.stake_bond_share.checked_sub(stake_bond_share)?;
 
     // update rewards info
     if reward_info.spec_share.is_zero()
@@ -358,123 +362,120 @@ pub fn unbond<S: Storage, A: Api, Q: Querier>(
         && reward_info.auto_bond_share.is_zero()
         && reward_info.stake_bond_share.is_zero()
     {
-        rewards_store(&mut deps.storage, &staker_addr_raw).remove(asset_token_raw.as_slice());
+        rewards_store(deps.storage, &staker_addr_raw).remove(asset_token_raw.as_slice());
     } else {
-        rewards_store(&mut deps.storage, &staker_addr_raw)
+        rewards_store(deps.storage, &staker_addr_raw)
             .save(asset_token_raw.as_slice(), &reward_info)?;
     }
 
     // update pool info
-    pool_info_store(&mut deps.storage).save(asset_token_raw.as_slice(), &pool_info)?;
-    state_store(&mut deps.storage).save(&state)?;
-
-    Ok(HandleResponse {
-        messages: vec![
+    pool_info_store(deps.storage).save(asset_token_raw.as_slice(), &pool_info)?;
+    state_store(deps.storage).save(&state)?;
+    Ok(Response::new()
+        .add_messages(vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: deps.api.human_address(&config.mirror_staking)?,
-                send: vec![],
-                msg: to_binary(&MirrorStakingHandleMsg::Unbond {
+                contract_addr: deps.api.addr_humanize(&config.mirror_staking)?.to_string(),
+                funds: vec![],
+                msg: to_binary(&MirrorStakingExecuteMsg::Unbond {
                     asset_token: asset_token.clone(),
                     amount,
                 })?,
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: deps.api.human_address(&pool_info.staking_token)?,
-                msg: to_binary(&Cw20HandleMsg::Transfer {
-                    recipient: env.message.sender.clone(),
+                contract_addr: deps
+                    .api
+                    .addr_humanize(&pool_info.staking_token)?
+                    .to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: info.sender.to_string(),
                     amount,
                 })?,
-                send: vec![],
+                funds: vec![],
             }),
-        ],
-        log: vec![
-            log("action", "unbond"),
-            log("staker_addr", env.message.sender.as_str()),
-            log("asset_token", asset_token.as_str()),
-            log("amount", amount.to_string()),
-        ],
-        data: None,
-    })
+        ])
+        .add_attributes(vec![
+            attr("action", "unbond"),
+            attr("staker_addr", info.sender.as_str()),
+            attr("asset_token", asset_token.as_str()),
+            attr("amount", amount.to_string()),
+        ]))
 }
 
-pub fn withdraw<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub fn withdraw(
+    mut deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     asset_token: Option<String>,
-) -> HandleResult {
-    let staker_addr = deps.api.canonical_address(&env.message.sender)?;
-    let asset_token = asset_token.map(|a| deps.api.canonical_address(&a).unwrap());
-    let mut state = read_state(&deps.storage)?;
+) -> StdResult<Response> {
+    let staker_addr = deps.api.addr_canonicalize(&info.sender.as_str())?;
+    let asset_token = asset_token.map(|a| deps.api.addr_canonicalize(&a).unwrap());
+    let mut state = read_state(deps.storage)?;
 
     // update pending reward; before withdraw
-    let config = read_config(&deps.storage)?;
-    let spec_staked = deposit_spec_reward(deps, &mut state, &config, env.block.height, false)?;
+    let config = read_config(deps.storage)?;
+    let spec_staked =
+        deposit_spec_reward(deps.as_ref(), &mut state, &config, env.block.height, false)?;
 
     let (spec_amount, spec_share, farm_amount, farm_share) = withdraw_reward(
-        deps,
+        deps.branch(),
         &config,
         env.block.height,
-        &mut state,
+        &state,
         &staker_addr,
         &asset_token,
         &spec_staked,
     )?;
 
-    state.previous_spec_share = (state.previous_spec_share - spec_share)?;
-    state.total_farm_share = (state.total_farm_share - farm_share)?;
+    state.previous_spec_share = state.previous_spec_share.checked_sub(spec_share)?;
+    state.total_farm_share = state.total_farm_share.checked_sub(farm_share)?;
 
-    state_store(&mut deps.storage).save(&state)?;
+    state_store(deps.storage).save(&state)?;
 
     let mut messages: Vec<CosmosMsg> = vec![];
     if !spec_amount.is_zero() {
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: deps.api.human_address(&config.spectrum_gov)?,
-            msg: to_binary(&SpecHandleMsg::withdraw {
+            contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
+            msg: to_binary(&SpecExecuteMsg::withdraw {
                 amount: Some(spec_amount),
             })?,
-            send: vec![],
+            funds: vec![],
         }));
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: deps.api.human_address(&config.spectrum_token)?,
-            msg: to_binary(&Cw20HandleMsg::Transfer {
-                recipient: env.message.sender.clone(),
+            contract_addr: deps.api.addr_humanize(&config.spectrum_token)?.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: info.sender.to_string(),
                 amount: spec_amount,
             })?,
-            send: vec![],
+            funds: vec![],
         }));
     }
 
     if !farm_amount.is_zero() {
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: deps.api.human_address(&config.mirror_gov)?,
-            msg: to_binary(&MirrorGovHandleMsg::WithdrawVotingTokens {
+            contract_addr: deps.api.addr_humanize(&config.mirror_gov)?.to_string(),
+            msg: to_binary(&MirrorGovExecuteMsg::WithdrawVotingTokens {
                 amount: Some(farm_amount),
             })?,
-            send: vec![],
+            funds: vec![],
         }));
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: deps.api.human_address(&config.mirror_token)?,
-            msg: to_binary(&Cw20HandleMsg::Transfer {
-                recipient: env.message.sender.clone(),
+            contract_addr: deps.api.addr_humanize(&config.mirror_token)?.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: info.sender.to_string(),
                 amount: farm_amount,
             })?,
-            send: vec![],
+            funds: vec![],
         }));
     }
-
-    Ok(HandleResponse {
-        messages,
-        log: vec![
-            log("action", "withdraw"),
-            log("farm_amount", farm_amount.to_string()),
-            log("spec_amount", spec_amount.to_string()),
-        ],
-        data: None,
-    })
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "withdraw"),
+        attr("farm_amount", farm_amount.to_string()),
+        attr("spec_amount", spec_amount.to_string()),
+    ]))
 }
 
-fn withdraw_reward<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+fn withdraw_reward(
+    deps: DepsMut,
     config: &Config,
     height: u64,
     state: &State,
@@ -482,7 +483,7 @@ fn withdraw_reward<S: Storage, A: Api, Q: Querier>(
     asset_token: &Option<CanonicalAddr>,
     spec_staked: &SpecBalanceResponse,
 ) -> StdResult<(Uint128, Uint128, Uint128, Uint128)> {
-    let rewards_bucket = rewards_read(&deps.storage, &staker_addr);
+    let rewards_bucket = rewards_read(deps.storage, &staker_addr);
 
     // single reward withdraw; or all rewards
     let reward_pairs: Vec<(CanonicalAddr, RewardInfo)>;
@@ -506,16 +507,16 @@ fn withdraw_reward<S: Storage, A: Api, Q: Querier>(
 
     let farm_staked: MirrorStakerResponse =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: deps.api.human_address(&config.mirror_gov)?,
+            contract_addr: deps.api.addr_humanize(&config.mirror_gov)?.to_string(),
             msg: to_binary(&MirrorGovQueryMsg::Staker {
-                address: deps.api.human_address(&state.contract_addr)?,
+                address: deps.api.addr_humanize(&state.contract_addr)?.to_string(),
             })?,
         }))?;
 
     let mirror_reward_infos = query_mirror_reward_info(
-        deps,
-        &deps.api.human_address(&config.mirror_staking)?,
-        &deps.api.human_address(&state.contract_addr)?,
+        deps.as_ref(),
+        deps.api.addr_humanize(&config.mirror_staking)?.to_string(),
+        deps.api.addr_humanize(&state.contract_addr)?.to_string(),
     )?;
     let mirror_map: HashMap<_, _> = mirror_reward_infos
         .reward_infos
@@ -531,8 +532,8 @@ fn withdraw_reward<S: Storage, A: Api, Q: Querier>(
 
         // withdraw reward to pending reward
         let key = asset_token_raw.as_slice();
-        let mut pool_info = pool_info_read(&deps.storage).load(key)?;
-        let asset_token = &deps.api.human_address(&asset_token_raw)?;
+        let mut pool_info = pool_info_read(deps.storage).load(key)?;
+        let asset_token = &deps.api.addr_humanize(&asset_token_raw)?.to_string();
         let lp_balance = *mirror_map.get(asset_token).unwrap_or(&Uint128::zero());
         spec_reward_to_pool(state, &mut pool_info, lp_balance)?;
         before_share_change(&pool_info, &mut reward_info)?;
@@ -549,24 +550,24 @@ fn withdraw_reward<S: Storage, A: Api, Q: Querier>(
         let withdraw_share = if locked_share >= reward_info.spec_share {
             Uint128::zero()
         } else {
-            (reward_info.spec_share - locked_share)?
+            reward_info.spec_share.checked_sub(locked_share)?
         };
         spec_share += withdraw_share;
         spec_amount += calc_spec_balance(withdraw_share, spec_staked);
-        pool_info.farm_share = (pool_info.farm_share - reward_info.farm_share)?;
+        pool_info.farm_share = pool_info.farm_share.checked_sub(reward_info.farm_share)?;
         reward_info.farm_share = Uint128::zero();
         reward_info.spec_share = locked_share;
 
         // update rewards info
-        pool_info_store(&mut deps.storage).save(key, &pool_info)?;
+        pool_info_store(deps.storage).save(key, &pool_info)?;
         if reward_info.spec_share.is_zero()
             && reward_info.farm_share.is_zero()
             && reward_info.auto_bond_share.is_zero()
             && reward_info.stake_bond_share.is_zero()
         {
-            rewards_store(&mut deps.storage, &staker_addr).remove(key);
+            rewards_store(deps.storage, &staker_addr).remove(key);
         } else {
-            rewards_store(&mut deps.storage, &staker_addr).save(key, &reward_info)?;
+            rewards_store(deps.storage, &staker_addr).save(key, &reward_info)?;
         }
     }
 
@@ -589,16 +590,16 @@ fn calc_spec_balance(share: Uint128, staked: &SpecBalanceResponse) -> Uint128 {
     }
 }
 
-pub fn query_reward_info<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
+pub fn query_reward_info(
+    deps: Deps,
     staker_addr: String,
     asset_token: Option<String>,
     height: u64,
 ) -> StdResult<RewardInfoResponse> {
-    let staker_addr_raw = deps.api.canonical_address(&staker_addr)?;
-    let mut state = read_state(&deps.storage)?;
+    let staker_addr_raw = deps.api.addr_canonicalize(&staker_addr)?;
+    let mut state = read_state(deps.storage)?;
 
-    let config = read_config(&deps.storage)?;
+    let config = read_config(deps.storage)?;
     let spec_staked = deposit_spec_reward(deps, &mut state, &config, height, true)?;
     let reward_infos = read_reward_infos(
         deps,
@@ -616,8 +617,8 @@ pub fn query_reward_info<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-fn read_reward_infos<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
+fn read_reward_infos(
+    deps: Deps,
     config: &Config,
     height: u64,
     state: &State,
@@ -625,12 +626,12 @@ fn read_reward_infos<S: Storage, A: Api, Q: Querier>(
     asset_token: &Option<String>,
     spec_staked: &SpecBalanceResponse,
 ) -> StdResult<Vec<RewardInfoResponseItem>> {
-    let rewards_bucket = rewards_read(&deps.storage, &staker_addr);
+    let rewards_bucket = rewards_read(deps.storage, &staker_addr);
 
     // single reward; or all rewards
     let reward_pairs: Vec<(CanonicalAddr, RewardInfo)>;
     if let Some(asset_token) = asset_token {
-        let asset_token_raw = deps.api.canonical_address(&asset_token)?;
+        let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
         let key = asset_token_raw.as_slice();
         let reward_info = rewards_bucket.may_load(key)?;
         reward_pairs = if let Some(reward_info) = reward_info {
@@ -650,28 +651,28 @@ fn read_reward_infos<S: Storage, A: Api, Q: Querier>(
 
     let farm_staked: MirrorStakerResponse =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: deps.api.human_address(&config.mirror_gov)?,
+            contract_addr: deps.api.addr_humanize(&config.mirror_gov)?.to_string(),
             msg: to_binary(&MirrorGovQueryMsg::Staker {
-                address: deps.api.human_address(&state.contract_addr)?,
+                address: deps.api.addr_humanize(&state.contract_addr)?.to_string(),
             })?,
         }))?;
 
     let mirror_reward_infos = query_mirror_reward_info(
         deps,
-        &deps.api.human_address(&config.mirror_staking)?,
-        &deps.api.human_address(&state.contract_addr)?,
+        deps.api.addr_humanize(&config.mirror_staking)?.to_string(),
+        deps.api.addr_humanize(&state.contract_addr)?.to_string(),
     )?;
     let mirror_map: HashMap<_, _> = mirror_reward_infos
         .reward_infos
         .into_iter()
         .map(|it| (it.asset_token, it.bond_amount))
         .collect();
-    let bucket = pool_info_read(&deps.storage);
+    let bucket = pool_info_read(deps.storage);
     let reward_infos: Vec<RewardInfoResponseItem> = reward_pairs
         .into_iter()
         .map(|(asset_token_raw, reward_info)| {
             let mut pool_info = bucket.load(asset_token_raw.as_slice())?;
-            let asset_token = &deps.api.human_address(&asset_token_raw)?;
+            let asset_token = &deps.api.addr_humanize(&asset_token_raw)?.to_string();
 
             // update pending rewards
             let mut reward_info = reward_info;
@@ -688,7 +689,7 @@ fn read_reward_infos<S: Storage, A: Api, Q: Querier>(
             let stake_bond_amount = pool_info.calc_user_stake_balance(reward_info.stake_bond_share);
             let locked_spec_share = config.calc_locked_reward(reward_info.accum_spec_share, height);
             Ok(RewardInfoResponseItem {
-                asset_token: asset_token.clone(),
+                asset_token: asset_token.to_string(),
                 farm_share_index,
                 auto_spec_share_index: auto_spec_index,
                 stake_spec_share_index: stake_spec_index,
