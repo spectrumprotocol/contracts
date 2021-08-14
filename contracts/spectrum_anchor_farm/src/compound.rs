@@ -91,7 +91,13 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         total_anc_stake_amount += stake_amount;
     }
     let mut state = read_state(deps.storage)?;
-    deposit_farm_share(deps.as_ref(), &mut state, &mut pool_info, &config, total_anc_stake_amount)?;
+    deposit_farm_share(
+        deps.as_ref(),
+        &mut state,
+        &mut pool_info,
+        &config,
+        total_anc_stake_amount,
+    )?;
     state_store(deps.storage).save(&state)?;
 
     // get reinvest amount
@@ -397,9 +403,7 @@ fn deduct_tax(deps: Deps, amount: Uint128, base_denom: String) -> Uint128 {
         amount,
     };
     let after_tax = Asset {
-        info: AssetInfo::NativeToken {
-            denom: base_denom,
-        },
+        info: AssetInfo::NativeToken { denom: base_denom },
         amount: asset.deduct_tax(&deps.querier).unwrap().amount,
     };
     after_tax.amount

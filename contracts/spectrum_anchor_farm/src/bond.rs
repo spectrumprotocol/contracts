@@ -1,4 +1,7 @@
-use cosmwasm_std::{Api, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Order, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery, attr, to_binary};
+use cosmwasm_std::{
+    attr, to_binary, Api, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Order, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
+};
 
 use crate::state::{
     pool_info_read, pool_info_store, read_config, read_state, rewards_read, rewards_store,
@@ -193,8 +196,8 @@ fn spec_reward_to_pool(
 
 // withdraw reward to pending reward
 fn before_share_change(pool_info: &PoolInfo, reward_info: &mut RewardInfo) -> StdResult<()> {
-    let farm_share = (pool_info.farm_share_index - reward_info.farm_share_index)
-        * reward_info.stake_bond_share;
+    let farm_share =
+        (pool_info.farm_share_index - reward_info.farm_share_index) * reward_info.stake_bond_share;
     reward_info.farm_share += farm_share;
     reward_info.farm_share_index = pool_info.farm_share_index;
 
@@ -383,7 +386,7 @@ pub fn unbond(
 }
 
 pub fn withdraw(
-    mut deps:  DepsMut,
+    mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
     asset_token: Option<String>,
@@ -398,7 +401,7 @@ pub fn withdraw(
         deposit_spec_reward(deps.as_ref(), &mut state, &config, env.block.height, false)?;
 
     let (spec_amount, spec_share, farm_amount, farm_share) = withdraw_reward(
-    deps.branch(),
+        deps.branch(),
         &config,
         env.block.height,
         &state,
@@ -494,8 +497,12 @@ fn withdraw_reward(
             })?,
         }))?;
 
-    let anchor_reward_info =
-        query_anchor_reward_info(deps.as_ref(), &config.anchor_staking, &state.contract_addr, height)?;
+    let anchor_reward_info = query_anchor_reward_info(
+        deps.as_ref(),
+        &config.anchor_staking,
+        &state.contract_addr,
+        height,
+    )?;
 
     let mut spec_amount = Uint128::zero();
     let mut spec_share = Uint128::zero();
@@ -573,8 +580,14 @@ pub fn query_reward_info(
 
     let config = read_config(deps.storage)?;
     let spec_staked = deposit_spec_reward(deps, &mut state, &config, height, true)?;
-    let reward_infos =
-        read_reward_infos(deps, &config, height, &state, &staker_addr_raw, &spec_staked)?;
+    let reward_infos = read_reward_infos(
+        deps,
+        &config,
+        height,
+        &state,
+        &staker_addr_raw,
+        &spec_staked,
+    )?;
 
     Ok(RewardInfoResponse {
         staker_addr,
