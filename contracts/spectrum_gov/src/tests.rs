@@ -83,7 +83,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
     // read config
     let msg = QueryMsg::config {};
     let res: ConfigInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
-    assert_eq!(res, config.clone());
+    assert_eq!(res, config);
 
     // read state
     let msg = QueryMsg::state { height: 0u64 };
@@ -116,7 +116,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         warchest_address: None,
         warchest_ratio: None,
     };
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+    let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
 
     // success
@@ -130,7 +130,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
     config.effective_delay = DEFAULT_EFFECTIVE_DELAY;
     config.expiration_period = DEFAULT_EXPIRATION_PERIOD;
     config.proposal_deposit = Uint128::from(DEFAULT_PROPOSAL_DEPOSIT);
-    assert_eq!(res, config.clone());
+    assert_eq!(res, config);
 
     // alter config, validate value
     let msg = ExecuteMsg::update_config {
@@ -172,7 +172,7 @@ fn test_stake(
         amount: stake_amount,
         msg: to_binary(&Cw20HookMsg::stake_tokens { staker_addr: None }).unwrap(),
     });
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+    let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -216,7 +216,7 @@ fn test_stake(
         amount: Uint128::zero(),
         msg: to_binary(&Cw20HookMsg::stake_tokens { staker_addr: None }).unwrap(),
     });
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_err());
 
     // withdraw failed (0)
@@ -294,7 +294,7 @@ fn test_poll_executed(
         })
         .unwrap(),
     });
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
     let total_amount = total_amount + deposit;
     deps.querier.with_token_balances(&[(
@@ -405,7 +405,7 @@ fn test_poll_executed(
     assert!(res.is_err());
     // end poll failed (voting period not end)
     let msg = ExecuteMsg::poll_end { poll_id: 1 };
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_err());
 
     // vote 2
@@ -430,7 +430,7 @@ fn test_poll_executed(
     let msg = ExecuteMsg::withdraw {
         amount: Some(withdraw_amount),
     };
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
     let total_amount = total_amount.checked_sub(withdraw_amount).unwrap();
     deps.querier.with_token_balances(&[(
@@ -481,7 +481,7 @@ fn test_poll_executed(
 
     // end poll success
     let info = mock_info(TEST_VOTER_2, &[]);
-    env.block.height = env.block.height + DEFAULT_VOTING_PERIOD;
+    env.block.height += DEFAULT_VOTING_PERIOD;
     let msg = ExecuteMsg::poll_end { poll_id: 1 };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
@@ -516,7 +516,7 @@ fn test_poll_executed(
 
     // withdraw all success after end poll
     let msg = ExecuteMsg::withdraw { amount: None };
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
     let total_amount = total_amount.checked_sub(stake_amount).unwrap();
     deps.querier.with_token_balances(&[(
@@ -570,7 +570,7 @@ fn test_poll_executed(
     assert!(res.is_err());
 
     // execute success
-    env.block.height = env.block.height + DEFAULT_EFFECTIVE_DELAY;
+    env.block.height += DEFAULT_EFFECTIVE_DELAY;
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     let (contract_addr, msg) = match execute_msg {
         PollExecuteMsg::execute { contract, msg } => (contract, msg),
@@ -617,7 +617,7 @@ fn test_poll_low_quorum(
         })
         .unwrap(),
     });
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
     let total_amount = total_amount + deposit;
     deps.querier.with_token_balances(&[(
@@ -632,12 +632,12 @@ fn test_poll_low_quorum(
         vote: VoteOption::yes,
         amount: stake_amount,
     };
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     // vote poll failed (expired)
     let info = mock_info(TEST_CREATOR, &[]);
-    env.block.height = env.block.height + DEFAULT_VOTING_PERIOD;
+    env.block.height += DEFAULT_VOTING_PERIOD;
     let msg = ExecuteMsg::poll_vote {
         poll_id: 2,
         vote: VoteOption::no,
@@ -648,7 +648,7 @@ fn test_poll_low_quorum(
 
     // end poll success
     let msg = ExecuteMsg::poll_end { poll_id: 2 };
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     // read state
@@ -707,7 +707,7 @@ fn test_poll_low_threshold(
         })
         .unwrap(),
     });
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
     let total_amount = total_amount + deposit;
     deps.querier.with_token_balances(&[(
@@ -722,7 +722,7 @@ fn test_poll_low_threshold(
         vote: VoteOption::yes,
         amount: stake_amount,
     };
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     // vote poll3 as no
@@ -732,14 +732,14 @@ fn test_poll_low_threshold(
         vote: VoteOption::no,
         amount: stake_amount_2,
     };
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     // end poll success
     let info = mock_info(TEST_CREATOR, &[]);
-    env.block.height = env.block.height + DEFAULT_VOTING_PERIOD;
+    env.block.height += DEFAULT_VOTING_PERIOD;
     let msg = ExecuteMsg::poll_end { poll_id: 3 };
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     // read state
@@ -804,11 +804,11 @@ fn test_poll_expired(
             title: "title".to_string(),
             description: "description".to_string(),
             link: None,
-            execute_msgs: vec![execute_msg.clone()],
+            execute_msgs: vec![execute_msg],
         })
         .unwrap(),
     });
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
     let total_amount = total_amount + deposit;
     deps.querier.with_token_balances(&[(
@@ -823,7 +823,7 @@ fn test_poll_expired(
         vote: VoteOption::yes,
         amount: stake_amount,
     };
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     // vote 2
@@ -833,12 +833,12 @@ fn test_poll_expired(
         vote: VoteOption::yes,
         amount: stake_amount,
     };
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     // end poll success
     let info = mock_info(TEST_CREATOR, &[]);
-    env.block.height = env.block.height + DEFAULT_VOTING_PERIOD;
+    env.block.height += DEFAULT_VOTING_PERIOD;
     let msg = ExecuteMsg::poll_end { poll_id: 4 };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
@@ -850,13 +850,13 @@ fn test_poll_expired(
     )]);
 
     // expired failed (wait period)
-    env.block.height = env.block.height + DEFAULT_EFFECTIVE_DELAY;
+    env.block.height += DEFAULT_EFFECTIVE_DELAY;
     let msg = ExecuteMsg::poll_expire { poll_id: 4 };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
     assert!(res.is_err());
 
     // execute success
-    env.block.height = env.block.height + DEFAULT_EFFECTIVE_DELAY;
+    env.block.height += DEFAULT_EFFECTIVE_DELAY;
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
 
@@ -867,7 +867,7 @@ fn test_poll_expired(
 
     // expired failed (status)
     let msg = ExecuteMsg::poll_expire { poll_id: 4 };
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_err());
 
     // query polls
@@ -887,7 +887,7 @@ fn test_poll_expired(
 fn test_reward(
     deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>,
     (stake_amount, stake_amount_2, total_amount): (Uint128, Uint128, Uint128),
-) -> () {
+) {
     let mut env = mock_env();
     let info = mock_info(MOCK_CONTRACT_ADDR, &[]);
     // add vault 1
@@ -953,12 +953,12 @@ fn test_reward(
         warchest_address: Some(WARCHEST.to_string()),
         warchest_ratio: Some(Decimal::percent(DEFAULT_WARCHEST_RATIO)),
     };
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     let info = mock_info(VOTING_TOKEN, &[]);
     let height = 3u64;
-    env.block.height = env.block.height + height;
+    env.block.height += height;
 
     let reward = Uint128::from(300u128);
 
@@ -1053,7 +1053,7 @@ fn test_reward(
     )]);
 
     // get balance with height (with exceed mint_end)
-    env.block.height = env.block.height + 3u64;
+    env.block.height += 3u64;
     let mint = Uint128::from(DEFAULT_MINT_PER_BLOCK * 2u128); // mint only 2 blocks because of mint_end
     let warchest_amount = mint * Decimal::percent(DEFAULT_WARCHEST_RATIO);
     let add_vault_amount = mint.checked_sub(warchest_amount).unwrap();
@@ -1068,7 +1068,7 @@ fn test_reward(
 
     // mint again
     let msg = ExecuteMsg::mint {};
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     let total_amount = total_amount + mint;
@@ -1088,7 +1088,7 @@ fn test_reward(
             contract_addr: VOTING_TOKEN.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: TEST_VAULT.to_string(),
-                amount: Uint128::from(vault_amount),
+                amount: vault_amount,
             })
             .unwrap(),
             funds: vec![],

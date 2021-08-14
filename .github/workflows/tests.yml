@@ -15,7 +15,7 @@ jobs:
           profile: minimal
           override: true
       - run: cargo fetch
-      - run: cargo clippy --all -- -D warnings
+      - run: cargo clippy --all --all-targets -- -D warnings
 
   unit-test:
     name: Actions - unit test

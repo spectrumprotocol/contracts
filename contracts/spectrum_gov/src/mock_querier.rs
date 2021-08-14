@@ -111,7 +111,7 @@ impl WasmMockQuerier {
         self.token_querier = TokenQuerier::new(balances, self.token_querier.balance_percent);
     }
 
-    pub fn read_token_balance(&self, contract_addr: &String, address: String) -> Uint128 {
+    pub fn read_token_balance(&self, contract_addr: &str, address: String) -> Uint128 {
         let balances: &HashMap<String, Uint128> =
             match self.token_querier.balances.get(contract_addr) {
                 Some(balances) => balances,

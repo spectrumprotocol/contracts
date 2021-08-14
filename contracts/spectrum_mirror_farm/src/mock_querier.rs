@@ -221,7 +221,7 @@ impl WasmMockQuerier {
                                 SystemResult::Ok(ContractResult::from(to_binary(&MirrorRewardInfoResponse {
                                     staker_addr,
                                     reward_infos: vec![MirrorRewardInfoResponseItem {
-                                        asset_token: asset_token.clone(),
+                                        asset_token,
                                         pending_reward: balance,
                                         bond_amount: balance,
                                         is_short: false,
@@ -229,13 +229,13 @@ impl WasmMockQuerier {
                                 })))
                             }
                             None => SystemResult::Ok(ContractResult::from(to_binary(&MirrorRewardInfoResponse {
-                                staker_addr: staker_addr.clone(),
+                                staker_addr,
                                 reward_infos: self
                                     .token_querier
                                     .balances
                                     .get(contract_addr)
                                     .unwrap_or(&HashMap::new())
-                                    .into_iter()
+                                    .iter()
                                     .map(|(asset_token, balance)| MirrorRewardInfoResponseItem {
                                         asset_token: asset_token.clone(),
                                         pending_reward: *balance,
@@ -259,13 +259,13 @@ impl WasmMockQuerier {
                     MockQueryMsg::Simulation { offer_asset } => {
                         let commission_amount = offer_asset.amount.multiply_ratio(3u128, 1000u128);
                         let return_amount = offer_asset.amount.checked_sub(commission_amount);
-                        match return_amount.into() {
+                        match return_amount {
                             Ok(amount) => SystemResult::Ok(ContractResult::from(to_binary(&SimulationResponse {
                                 return_amount: amount,
                                 commission_amount,
                                 spread_amount: Uint128::from(100u128),
                             }))),
-                            Err(_e) => return SystemResult::Err(SystemError::Unknown {}),
+                            Err(_e) => SystemResult::Err(SystemError::Unknown {}),
                         }
                     }
                 }
@@ -296,7 +296,7 @@ impl WasmMockQuerier {
         self.token_querier = TokenQuerier::new(balances, self.token_querier.balance_percent);
     }
 
-    pub fn read_token_balance(&self, contract_addr: &String, address: String) -> Uint128 {
+    pub fn read_token_balance(&self, contract_addr: &str, address: String) -> Uint128 {
         let balances: &HashMap<String, Uint128> =
             match self.token_querier.balances.get(contract_addr) {
                 Some(balances) => balances,

@@ -66,7 +66,7 @@ fn test_config(mut deps: DepsMut) -> ConfigInfo {
     // read config
     let msg = QueryMsg::config {};
     let res: ConfigInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
-    assert_eq!(res, config.clone());
+    assert_eq!(res, config);
 
     // read state
     let msg = QueryMsg::state {};
@@ -88,7 +88,7 @@ fn test_config(mut deps: DepsMut) -> ConfigInfo {
         effective_delay: Some(DEFAULT_EFFECTIVE_DELAY),
         expiration_period: Some(DEFAULT_EXPIRATION_PERIOD),
     };
-    let res = execute(deps.branch(), env.clone(), info.clone(), msg.clone());
+    let res = execute(deps.branch(), env.clone(), info, msg.clone());
     assert!(res.is_err());
 
     // success
@@ -101,7 +101,7 @@ fn test_config(mut deps: DepsMut) -> ConfigInfo {
     config.voting_period = DEFAULT_VOTING_PERIOD;
     config.effective_delay = DEFAULT_EFFECTIVE_DELAY;
     config.expiration_period = DEFAULT_EXPIRATION_PERIOD;
-    assert_eq!(res, config.clone());
+    assert_eq!(res, config);
 
     // alter config, validate value
     let msg = ExecuteMsg::update_config {
@@ -112,7 +112,7 @@ fn test_config(mut deps: DepsMut) -> ConfigInfo {
         effective_delay: None,
         expiration_period: None,
     };
-    let res = execute(deps.branch(), env.clone(), info, msg);
+    let res = execute(deps.branch(), env, info, msg);
     assert!(res.is_err());
 
     config
@@ -128,7 +128,7 @@ fn test_board(mut deps: DepsMut) -> (u32, u32, u32) {
         address: TEST_VOTER.to_string(),
         weight,
     };
-    let res = execute(deps.branch(), env.clone(), info.clone(), msg.clone());
+    let res = execute(deps.branch(), env.clone(), info, msg.clone());
     assert!(res.is_err());
 
     let info = mock_info(MOCK_CONTRACT_ADDR, &[]);
@@ -153,7 +153,7 @@ fn test_board(mut deps: DepsMut) -> (u32, u32, u32) {
         address: TEST_VOTER_2.to_string(),
         weight: weight_2,
     };
-    let res = execute(deps.branch(), env.clone(), info.clone(), msg.clone());
+    let res = execute(deps.branch(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     // read state
@@ -164,7 +164,7 @@ fn test_board(mut deps: DepsMut) -> (u32, u32, u32) {
     // query boards
     let msg = QueryMsg::boards {};
     let res: BoardsResponse =
-        from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(res.boards[0].weight, weight);
     assert_eq!(res.boards[1].weight, weight_2);
 
@@ -272,7 +272,7 @@ fn test_poll_executed(
 
     // end poll failed (voting period not end)
     let msg = ExecuteMsg::poll_end { poll_id: 1 };
-    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    let res = execute(deps.branch(), env.clone(), info, msg);
     assert!(res.is_err());
 
     // vote 2
@@ -281,7 +281,7 @@ fn test_poll_executed(
         poll_id: 1,
         vote: VoteOption::yes,
     };
-    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    let res = execute(deps.branch(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     // query voters
@@ -317,7 +317,7 @@ fn test_poll_executed(
 
     // end poll success
     let info = mock_info(TEST_VOTER_2, &[]);
-    env.block.height = env.block.height + DEFAULT_VOTING_PERIOD;
+    env.block.height += DEFAULT_VOTING_PERIOD;
     let msg = ExecuteMsg::poll_end { poll_id: 1 };
     let res = execute(deps.branch(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
@@ -339,7 +339,7 @@ fn test_poll_executed(
     assert!(res.is_err());
 
     // execute success
-    env.block.height = env.block.height + DEFAULT_EFFECTIVE_DELAY;
+    env.block.height += DEFAULT_EFFECTIVE_DELAY;
     let res = execute(deps.branch(), env.clone(), info.clone(), msg);
     let (contract_addr, msg) = match execute_msg {
         PollExecuteMsg::execute { contract, msg } => (contract, msg),
@@ -361,7 +361,7 @@ fn test_poll_executed(
 
     // execute failed (status)
     let msg = ExecuteMsg::poll_execute { poll_id: 1 };
-    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    let res = execute(deps.branch(), env, info, msg);
     assert!(res.is_err());
 }
 
@@ -378,7 +378,7 @@ fn test_poll_low_quorum(
         link: None,
         execute_msgs: vec![],
     };
-    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    let res = execute(deps.branch(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     // vote poll2
@@ -387,12 +387,12 @@ fn test_poll_low_quorum(
         poll_id: 2,
         vote: VoteOption::yes,
     };
-    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    let res = execute(deps.branch(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     // vote poll failed (expired)
     let info = mock_info(TEST_VOTER, &[]);
-    env.block.height = env.block.height + DEFAULT_VOTING_PERIOD;
+    env.block.height += DEFAULT_VOTING_PERIOD;
     let msg = ExecuteMsg::poll_vote {
         poll_id: 2,
         vote: VoteOption::no,
@@ -402,12 +402,12 @@ fn test_poll_low_quorum(
 
     // end poll success
     let msg = ExecuteMsg::poll_end { poll_id: 2 };
-    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    let res = execute(deps.branch(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     // get poll
     let msg = QueryMsg::poll { poll_id: 2 };
-    let res: PollInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+    let res: PollInfo = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(res.status, PollStatus::rejected);
     assert_eq!(
         res.total_balance_at_end_poll,
@@ -428,7 +428,7 @@ fn test_poll_low_threshold(
         link: None,
         execute_msgs: vec![],
     };
-    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    let res = execute(deps.branch(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     // vote poll3
@@ -437,7 +437,7 @@ fn test_poll_low_threshold(
         poll_id: 3,
         vote: VoteOption::yes,
     };
-    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    let res = execute(deps.branch(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     // vote poll3 as no
@@ -446,19 +446,19 @@ fn test_poll_low_threshold(
         poll_id: 3,
         vote: VoteOption::no,
     };
-    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    let res = execute(deps.branch(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     // end poll success
     let info = mock_info(TEST_CREATOR, &[]);
-    env.block.height = env.block.height + DEFAULT_VOTING_PERIOD;
+    env.block.height += DEFAULT_VOTING_PERIOD;
     let msg = ExecuteMsg::poll_end { poll_id: 3 };
-    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    let res = execute(deps.branch(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     // get poll
     let msg = QueryMsg::poll { poll_id: 3 };
-    let res: PollInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+    let res: PollInfo = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(res.status, PollStatus::rejected);
     assert_eq!(
         res.total_balance_at_end_poll,
@@ -486,9 +486,9 @@ fn test_poll_expired(
         title: "title".to_string(),
         description: "description".to_string(),
         link: None,
-        execute_msgs: vec![execute_msg.clone()],
+        execute_msgs: vec![execute_msg],
     };
-    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    let res = execute(deps.branch(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     // vote success
@@ -497,7 +497,7 @@ fn test_poll_expired(
         poll_id: 4,
         vote: VoteOption::yes,
     };
-    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    let res = execute(deps.branch(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     // vote 2
@@ -506,24 +506,24 @@ fn test_poll_expired(
         poll_id: 4,
         vote: VoteOption::yes,
     };
-    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    let res = execute(deps.branch(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     // end poll success
     let info = mock_info(TEST_CREATOR, &[]);
-    env.block.height = env.block.height + DEFAULT_VOTING_PERIOD;
+    env.block.height += DEFAULT_VOTING_PERIOD;
     let msg = ExecuteMsg::poll_end { poll_id: 4 };
     let res = execute(deps.branch(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
 
     // expired failed (wait period)
-    env.block.height = env.block.height + DEFAULT_EFFECTIVE_DELAY;
+    env.block.height += DEFAULT_EFFECTIVE_DELAY;
     let msg = ExecuteMsg::poll_expire { poll_id: 4 };
     let res = execute(deps.branch(), env.clone(), info.clone(), msg.clone());
     assert!(res.is_err());
 
     // execute success
-    env.block.height = env.block.height + DEFAULT_EFFECTIVE_DELAY;
+    env.block.height += DEFAULT_EFFECTIVE_DELAY;
     let res = execute(deps.branch(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
 
@@ -534,7 +534,7 @@ fn test_poll_expired(
 
     // expired failed (status)
     let msg = ExecuteMsg::poll_expire { poll_id: 4 };
-    let res = execute(deps.branch(), env.clone(), info.clone(), msg);
+    let res = execute(deps.branch(), env.clone(), info, msg);
     assert!(res.is_err());
 
     // query polls
@@ -544,7 +544,7 @@ fn test_poll_expired(
         limit: None,
         order_by: Some(OrderBy::Asc),
     };
-    let res: PollsResponse = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+    let res: PollsResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(res.polls[0].id, 2);
     assert_eq!(res.polls[1].id, 3);
 }

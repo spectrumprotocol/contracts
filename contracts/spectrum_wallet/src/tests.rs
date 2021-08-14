@@ -57,7 +57,7 @@ fn test_setup(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         lock_end: Some(env.block.height + 20u64),
         lock_amount: Some(Uint128::from(50u64)),
     };
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     // non-owner cannot alter
@@ -75,7 +75,7 @@ fn test_setup(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let msg = ExecuteMsg::update_config {
         owner: Some(USER3.to_string())
     };
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    let res = execute(deps.as_mut(), env, info, msg);
     assert!(res.is_err());
 }
 
@@ -117,7 +117,7 @@ fn test_deposit(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         amount: Uint128::from(50u64),
         msg: to_binary(&Cw20HookMsg::deposit { }).unwrap(),
     });
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    let res = execute(deps.as_mut(), env, info, msg);
     assert!(res.is_ok());
 }
 
@@ -148,12 +148,12 @@ fn test_stake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         amount: Uint128::from(100u64),
         vote: VoteOption::yes,
     };
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+    let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_ok());
 
     // other user cannot vote
     let info = mock_info(USER3, &[]);
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_err());
 
     // unstake more than you have
@@ -167,7 +167,7 @@ fn test_stake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let msg = ExecuteMsg::unstake {
         amount: Uint128::from(20u64),
     };
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     deps.querier.with_token_balances(&[
@@ -178,7 +178,7 @@ fn test_stake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         address: USER1.to_string(),
         height: 0u64,
     };
-    let res: BalanceResponse = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+    let res: BalanceResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(res, BalanceResponse {
         share: Uint128::from(80u128),
         staked_amount: Uint128::from(80u128),
@@ -198,8 +198,8 @@ fn test_withdraw(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert!(res.is_err());
 
     // can withdraw
-    env.block.height = env.block.height + 12u64;
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+    env.block.height += 12u64;
+    let res = execute(deps.as_mut(), env, info, msg);
     assert!(res.is_ok());
 }
 
@@ -213,7 +213,7 @@ fn test_reward(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         address: USER1.to_string(),
         height: env.block.height + 12u64,
     };
-    let res: BalanceResponse = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+    let res: BalanceResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(res, BalanceResponse {
         share: Uint128::from(100u128),
         staked_amount: Uint128::from(110u128),

@@ -239,7 +239,7 @@ impl WasmMockQuerier {
                                     spread_amount: Uint128::from(100u128),
                                 },
                             ))),
-                            Err(_e) => return SystemResult::Err(SystemError::Unknown {}),
+                            Err(_e) => SystemResult::Err(SystemError::Unknown {}),
                         }
                     }
                 }
@@ -268,7 +268,7 @@ impl WasmMockQuerier {
         self.token_querier = TokenQuerier::new(balances, self.token_querier.balance_percent);
     }
 
-    pub fn read_token_balance(&self, contract_addr: &String, address: String) -> Uint128 {
+    pub fn read_token_balance(&self, contract_addr: &str, address: String) -> Uint128 {
         let balances: &HashMap<String, Uint128> =
             match self.token_querier.balances.get(contract_addr) {
                 Some(balances) => balances,
