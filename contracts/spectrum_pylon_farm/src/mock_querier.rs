@@ -3,10 +3,11 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{from_binary, from_slice, to_binary, Api, CanonicalAddr, Coin, Decimal, Querier, QuerierResult, QueryRequest, SystemError, Uint128, WasmQuery, OwnedDeps, SystemResult, ContractResult};
-use cosmwasm_storage::to_length_prefixed;
+use cosmwasm_std::{
+    from_binary, from_slice, to_binary, Coin, ContractResult, Decimal, OwnedDeps, Querier,
+    QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
+};
 use std::collections::HashMap;
-use std::vec;
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
 use terraswap::pair::SimulationResponse;
@@ -20,19 +21,15 @@ const MINE_STAKING: &str = "mine_staking";
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
 pub fn mock_dependencies(
-    canonical_length: usize,
     contract_balance: &[Coin],
 ) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier> {
     let contract_addr = MOCK_CONTRACT_ADDR.to_string();
-    let custom_querier: WasmMockQuerier = WasmMockQuerier::new(
-        MockQuerier::new(&[(&contract_addr, contract_balance)]),
-        canonical_length,
-        MockApi::new(canonical_length),
-    );
+    let custom_querier: WasmMockQuerier =
+        WasmMockQuerier::new(MockQuerier::new(&[(&contract_addr, contract_balance)]));
 
     OwnedDeps {
         storage: MockStorage::default(),
-        api: MockApi::new(canonical_length),
+        api: MockApi::default(),
         querier: custom_querier,
     }
 }
@@ -42,21 +39,17 @@ pub struct WasmMockQuerier {
     token_querier: TokenQuerier,
     tax_querier: TaxQuerier,
     terraswap_factory_querier: TerraswapFactoryQuerier,
-    canonical_length: usize,
 }
 
 #[derive(Clone, Default)]
 pub struct TokenQuerier {
-    // this lets us iterate over all pairs that match the first string
+    // this lets us iterate over all pairs that match the first String
     balances: HashMap<String, HashMap<String, Uint128>>,
     balance_percent: u128,
 }
 
 impl TokenQuerier {
-    pub fn new(
-        balances: &[(&String, &[(&String, &Uint128)])],
-        balance_percent: u128,
-    ) -> Self {
+    pub fn new(balances: &[(&String, &[(&String, &Uint128)])], balance_percent: u128) -> Self {
         TokenQuerier {
             balances: balances_to_map(balances),
             balance_percent,
@@ -82,7 +75,7 @@ pub(crate) fn balances_to_map(
 #[derive(Clone, Default)]
 pub struct TaxQuerier {
     rate: Decimal,
-    // this lets us iterate over all pairs that match the first string
+    // this lets us iterate over all pairs that match the first String
     caps: HashMap<String, Uint128>,
 }
 
@@ -216,12 +209,14 @@ impl WasmMockQuerier {
                     } => {
                         let contract_addr = &MINE_STAKING.to_string();
                         let balance = self.read_token_balance(contract_addr, staker.clone());
-                        SystemResult::Ok(ContractResult::from(to_binary(&PylonStakerInfoResponse {
-                            staker,
-                            reward_index: Decimal::zero(),
-                            bond_amount: balance,
-                            pending_reward: balance,
-                        })))
+                        SystemResult::Ok(ContractResult::from(to_binary(
+                            &PylonStakerInfoResponse {
+                                staker,
+                                reward_index: Decimal::zero(),
+                                bond_amount: balance,
+                                pending_reward: balance,
+                            },
+                        )))
                     }
                     MockQueryMsg::Pair { asset_infos } => {
                         let key = asset_infos[0].to_string() + asset_infos[1].to_string().as_str();
@@ -235,35 +230,32 @@ impl WasmMockQuerier {
                     }
                     MockQueryMsg::Simulation { offer_asset } => {
                         let commission_amount = offer_asset.amount.multiply_ratio(3u128, 1000u128);
-                        let return_amount = offer_asset.amount - commission_amount;
-                        match return_amount.into() {
-                            Ok(amount) => SystemResult::Ok(ContractResult::from(to_binary(&SimulationResponse {
-                                return_amount: amount,
-                                commission_amount,
-                                spread_amount: Uint128::from(100u128),
-                            }))),
+                        let return_amount = offer_asset.amount.checked_sub(commission_amount);
+                        match return_amount {
+                            Ok(amount) => SystemResult::Ok(ContractResult::from(to_binary(
+                                &SimulationResponse {
+                                    return_amount: amount,
+                                    commission_amount,
+                                    spread_amount: Uint128::from(100u128),
+                                },
+                            ))),
                             Err(_e) => return SystemResult::Err(SystemError::Unknown {}),
                         }
                     }
                 }
-            },
+            }
             _ => self.base.handle_query(request),
         }
     }
 }
 
 impl WasmMockQuerier {
-    pub fn new<A: Api>(
-        base: MockQuerier<TerraQueryWrapper>,
-        canonical_length: usize,
-        _api: A,
-    ) -> Self {
+    pub fn new(base: MockQuerier<TerraQueryWrapper>) -> Self {
         WasmMockQuerier {
             base,
             token_querier: TokenQuerier::default(),
             tax_querier: TaxQuerier::default(),
             terraswap_factory_querier: TerraswapFactoryQuerier::default(),
-            canonical_length,
         }
     }
 
