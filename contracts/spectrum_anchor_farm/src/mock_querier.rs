@@ -3,8 +3,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{from_binary, from_slice, to_binary, Api, CanonicalAddr, Coin, Decimal, Querier, QuerierResult, QueryRequest, SystemError, Uint128, WasmQuery, OwnedDeps, SystemResult, ContractResult};
-use cosmwasm_storage::to_length_prefixed;
+use cosmwasm_std::{from_binary, from_slice, to_binary, Coin, Decimal, Querier, QuerierResult, QueryRequest, SystemError, Uint128, WasmQuery, OwnedDeps, SystemResult, ContractResult};
 use std::collections::HashMap;
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
@@ -241,21 +240,6 @@ impl WasmMockQuerier {
                         }
                     }
                 }
-            }
-            QueryRequest::Wasm(WasmQuery::Raw { contract_addr, key }) => {
-                let key = key.as_slice();
-                let prefix_balance = to_length_prefixed(b"balance").to_vec();
-                if key[..prefix_balance.len()].to_vec() != prefix_balance {
-                    panic!("DO NOT ENTER HERE");
-                }
-                let key_address = &key[prefix_balance.len()..];
-                let address_raw = CanonicalAddr::from(key_address);
-                let api = MockApi::default();
-                let address = api.addr_humanize(&address_raw).unwrap();
-
-                SystemResult::Ok(ContractResult::from(
-                    to_binary(&self.read_token_balance(contract_addr, address.to_string())),
-                ))
             }
             _ => self.base.handle_query(request),
         }

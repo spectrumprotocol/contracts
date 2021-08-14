@@ -8,7 +8,7 @@ use cosmwasm_std::{
 };
 use cw20::Cw20ExecuteMsg;
 use spectrum_protocol::gov::{BalanceResponse, PollStatus, VaultInfo, VaultsResponse};
-use spectrum_protocol::querier::{load_token_balance, send_tokens};
+use terraswap::querier::query_token_balance;
 
 /// mint should be done before
 /// - deposit_reward
@@ -33,7 +33,9 @@ pub fn mint(deps: DepsMut, env: Env) -> StdResult<Response> {
     let total_balance = if state.total_share.is_zero() {
         Uint128::zero()
     } else {
-        load_token_balance(deps.as_ref(), &config.spec_token, &state.contract_addr)?
+        query_token_balance(&deps.querier,
+                            deps.api.addr_humanize(&config.spec_token)?,
+                            deps.api.addr_humanize(&state.contract_addr)?)?
             .checked_sub(state.poll_deposit)?
     };
     let mut mint_share = Uint128::zero();
@@ -104,7 +106,9 @@ pub fn stake_tokens(
 
     // balance already increased, so subtract deposit amount
     let current_balance =
-        load_token_balance(deps.as_ref(), &config.spec_token, &state.contract_addr)?;
+        query_token_balance(&deps.querier,
+                            deps.api.addr_humanize(&config.spec_token)?,
+                            deps.api.addr_humanize(&state.contract_addr)?)?;
     let total_balance = current_balance.checked_sub(state.poll_deposit + amount)?;
 
     let share = state.calc_share(amount, total_balance);
@@ -138,7 +142,9 @@ pub fn withdraw(
         // Load total share & total balance except proposal deposit amount
         let total_share = state.total_share.u128();
         let total_balance =
-            load_token_balance(deps.as_ref(), &config.spec_token, &state.contract_addr)?
+            query_token_balance(&deps.querier,
+                                deps.api.addr_humanize(&config.spec_token)?,
+                                deps.api.addr_humanize(&state.contract_addr)?)?
                 .checked_sub(state.poll_deposit)?
                 .u128();
 
@@ -177,6 +183,32 @@ pub fn withdraw(
     } else {
         Err(StdError::generic_err("Nothing staked"))
     }
+}
+
+fn send_tokens(
+    deps: DepsMut,
+    asset_token: &CanonicalAddr,
+    recipient: &CanonicalAddr,
+    amount: u128,
+    action: &str,
+) -> StdResult<Response> {
+    let contract_human = deps.api.addr_humanize(asset_token)?.to_string();
+    let recipient_human = deps.api.addr_humanize(recipient)?.to_string();
+
+    Ok(Response::new()
+        .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: contract_human,
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: recipient_human.clone(),
+                amount: Uint128::from(amount),
+            })?,
+            funds: vec![],
+        })])
+        .add_attributes(vec![
+            ("action", action),
+            ("recipient", recipient_human.as_str()),
+            ("amount", amount.to_string().as_str()),
+        ]))
 }
 
 // removes not in-progress poll voter info & unlock tokens
@@ -264,7 +296,10 @@ pub fn query_balances(
     let total_balance = if state.total_share.is_zero() {
         Uint128::zero()
     } else {
-        load_token_balance(deps, &config.spec_token, &state.contract_addr)?.checked_sub(state.poll_deposit)?
+        query_token_balance(&deps.querier,
+                            deps.api.addr_humanize(&config.spec_token)?,
+                            deps.api.addr_humanize(&state.contract_addr)?)?
+            .checked_sub(state.poll_deposit)?
     };
 
     let mut balance = account.calc_balance(total_balance, state.total_share);

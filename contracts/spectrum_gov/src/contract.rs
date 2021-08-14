@@ -18,7 +18,7 @@ use crate::stake::{
 };
 use crate::state::{config_store, read_config, read_state, state_store, Config, State};
 use cw20::Cw20ReceiveMsg;
-use spectrum_protocol::querier::load_token_balance;
+use terraswap::querier::query_token_balance;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -335,7 +335,9 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
 fn query_state(deps: Deps, height: u64) -> StdResult<StateInfo> {
     let state = read_state(deps.storage)?;
     let config = read_config(deps.storage)?;
-    let balance = load_token_balance(deps, &config.spec_token, &state.contract_addr)?;
+    let balance = query_token_balance(&deps.querier,
+                                      deps.api.addr_humanize(&config.spec_token)?,
+                                      deps.api.addr_humanize(&state.contract_addr)?)?;
     let mintable = calc_mintable(&state, &config, height);
     Ok(StateInfo {
         poll_count: state.poll_count,

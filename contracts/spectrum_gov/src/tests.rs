@@ -462,14 +462,14 @@ fn test_poll_executed(
         VotersResponse {
             voters: vec![
                 (
-                    TEST_VOTER_2.to_string(),
+                    TEST_VOTER.to_string(),
                     VoterInfo {
                         vote: VoteOption::yes,
                         balance: stake_amount,
                     }
                 ),
                 (
-                    TEST_VOTER.to_string(),
+                    TEST_VOTER_2.to_string(),
                     VoterInfo {
                         vote: VoteOption::yes,
                         balance: stake_amount,
@@ -486,8 +486,8 @@ fn test_poll_executed(
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
     assert_eq!(
-        res.unwrap().messages[0],
-        SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+        res.unwrap().messages[0].msg,
+        CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: VOTING_TOKEN.to_string(),
             funds: vec![],
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
@@ -495,7 +495,7 @@ fn test_poll_executed(
                 amount: poll.deposit_amount,
             })
             .unwrap(),
-        }))
+        })
     );
 
     // read state
@@ -928,14 +928,14 @@ fn test_reward(
             address: TEST_VAULT_2.to_string(),
             weight: 4
         },
-        res.vaults[0]
+        res.vaults[1]
     );
     assert_eq!(
         VaultInfo {
             address: TEST_VAULT.to_string(),
             weight: 5
         },
-        res.vaults[1]
+        res.vaults[0]
     );
 
     let msg = ExecuteMsg::update_config {

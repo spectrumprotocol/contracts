@@ -1,8 +1,10 @@
-use cosmwasm_storage::to_length_prefixed;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{Addr, Api, CanonicalAddr, Coin, ContractResult, Empty, OwnedDeps, Querier, QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery, from_slice, to_binary};
+use cosmwasm_std::{Coin, ContractResult, Empty, OwnedDeps, Querier, QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery, from_slice, to_binary, from_binary};
 use std::collections::HashMap;
+use cw20::{BalanceResponse as Cw20BalanceResponse};
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
@@ -71,58 +73,27 @@ impl Querier for WasmMockQuerier {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum MockQueryMsg {
+    Balance {
+        address: String,
+    },
+}
+
 impl WasmMockQuerier {
     pub fn handle_query(&self, request: &QueryRequest<Empty>) -> QuerierResult {
         match &request {
-            QueryRequest::Wasm(WasmQuery::Raw { contract_addr, key }) => {
-                let key: &[u8] = key.as_slice();
-
-                let balances: &HashMap<String, Uint128> =
-                    match self.token_querier.balances.get(contract_addr) {
-                        Some(balances) => balances,
-                        None => {
-                            return SystemResult::Err(SystemError::InvalidRequest {
-                                error: format!(
-                                    "No balance info exists for the contract {}",
-                                    contract_addr
-                                ),
-                                request: key.into(),
-                            })
-                        }
-                    };
-
-                let prefix_balance = to_length_prefixed(b"balance").to_vec();
-                if key[..prefix_balance.len()].to_vec() == prefix_balance {
-                    let key_address: &[u8] = &key[prefix_balance.len()..];
-                    let address_raw: CanonicalAddr = CanonicalAddr::from(key_address);
-
-                    let api: MockApi = MockApi::default();
-                    let address: String = match api.addr_humanize(&address_raw)
-                    {
-                        Ok(v) => v.to_string(),
-                        Err(e) => {
-                            return SystemResult::Err(SystemError::InvalidRequest {
-                                error: format!("Parsing query request: {}", e),
-                                request: key.into(),
-                            })
-                        }
-                    };
-
-                    let balance = match balances.get(&address) {
-                        Some(v) => v,
-                        None => {
-                            return SystemResult::Err(SystemError::InvalidRequest {
-                                error: "Balance not found".to_string(),
-                                request: key.into(),
-                            })
-                        }
-                    };
-
-                    SystemResult::Ok(ContractResult::from(to_binary(&balance)))
-                } else {
-                    panic!("DO NOT ENTER HERE")
+            QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
+                match from_binary(&msg).unwrap() {
+                    MockQueryMsg::Balance { address } => {
+                        let balance = self.read_token_balance(contract_addr, address);
+                        SystemResult::Ok(ContractResult::from(to_binary(&Cw20BalanceResponse {
+                            balance,
+                        })))
+                    },
                 }
-            }
+            },
             _ => self.base.handle_query(request),
         }
     }
@@ -138,5 +109,18 @@ impl WasmMockQuerier {
     // configure the mint whitelist mock querier
     pub fn with_token_balances(&mut self, balances: &[(&String, &[(&String, &Uint128)])]) {
         self.token_querier = TokenQuerier::new(balances, self.token_querier.balance_percent);
+    }
+
+    pub fn read_token_balance(&self, contract_addr: &String, address: String) -> Uint128 {
+        let balances: &HashMap<String, Uint128> =
+            match self.token_querier.balances.get(contract_addr) {
+                Some(balances) => balances,
+                None => return Uint128::zero(),
+            };
+
+        match balances.get(&address) {
+            Some(v) => *v,
+            None => Uint128::zero(),
+        }
     }
 }

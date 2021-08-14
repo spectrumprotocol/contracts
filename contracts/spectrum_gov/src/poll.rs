@@ -14,10 +14,11 @@ use crate::state::{
     read_poll_voter, read_poll_voters, read_polls, read_state, state_store, Poll,
 };
 use cw20::Cw20ExecuteMsg;
-use spectrum_protocol::querier::load_token_balance;
 use std::ops::Mul;
+use terraswap::querier::query_token_balance;
 
 /// create a new poll
+#[allow(clippy::too_many_arguments)]
 pub fn poll_start(
     deps: DepsMut,
     env: Env,
@@ -155,7 +156,9 @@ pub fn poll_vote(
     // convert share to amount
     let total_share = state.total_share;
     let total_balance =
-        load_token_balance(deps.as_ref(), &config.spec_token, &state.contract_addr)?
+        query_token_balance(&deps.querier,
+                            deps.api.addr_humanize(&config.spec_token)?,
+                            deps.api.addr_humanize(&state.contract_addr)?)?
             .checked_sub(state.poll_deposit)?;
 
     if account.calc_balance(total_balance, total_share) < amount {
@@ -213,7 +216,9 @@ pub fn poll_end(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
     let staked = if state.total_share.is_zero() {
         Uint128::zero()
     } else {
-        load_token_balance(deps.as_ref(), &config.spec_token, &state.contract_addr)?
+        query_token_balance(&deps.querier,
+                            deps.api.addr_humanize(&config.spec_token)?,
+                            deps.api.addr_humanize(&state.contract_addr)?)?
             .checked_sub(state.poll_deposit)?
     };
 
@@ -292,12 +297,14 @@ pub fn poll_end(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
     poll_indexer_store(deps.storage, &PollStatus::in_progress).remove(&a_poll.id.to_be_bytes());
     poll_indexer_store(deps.storage, &a_poll.status).save(&a_poll.id.to_be_bytes(), &true)?;
 
-    Ok(Response::new().add_attributes(vec![
-        attr("action", "end_poll"),
-        attr("poll_id", &poll_id.to_string()),
-        attr("rejected_reason", rejected_reason),
-        attr("passed", &passed.to_string()),
-    ]))
+    Ok(Response::new()
+        .add_messages(messages)
+        .add_attributes(vec![
+            attr("action", "end_poll"),
+            attr("poll_id", &poll_id.to_string()),
+            attr("rejected_reason", rejected_reason),
+            attr("passed", &passed.to_string()),
+        ]))
 }
 
 /*
@@ -315,7 +322,7 @@ pub fn poll_execute(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response
         return Err(StdError::generic_err("Effective delay has not expired"));
     }
 
-    if a_poll.execute_msgs.len() == 0 {
+    if a_poll.execute_msgs.is_empty() {
         return Err(StdError::generic_err("The poll does not have execute_data"));
     }
 
@@ -352,7 +359,7 @@ pub fn poll_expire(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response>
         return Err(StdError::generic_err("Poll is not in passed status"));
     }
 
-    if a_poll.execute_msgs.len() == 0 {
+    if a_poll.execute_msgs.is_empty() {
         return Err(StdError::generic_err(
             "Cannot make a text proposal to expired state",
         ));

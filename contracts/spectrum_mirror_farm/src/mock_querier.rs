@@ -275,21 +275,6 @@ impl WasmMockQuerier {
                     }
                 }
             }
-            QueryRequest::Wasm(WasmQuery::Raw { contract_addr, key }) => {
-                let key = key.as_slice();
-                let prefix_balance = to_length_prefixed(b"balance").to_vec();
-                if key[..prefix_balance.len()].to_vec() != prefix_balance {
-                    panic!("DO NOT ENTER HERE");
-                }
-                let key_address = &key[prefix_balance.len()..];
-                let address_raw = CanonicalAddr::from(key_address);
-                let api = MockApi::new(self.canonical_length);
-                let address = api.addr_humanize(&address_raw).unwrap();
-
-                SystemResult::Ok(ContractResult::from(
-                    to_binary(&self.read_token_balance(contract_addr, address)),
-                ))
-            }
             _ => self.base.execute_query(request),
         }
     }
