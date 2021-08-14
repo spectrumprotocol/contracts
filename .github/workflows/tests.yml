@@ -1,7 +1,6 @@
-
 on: [push, pull_request]
 
-name: tests
+name: Unit testing
 
 jobs:
   clippy:
@@ -16,7 +15,7 @@ jobs:
           profile: minimal
           override: true
       - run: cargo fetch
-      - run: cargo clippy --all --all-targets -- -D warnings
+      - run: cargo clippy --all -- -D warnings
 
   unit-test:
     name: Actions - unit test
