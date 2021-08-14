@@ -2,10 +2,8 @@ use crate::bond::deposit_farm_share;
 use crate::contract::{execute, instantiate, query};
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
 use crate::state::read_config;
-use cosmwasm_std::testing::{mock_env, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{
-    from_binary, to_binary, Coin, CosmosMsg, Decimal, Extern, String, Uint128, WasmMsg,
-};
+use cosmwasm_std::testing::{mock_env, MockApi, MockStorage, MOCK_CONTRACT_ADDR, mock_info};
+use cosmwasm_std::{from_binary, to_binary, Coin, CosmosMsg, Decimal, Uint128, WasmMsg, OwnedDeps};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use mirror_protocol::gov::{Cw20HookMsg as MirrorGovCw20HookMsg, ExecuteMsg as MirrorGovExecuteMsg};
 use mirror_protocol::staking::ExecuteMsg as MirrorStakingExecuteMsg;
@@ -56,7 +54,7 @@ pub struct RewardInfoResponseItem {
 
 #[test]
 fn test() {
-    let mut deps = mock_dependencies(20, &[]);
+    let mut deps = mock_dependencies(&[]);
     deps.querier.with_balance_percent(100);
     deps.querier.with_terraswap_pairs(&[
         (
@@ -92,7 +90,7 @@ fn test() {
     ]);
     deps.querier.with_tax(
         Decimal::percent(1),
-        &[(&"uusd".to_string(), &Uint128(1500000u128))],
+        &[(&"uusd".to_string(), &Uint128::from(1500000u128))],
     );
 
     test_config(&mut deps);
@@ -104,7 +102,8 @@ fn test() {
 
 fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> ConfigInfo {
     // test instantiate & read config & read state
-    let env = mock_env(TEST_CREATOR, &[]);
+    let env = mock_env();
+    let info = mock_info(TEST_CREATOR, &[]);
     let mut config = ConfigInfo {
         owner: TEST_CREATOR.to_string(),
         spectrum_gov: SPEC_GOV.to_string(),
@@ -125,17 +124,17 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
     };
 
     // success instantiate
-    let res = instantiate(deps, env.clone(), config.clone());
+    let res = instantiate(deps.as_mut(), env.clone(), info.clone(), config.clone());
     assert!(res.is_ok());
 
     // read config
     let msg = QueryMsg::config {};
-    let res: ConfigInfo = from_binary(&query(deps, msg).unwrap()).unwrap();
+    let res: ConfigInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(res, config.clone());
 
     // read state
     let msg = QueryMsg::state {};
-    let res: StateInfo = from_binary(&query(deps, msg).unwrap()).unwrap();
+    let res: StateInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(
         res,
         StateInfo {
@@ -147,7 +146,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
     );
 
     // alter config, validate owner
-    let env = mock_env(SPEC_GOV, &[]);
+    let info = mock_info(SPEC_GOV, &[]);
     let msg = ExecuteMsg::update_config {
         owner: Some(SPEC_GOV.to_string()),
         platform: None,
@@ -159,16 +158,16 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         lock_start: None,
         lock_end: None,
     };
-    let res = execute(deps, env.clone(), msg.clone());
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
     assert!(res.is_err());
 
     // success
-    let env = mock_env(TEST_CREATOR, &[]);
-    let res = execute(deps, env.clone(), msg);
+    let info = mock_info(TEST_CREATOR, &[]);
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
 
     let msg = QueryMsg::config {};
-    let res: ConfigInfo = from_binary(&query(deps, msg).unwrap()).unwrap();
+    let res: ConfigInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     config.owner = SPEC_GOV.to_string();
     assert_eq!(res, config.clone());
 
@@ -177,24 +176,25 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
 
 fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // no permission
-    let env = mock_env(TEST_CREATOR, &[]);
+    let env = mock_env();
+    let info = mock_info(TEST_CREATOR, &[]);
     let msg = ExecuteMsg::register_asset {
         asset_token: MIR_TOKEN.to_string(),
         staking_token: MIR_LP.to_string(),
         weight: 1u32,
         auto_compound: true,
     };
-    let res = execute(deps, env.clone(), msg.clone());
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
     assert!(res.is_err());
 
     // success
-    let env = mock_env(SPEC_GOV, &[]);
-    let res = execute(deps, env.clone(), msg);
+    let info = mock_info(SPEC_GOV, &[]);
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
 
     // query pool info
     let msg = QueryMsg::pools {};
-    let res: PoolsResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
+    let res: PoolsResponse = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(
         res,
         PoolsResponse {
@@ -223,41 +223,40 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
         weight: 2u32,
         auto_compound: true,
     };
-    let res = execute(deps, env.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
 
     // read state
     let msg = QueryMsg::state {};
-    let res: StateInfo = from_binary(&query(deps, msg).unwrap()).unwrap();
+    let res: StateInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(res.total_weight, 3u32);
 }
 
 fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // bond err
-    let env = mock_env(TEST_CREATOR, &[]);
+    let env = mock_env();
+    let info = mock_info(TEST_CREATOR, &[]);
     let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
         sender: USER1.to_string(),
         amount: Uint128::from(10000u128),
-        msg: Some(
-            to_binary(&Cw20HookMsg::bond {
+        msg: to_binary(&Cw20HookMsg::bond {
                 staker_addr: None,
                 asset_token: MIR_TOKEN.to_string(),
                 compound_rate: Some(Decimal::percent(60)),
             })
             .unwrap(),
-        ),
     });
-    let res = execute(deps, env.clone(), msg.clone());
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
     assert!(res.is_err());
 
     // bond success
-    let env = mock_env(MIR_LP, &[]);
-    let res = execute(deps, env.clone(), msg);
+    let info = mock_info(MIR_LP, &[]);
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
 
-    let config = read_config(deps.storage).unwrap();
+    let config = read_config(deps.as_ref().storage).unwrap();
     deposit_farm_share(
-        deps,
+        deps.as_mut(),
         &config,
         vec![(MIR_TOKEN.to_string(), Uint128::from(1000u128))],
     )
@@ -292,7 +291,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         asset_token: None,
         height: 0u64,
     };
-    let res: RewardInfoResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
+    let res: RewardInfoResponse = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
@@ -307,32 +306,30 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     );
 
     // bond SPY
-    let env = mock_env(SPY_LP, &[]);
+    let info = mock_info(SPY_LP, &[]);
     let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
         sender: USER1.to_string(),
         amount: Uint128::from(4000u128),
-        msg: Some(
-            to_binary(&Cw20HookMsg::bond {
+        msg: to_binary(&Cw20HookMsg::bond {
                 staker_addr: None,
                 asset_token: SPY_TOKEN.to_string(),
                 compound_rate: Some(Decimal::percent(50)),
             })
             .unwrap(),
-        ),
     });
-    let res = execute(deps, env.clone(), msg.clone());
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
     assert!(res.is_ok());
 
     // unbond
-    let env = mock_env(USER1, &[]);
+    let info = mock_info(USER1, &[]);
     let msg = ExecuteMsg::unbond {
         asset_token: MIR_TOKEN.to_string(),
         amount: Uint128::from(3000u128),
     };
-    let res = execute(deps, env.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
     assert_eq!(
-        res.unwrap().messages,
+        res.unwrap().messages.into_iter().map(|it| it.msg).collect::<Vec<CosmosMsg>>(),
         [
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: MIR_STAKING.to_string(),
@@ -357,10 +354,10 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
 
     // withdraw
     let msg = ExecuteMsg::withdraw { asset_token: None };
-    let res = execute(deps, env.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
     assert_eq!(
-        res.unwrap().messages,
+        res.unwrap().messages.into_iter().map(|it| it.msg).collect::<Vec<CosmosMsg>>(),
         vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: SPEC_GOV.to_string(),
@@ -400,7 +397,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     );
 
     deposit_farm_share(
-        deps,
+        deps.as_mut(),
         &config,
         vec![
             (MIR_TOKEN.to_string(), Uint128::from(500u128)),
@@ -438,19 +435,10 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         asset_token: None,
         height: 0u64,
     };
-    let res: RewardInfoResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
+    let res: RewardInfoResponse = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(
         res.reward_infos,
         vec![
-            RewardInfoResponseItem {
-                asset_token: MIR_TOKEN.to_string(),
-                pending_farm_reward: Uint128::from(998u128),
-                pending_spec_reward: Uint128::from(599u128),
-                bond_amount: Uint128::from(10000u128),
-                auto_bond_amount: Uint128::from(7000u128),
-                stake_bond_amount: Uint128::from(3000u128),
-                accum_spec_share: Uint128::from(1499u128),
-            },
             RewardInfoResponseItem {
                 asset_token: SPY_TOKEN.to_string(),
                 pending_farm_reward: Uint128::from(2000u128),
@@ -460,44 +448,49 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 stake_bond_amount: Uint128::from(2000u128),
                 accum_spec_share: Uint128::from(3000u128),
             },
+            RewardInfoResponseItem {
+                asset_token: MIR_TOKEN.to_string(),
+                pending_farm_reward: Uint128::from(998u128),
+                pending_spec_reward: Uint128::from(599u128),
+                bond_amount: Uint128::from(10000u128),
+                auto_bond_amount: Uint128::from(7000u128),
+                stake_bond_amount: Uint128::from(3000u128),
+                accum_spec_share: Uint128::from(1499u128),
+            },
         ]
     );
 
     // bond user2
-    let env = mock_env(MIR_LP, &[]);
+    let info = mock_info(MIR_LP, &[]);
     let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
         sender: USER2.to_string(),
         amount: Uint128::from(5000u128),
-        msg: Some(
-            to_binary(&Cw20HookMsg::bond {
+        msg: to_binary(&Cw20HookMsg::bond {
                 staker_addr: None,
                 asset_token: MIR_TOKEN.to_string(),
                 compound_rate: None,
             })
             .unwrap(),
-        ),
     });
-    let res = execute(deps, env.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
 
-    let env = mock_env(SPY_LP, &[]);
+    let info = mock_info(SPY_LP, &[]);
     let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
         sender: USER2.to_string(),
         amount: Uint128::from(4000u128),
-        msg: Some(
-            to_binary(&Cw20HookMsg::bond {
+        msg: to_binary(&Cw20HookMsg::bond {
                 staker_addr: None,
                 asset_token: SPY_TOKEN.to_string(),
                 compound_rate: None,
             })
             .unwrap(),
-        ),
     });
-    let res = execute(deps, env.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
 
     deposit_farm_share(
-        deps,
+        deps.as_mut(),
         &config,
         vec![
             (MIR_TOKEN.to_string(), Uint128::from(4000u128)),
@@ -557,19 +550,10 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         asset_token: None,
         height: 0u64,
     };
-    let res: RewardInfoResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
+    let res: RewardInfoResponse = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(
         res.reward_infos,
         vec![
-            RewardInfoResponseItem {
-                asset_token: MIR_TOKEN.to_string(),
-                pending_farm_reward: Uint128::from(2498u128),
-                pending_spec_reward: Uint128::from(3899u128),
-                bond_amount: Uint128::from(11000u128),
-                auto_bond_amount: Uint128::from(8000u128),
-                stake_bond_amount: Uint128::from(3000u128),
-                accum_spec_share: Uint128::from(4799u128),
-            },
             RewardInfoResponseItem {
                 asset_token: SPY_TOKEN.to_string(),
                 pending_farm_reward: Uint128::from(4400u128),
@@ -578,6 +562,15 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 auto_bond_amount: Uint128::from(6000u128),
                 stake_bond_amount: Uint128::from(2000u128),
                 accum_spec_share: Uint128::from(9400u128),
+            },
+            RewardInfoResponseItem {
+                asset_token: MIR_TOKEN.to_string(),
+                pending_farm_reward: Uint128::from(2498u128),
+                pending_spec_reward: Uint128::from(3899u128),
+                bond_amount: Uint128::from(11000u128),
+                auto_bond_amount: Uint128::from(8000u128),
+                stake_bond_amount: Uint128::from(3000u128),
+                accum_spec_share: Uint128::from(4799u128),
             },
         ]
     );
@@ -588,19 +581,10 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         asset_token: None,
         height: 0u64,
     };
-    let res: RewardInfoResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
+    let res: RewardInfoResponse = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(
         res.reward_infos,
         vec![
-            RewardInfoResponseItem {
-                asset_token: MIR_TOKEN.to_string(),
-                pending_farm_reward: Uint128::from(2500u128),
-                pending_spec_reward: Uint128::from(1500u128),
-                bond_amount: Uint128::from(5000u128),
-                auto_bond_amount: Uint128::from(0u128),
-                stake_bond_amount: Uint128::from(5000u128),
-                accum_spec_share: Uint128::from(1500u128),
-            },
             RewardInfoResponseItem {
                 asset_token: SPY_TOKEN.to_string(),
                 pending_farm_reward: Uint128::from(4800u128),
@@ -610,26 +594,37 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 stake_bond_amount: Uint128::from(4000u128),
                 accum_spec_share: Uint128::from(3200u128),
             },
+            RewardInfoResponseItem {
+                asset_token: MIR_TOKEN.to_string(),
+                pending_farm_reward: Uint128::from(2500u128),
+                pending_spec_reward: Uint128::from(1500u128),
+                bond_amount: Uint128::from(5000u128),
+                auto_bond_amount: Uint128::from(0u128),
+                stake_bond_amount: Uint128::from(5000u128),
+                accum_spec_share: Uint128::from(1500u128),
+            },
         ]
     );
 }
 
 fn test_harvest_unauthorized(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // harvest err
-    let env = mock_env(TEST_CREATOR, &[]);
+    let env = mock_env();
+    let info = mock_info(TEST_CREATOR, &[]);
     let msg = ExecuteMsg::harvest_all {};
-    let res = execute(deps, env.clone(), msg.clone());
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
     assert!(res.is_err());
 }
 
 fn test_harvest_all(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // harvest all
-    let env = mock_env(TEST_CONTROLLER, &[]);
+    let env = mock_env();
+    let info = mock_info(TEST_CONTROLLER, &[]);
     let msg = ExecuteMsg::harvest_all {};
-    let res = execute(deps, env.clone(), msg.clone()).unwrap();
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
 
     assert_eq!(
-        res.messages,
+        res.messages.into_iter().map(|it| it.msg).collect::<Vec<CosmosMsg>>(),
         vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: MIR_STAKING.to_string(),
@@ -641,14 +636,12 @@ fn test_harvest_all(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: MIR_PAIR_INFO.to_string(),
                     amount: Uint128::from(7100u128),
-                    msg: Some(
-                        to_binary(&TerraswapCw20HookMsg::Swap {
+                    msg: to_binary(&TerraswapCw20HookMsg::Swap {
                             max_spread: None,
                             belief_price: None,
                             to: None,
                         })
                         .unwrap()
-                    ),
                 })
                 .unwrap(),
                 funds: vec![],
@@ -691,12 +684,10 @@ fn test_harvest_all(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: SPEC_GOV.to_string(),
                     amount: Uint128::from(272u128),
-                    msg: Some(
-                        to_binary(&GovCw20HookMsg::stake_tokens {
+                    msg: to_binary(&GovCw20HookMsg::stake_tokens {
                             staker_addr: Some(TEST_PLATFORM.to_string()),
                         })
                         .unwrap()
-                    ),
                 })
                 .unwrap(),
                 funds: vec![],
@@ -706,12 +697,10 @@ fn test_harvest_all(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: SPEC_GOV.to_string(),
                     amount: Uint128::from(274u128),
-                    msg: Some(
-                        to_binary(&GovCw20HookMsg::stake_tokens {
+                    msg: to_binary(&GovCw20HookMsg::stake_tokens {
                             staker_addr: Some(TEST_CONTROLLER.to_string()),
                         })
                         .unwrap()
-                    ),
                 })
                 .unwrap(),
                 funds: vec![],
@@ -722,7 +711,7 @@ fn test_harvest_all(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: MIR_GOV.to_string(),
                     amount: Uint128::from(13300u128),
-                    msg: Some(to_binary(&MirrorGovCw20HookMsg::StakeVotingTokens {}).unwrap()),
+                    msg: to_binary(&MirrorGovCw20HookMsg::StakeVotingTokens {}).unwrap(),
                 })
                 .unwrap(),
             }),

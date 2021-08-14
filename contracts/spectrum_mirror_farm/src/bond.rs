@@ -467,11 +467,13 @@ pub fn withdraw(
             funds: vec![],
         }));
     }
-    Ok(Response::new().add_attributes(vec![
-        attr("action", "withdraw"),
-        attr("farm_amount", farm_amount.to_string()),
-        attr("spec_amount", spec_amount.to_string()),
-    ]))
+    Ok(Response::new()
+        .add_messages(messages)
+        .add_attributes(vec![
+            attr("action", "withdraw"),
+            attr("farm_amount", farm_amount.to_string()),
+            attr("spec_amount", spec_amount.to_string()),
+        ]))
 }
 
 fn withdraw_reward(
