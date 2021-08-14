@@ -29,7 +29,7 @@ pub fn harvest_all(mut deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<
     let config = read_config(deps.storage)?;
 
     if config.controller != CanonicalAddr::from(vec![])
-        && config.controller != deps.api.addr_canonicalize(&info.sender.as_str())?
+        && config.controller != deps.api.addr_canonicalize(info.sender.as_str())?
     {
         return Err(StdError::generic_err("unauthorized"));
     }
@@ -162,7 +162,7 @@ pub fn harvest_all(mut deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<
         let mut pool_info = pool_info_read(deps.storage).load(asset_token_raw.as_slice())?;
         let swap_amount = swap_amount_map
             .remove(&mirror_reward_info.asset_token)
-            .unwrap();
+            .unwrap_or_else(Uint128::zero);
 
         if mirror_reward_info.asset_token == mirror_token {
             pool_info.reinvest_allowance += swap_amount;

@@ -27,7 +27,7 @@ pub fn bond(
     let mut pool_info = pool_info_read(deps.storage).load(asset_token_raw.as_slice())?;
 
     // only staking token contract can execute this message
-    if pool_info.staking_token != deps.api.addr_canonicalize(&info.sender.as_str())? {
+    if pool_info.staking_token != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(StdError::generic_err("unauthorized"));
     }
 
@@ -128,7 +128,7 @@ pub fn unbond(
     asset_token: String,
     amount: Uint128,
 ) -> StdResult<Response> {
-    let staker_addr_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
+    let staker_addr_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
     let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
 
     let mut reward_info =
@@ -189,7 +189,7 @@ pub fn withdraw(
     info: MessageInfo,
     asset_token: Option<String>,
 ) -> StdResult<Response> {
-    let staker_addr = deps.api.addr_canonicalize(&info.sender.as_str())?;
+    let staker_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
     let asset_token = asset_token.map(|a| deps.api.addr_canonicalize(&a).unwrap());
     let mut state = read_state(deps.storage)?;
 

@@ -37,7 +37,7 @@ pub fn instantiate(
     };
 
     let state = State {
-        contract_addr: deps.api.addr_canonicalize(&env.contract.address.as_str())?,
+        contract_addr: deps.api.addr_canonicalize(env.contract.address.as_str())?,
         poll_count: 0u64,
         total_weight: 0u32,
     };
@@ -118,7 +118,7 @@ fn update_config(
     expiration_period: Option<u64>,
 ) -> StdResult<Response> {
     let mut config = config_store(deps.storage).load()?;
-    if config.owner != deps.api.addr_canonicalize(&info.sender.as_str())? {
+    if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(StdError::generic_err("unauthorized"));
     }
 
@@ -160,7 +160,7 @@ fn upsert_board(
     weight: u32,
 ) -> StdResult<Response> {
     let config = read_config(deps.storage)?;
-    if config.owner != deps.api.addr_canonicalize(&info.sender.as_str())? {
+    if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(StdError::generic_err("unauthorized"));
     }
 

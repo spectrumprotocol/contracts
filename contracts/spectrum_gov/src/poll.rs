@@ -131,7 +131,7 @@ pub fn poll_vote(
     vote: VoteOption,
     amount: Uint128,
 ) -> StdResult<Response> {
-    let sender_address_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
+    let sender_address_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
     let config = read_config(deps.storage)?;
     let state = read_state(deps.storage)?;
     if poll_id == 0 || state.poll_count < poll_id {

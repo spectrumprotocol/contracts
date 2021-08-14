@@ -26,7 +26,7 @@ pub fn poll_start(
     validate_description(&description)?;
     validate_link(&link)?;
 
-    let sender_address_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
+    let sender_address_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
     let key = sender_address_raw.as_slice();
     let weight = read_board(deps.storage, key);
     if weight == 0 {
@@ -43,7 +43,7 @@ pub fn poll_start(
 
     let new_poll = Poll {
         id: poll_id,
-        creator: deps.api.addr_canonicalize(&info.sender.as_str())?,
+        creator: deps.api.addr_canonicalize(info.sender.as_str())?,
         status: PollStatus::in_progress,
         yes_votes: 0u32,
         no_votes: 0u32,
@@ -122,7 +122,7 @@ pub fn poll_vote(
     poll_id: u64,
     vote: VoteOption,
 ) -> StdResult<Response> {
-    let sender_address_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
+    let sender_address_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
     let state = read_state(deps.storage)?;
     if poll_id == 0 || state.poll_count < poll_id {
         return Err(StdError::generic_err("Poll does not exist"));

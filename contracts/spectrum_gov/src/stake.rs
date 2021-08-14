@@ -132,7 +132,7 @@ pub fn withdraw(
     info: MessageInfo,
     amount: Option<Uint128>,
 ) -> StdResult<Response> {
-    let sender_address_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
+    let sender_address_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
     let key = sender_address_raw.as_slice();
 
     if let Some(mut account) = account_store(deps.storage).may_load(key)? {
@@ -248,7 +248,7 @@ pub fn upsert_vault(
     weight: u32,
 ) -> StdResult<Response> {
     let config = read_config(deps.storage)?;
-    if config.owner != deps.api.addr_canonicalize(&info.sender.as_str())? {
+    if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(StdError::generic_err("unauthorized"));
     }
     let mut state = state_store(deps.storage).load()?;

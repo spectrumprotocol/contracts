@@ -27,7 +27,7 @@ pub fn re_invest(
     let config = read_config(deps.storage)?;
 
     if config.controller != CanonicalAddr::from(vec![])
-        && config.controller != deps.api.addr_canonicalize(&info.sender.as_str())?
+        && config.controller != deps.api.addr_canonicalize(info.sender.as_str())?
     {
         return Err(StdError::generic_err("unauthorized"));
     }

@@ -71,7 +71,7 @@ pub fn instantiate(
     )?;
 
     state_store(deps.storage).save(&State {
-        contract_addr: deps.api.addr_canonicalize(&env.contract.address.as_str())?,
+        contract_addr: deps.api.addr_canonicalize(env.contract.address.as_str())?,
         previous_spec_share: Uint128::zero(),
         spec_share_index: Decimal::zero(),
         total_farm_share: Uint128::zero(),
@@ -175,7 +175,7 @@ pub fn update_config(
 ) -> StdResult<Response> {
     let mut config: Config = read_config(deps.storage)?;
 
-    if deps.api.addr_canonicalize(&info.sender.as_str())? != config.owner {
+    if deps.api.addr_canonicalize(info.sender.as_str())? != config.owner {
         return Err(StdError::generic_err("unauthorized"));
     }
 
@@ -236,7 +236,7 @@ pub fn register_asset(
     let config: Config = read_config(deps.storage)?;
     let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
 
-    if config.owner != deps.api.addr_canonicalize(&info.sender.as_str())? {
+    if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(StdError::generic_err("unauthorized"));
     }
 

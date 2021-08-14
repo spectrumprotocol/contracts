@@ -56,7 +56,7 @@ pub fn instantiate(
     };
 
     let state = State {
-        contract_addr: deps.api.addr_canonicalize(&env.contract.address.as_str())?,
+        contract_addr: deps.api.addr_canonicalize(env.contract.address.as_str())?,
         poll_count: 0,
         total_share: Uint128::zero(),
         poll_deposit: Uint128::zero(),
@@ -145,7 +145,7 @@ fn receive_cw20(
 ) -> StdResult<Response> {
     // only asset contract can execute this message
     let config = read_config(deps.storage)?;
-    if config.spec_token != deps.api.addr_canonicalize(&info.sender.as_str())? {
+    if config.spec_token != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(StdError::generic_err("unauthorized"));
     }
 
@@ -195,7 +195,7 @@ fn update_config(
     warchest_ratio: Option<Decimal>,
 ) -> StdResult<Response> {
     let mut config = config_store(deps.storage).load()?;
-    if config.owner != deps.api.addr_canonicalize(&info.sender.as_str())? {
+    if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(StdError::generic_err("unauthorized"));
     }
 

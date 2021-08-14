@@ -29,7 +29,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let config = read_config(deps.storage)?;
 
     if config.controller != CanonicalAddr::from(vec![])
-        && config.controller != deps.api.addr_canonicalize(&info.sender.as_str())?
+        && config.controller != deps.api.addr_canonicalize(info.sender.as_str())?
     {
         return Err(StdError::generic_err("unauthorized"));
     }
@@ -44,7 +44,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let pylon_reward_info = query_pylon_reward_info(
         deps.as_ref(),
         &config.pylon_staking,
-        &deps.api.addr_canonicalize(&env.contract.address.as_str())?,
+        &deps.api.addr_canonicalize(env.contract.address.as_str())?,
         env.block.height,
     )?;
 
