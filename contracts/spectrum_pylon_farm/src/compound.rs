@@ -67,7 +67,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     };
     let total_fee = community_fee + platform_fee + controller_fee;
 
-    // calculate auto-compound, auto-Stake, and commission in ANC
+    // calculate auto-compound, auto-Stake, and commission in MINE
     let mut pool_info = pool_info_read(deps.storage).load(&config.pylon_token.as_slice())?;
     let reward = pylon_reward_info.pending_reward;
     if !reward.is_zero() && !pylon_reward_info.bond_amount.is_zero() {
@@ -104,7 +104,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let reinvest_allowance = pool_info.reinvest_allowance + compound_amount;
     // split reinvest amount
     let swap_amount = reinvest_allowance.multiply_ratio(1u128, 2u128);
-    // add commission to reinvest ANC to total swap amount
+    // add commission to reinvest MINE to total swap amount
     total_mine_swap_amount += swap_amount;
 
     let mine_pair_info = query_pair_info(
@@ -120,8 +120,8 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         ],
     )?;
 
-    // find ANC swap rate
-    let anc = Asset {
+    // find MINE swap rate
+    let mine = Asset {
         info: AssetInfo::Token {
             contract_addr: pylon_token.to_string(),
         },
@@ -130,7 +130,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let mine_swap_rate = simulate(
         &deps.querier,
         deps.api.addr_validate(&mine_pair_info.contract_addr)?,
-        &anc,
+        &mine,
     )?;
     let return_asset = Asset {
         info: AssetInfo::NativeToken {
@@ -165,7 +165,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         deps.api.addr_validate(&mine_pair_info.contract_addr)?,
         &net_reinvest_asset,
     )?;
-    // calculate provided ANC from provided UST
+    // calculate provided MINE from provided UST
     let provide_mine = swap_mine_rate.return_amount + swap_mine_rate.commission_amount;
 
     pool_info.reinvest_allowance = swap_amount.checked_sub(provide_mine)?;
