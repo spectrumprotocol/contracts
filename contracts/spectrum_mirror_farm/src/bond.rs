@@ -174,7 +174,7 @@ pub fn deposit_spec_reward(
     Ok(staked)
 }
 
-fn spec_reward_to_pool(
+pub fn spec_reward_to_pool(
     state: &State,
     pool_info: &mut PoolInfo,
     lp_balance: Uint128,

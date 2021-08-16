@@ -17,8 +17,9 @@ use spectrum_protocol::mirror_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
 
-use crate::bond::{deposit_spec_reward, query_reward_info, unbond, withdraw};
+use crate::bond::{deposit_spec_reward, query_reward_info, unbond, withdraw, spec_reward_to_pool};
 use crate::state::{pool_info_read, pool_info_store, read_state};
+use crate::querier::query_mirror_pool_balance;
 
 /// (we require 0-1)
 fn validate_percentage(value: Decimal, field: &str) -> StdResult<()> {
@@ -260,6 +261,16 @@ pub fn register_asset(
             stake_spec_share_index: Decimal::zero(),
             reinvest_allowance: Uint128::zero(),
         });
+    if !pool_info.total_auto_bond_share.is_zero() || !pool_info.total_stake_bond_share.is_zero() {
+        let lp_balance = query_mirror_pool_balance(
+            deps.as_ref(),
+            &config.mirror_staking,
+            &asset_token_raw,
+            &state.contract_addr,
+        )?;
+        spec_reward_to_pool(&state, &mut pool_info, lp_balance)?;
+    }
+
     state.total_weight = state.total_weight + weight - pool_info.weight;
     pool_info.weight = weight;
     pool_info.auto_compound = auto_compound;
