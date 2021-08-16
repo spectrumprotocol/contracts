@@ -34,8 +34,6 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         spectrum_gov: GOV.to_string(),
         spectrum_token: TOKEN.to_string(),
         owner: TEST_CREATOR.to_string(),
-        lock_start: 0u64,
-        lock_end: 100u64,
     };
 
     // success init
@@ -63,8 +61,6 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
     let info = mock_info(GOV, &[]);
     let msg = ExecuteMsg::update_config {
         owner: Some(GOV.to_string()),
-        lock_start: None,
-        lock_end: None,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
@@ -173,9 +169,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             spec_share: Uint128::from(500u128),
             pending_spec_reward: Uint128::from(500u128),
             bond_amount: Uint128::from(100u128),
-            accum_spec_share: Uint128::from(500u128),
-            locked_spec_reward: Uint128::zero(),
-            locked_spec_share: Uint128::zero(),
             spec_share_index: Decimal::zero(),
         },]
     );
@@ -272,9 +265,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             spec_share: Uint128::from(530u128),
             pending_spec_reward: Uint128::from(530u128),
             bond_amount: Uint128::from(80u128),
-            accum_spec_share: Uint128::from(1030u128),
-            locked_spec_reward: Uint128::from(618u128),
-            locked_spec_share: Uint128::from(618u128),
             spec_share_index: Decimal::from_str("5").unwrap(),
         },]
     );
@@ -293,9 +283,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             spec_share: Uint128::from(70u128),
             pending_spec_reward: Uint128::from(70u128),
             bond_amount: Uint128::from(70u128),
-            accum_spec_share: Uint128::from(70u128),
-            locked_spec_reward: Uint128::from(70u128),
-            locked_spec_share: Uint128::from(70u128),
             spec_share_index: Decimal::from_str("10.625").unwrap(),
         },]
     );

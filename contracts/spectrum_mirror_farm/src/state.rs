@@ -24,20 +24,6 @@ pub struct Config {
     pub platform_fee: Decimal,
     pub controller_fee: Decimal,
     pub deposit_fee: Decimal,
-    pub lock_start: u64,
-    pub lock_end: u64,
-}
-
-impl Config {
-    pub fn calc_locked_reward(&self, total_amount: Uint128, height: u64) -> Uint128 {
-        if self.lock_end <= height {
-            Uint128::zero()
-        } else if self.lock_start >= height {
-            total_amount
-        } else {
-            total_amount.multiply_ratio(self.lock_end - height, self.lock_end - self.lock_start)
-        }
-    }
 }
 
 pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {
@@ -210,9 +196,6 @@ pub struct RewardInfo {
 
     // current SPEC reward share balance
     pub spec_share: Uint128,
-
-    // cumulative SPEC share balance
-    pub accum_spec_share: Uint128,
 }
 
 /// returns a bucket with all rewards owned by this owner (query it by owner)

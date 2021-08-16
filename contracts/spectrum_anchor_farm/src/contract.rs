@@ -65,8 +65,6 @@ pub fn instantiate(
             platform_fee: msg.platform_fee,
             controller_fee: msg.controller_fee,
             deposit_fee: msg.deposit_fee,
-            lock_start: msg.lock_start,
-            lock_end: msg.lock_end,
         },
     )?;
 
@@ -94,8 +92,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             platform_fee,
             controller_fee,
             deposit_fee,
-            lock_start,
-            lock_end,
         } => update_config(
             deps,
             env,
@@ -107,8 +103,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             platform_fee,
             controller_fee,
             deposit_fee,
-            lock_start,
-            lock_end,
         ),
         ExecuteMsg::register_asset {
             asset_token,
@@ -170,8 +164,6 @@ pub fn update_config(
     platform_fee: Option<Decimal>,
     controller_fee: Option<Decimal>,
     deposit_fee: Option<Decimal>,
-    lock_start: Option<u64>,
-    lock_end: Option<u64>,
 ) -> StdResult<Response> {
     let mut config: Config = read_config(deps.storage)?;
 
@@ -209,14 +201,6 @@ pub fn update_config(
     if let Some(deposit_fee) = deposit_fee {
         validate_percentage(deposit_fee, "deposit_fee")?;
         config.deposit_fee = deposit_fee;
-    }
-
-    if let Some(lock_start) = lock_start {
-        config.lock_start = lock_start;
-    }
-
-    if let Some(lock_end) = lock_end {
-        config.lock_end = lock_end;
     }
 
     store_config(deps.storage, &config)?;
@@ -320,8 +304,6 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         platform_fee: config.platform_fee,
         controller_fee: config.controller_fee,
         deposit_fee: config.deposit_fee,
-        lock_start: config.lock_start,
-        lock_end: config.lock_end,
     };
 
     Ok(resp)

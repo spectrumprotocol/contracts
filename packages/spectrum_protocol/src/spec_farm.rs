@@ -8,8 +8,6 @@ pub struct ConfigInfo {
     pub owner: String,
     pub spectrum_token: String,
     pub spectrum_gov: String,
-    pub lock_start: u64,
-    pub lock_end: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -26,8 +24,6 @@ pub enum ExecuteMsg {
     },
     update_config {
         owner: Option<String>,
-        lock_start: Option<u64>,
-        lock_end: Option<u64>,
     },
     withdraw {
         asset_token: Option<String>,
@@ -82,9 +78,6 @@ pub struct RewardInfoResponseItem {
     pub bond_amount: Uint128,
     pub pending_spec_reward: Uint128,
     pub spec_share: Uint128,
-    pub accum_spec_share: Uint128,
-    pub locked_spec_reward: Uint128,
-    pub locked_spec_share: Uint128,
     pub spec_share_index: Decimal,
 }
 
