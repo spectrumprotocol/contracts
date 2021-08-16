@@ -6,8 +6,8 @@ use cosmwasm_std::{
     from_binary, from_slice, to_binary, Coin, ContractResult, Empty, OwnedDeps, Querier,
     QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
 };
-use std::collections::HashMap;
 use spectrum_protocol::gov::{BalanceResponse, StateInfo};
+use std::collections::HashMap;
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
@@ -101,7 +101,7 @@ impl WasmMockQuerier {
                                 .multiply_ratio(100u128, self.token_querier.balance_percent),
                             locked_balance: vec![],
                         })))
-                    },
+                    }
                     MockQueryMsg::state { height: _ } => {
                         SystemResult::Ok(ContractResult::from(to_binary(&StateInfo {
                             poll_count: 0u64,
@@ -111,9 +111,9 @@ impl WasmMockQuerier {
                             total_staked: Uint128::from(100u128),
                             total_share: Uint128::from(self.token_querier.balance_percent),
                         })))
-                    },
+                    }
                 }
-            },
+            }
             _ => self.base.handle_query(request),
         }
     }
@@ -146,6 +146,6 @@ impl WasmMockQuerier {
         match balances.get(&address) {
             Some(v) => *v,
             None => Uint128::zero(),
-}
+        }
     }
 }

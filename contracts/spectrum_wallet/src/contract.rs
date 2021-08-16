@@ -34,9 +34,7 @@ pub fn instantiate(
     })?;
 
     state_store(deps.storage).save(&State {
-        contract_addr: deps
-            .api
-            .addr_canonicalize(&env.contract.address.to_string())?,
+        contract_addr: deps.api.addr_canonicalize(env.contract.address.as_str())?,
         previous_share: Uint128::zero(),
         share_index: Decimal::zero(),
         total_weight: 0u32,
@@ -95,8 +93,7 @@ fn receive_cw20(
 }
 
 fn deposit(deps: DepsMut, _env: Env, sender: String, amount: Uint128) -> StdResult<Response> {
-    let sender_validated = deps.api.addr_validate(sender.as_str())?;
-    let staker_addr = deps.api.addr_canonicalize(&sender_validated.to_string())?;
+    let staker_addr = deps.api.addr_canonicalize(&sender)?;
     let mut reward_info = read_reward(deps.storage, &staker_addr)?;
     reward_info.amount += amount;
     reward_store(deps.storage).save(staker_addr.as_slice(), &reward_info)?;
@@ -163,6 +160,7 @@ fn stake(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint128) -> StdResu
 
     state.previous_share += new_share;
     state_store(deps.storage).save(&state)?;
+
     Ok(Response::new()
         .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.spectrum_token)?.to_string(),
@@ -196,6 +194,7 @@ fn unstake(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint128) -> StdRe
 
     state.previous_share = state.previous_share.checked_sub(share)?;
     state_store(deps.storage).save(&state)?;
+
     Ok(Response::new()
         .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
@@ -241,6 +240,7 @@ fn withdraw(
     reward_info.amount = reward_info.amount.checked_sub(withdraw_amount)?;
     reward_store(deps.storage).save(staker_addr.as_slice(), &reward_info)?;
     state_store(deps.storage).save(&state)?;
+
     Ok(Response::new()
         .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.spectrum_token)?.to_string(),
@@ -292,8 +292,8 @@ fn deposit_reward(
 }
 
 fn before_share_change(state: &State, reward_info: &mut RewardInfo) -> StdResult<()> {
-    let share = Uint128::from(reward_info.weight as u128)
-        * (state.share_index - reward_info.share_index);
+    let share =
+        Uint128::from(reward_info.weight as u128) * (state.share_index - reward_info.share_index);
     reward_info.share += share;
     reward_info.share_index = state.share_index;
 
@@ -311,7 +311,6 @@ fn upsert_share(
     lock_end: Option<u64>,
     lock_amount: Option<Uint128>,
 ) -> StdResult<Response> {
-    let address_validated = deps.api.addr_validate(&address)?;
     let config = read_config(deps.storage)?;
     if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(StdError::generic_err("unauthorized"));
@@ -319,7 +318,7 @@ fn upsert_share(
     let mut state = state_store(deps.storage).load()?;
     deposit_reward(deps.as_ref(), &mut state, &config, env.block.height, false)?;
 
-    let address_raw = deps.api.addr_canonicalize(&address_validated.to_string())?;
+    let address_raw = deps.api.addr_canonicalize(&address)?;
     let key = address_raw.as_slice();
     let mut reward_info = reward_store(deps.storage)
         .may_load(key)?
@@ -357,7 +356,7 @@ fn update_config(
     }
 
     if let Some(owner) = owner {
-        config.owner = deps.api.addr_canonicalize(&owner.as_str())?;
+        config.owner = deps.api.addr_canonicalize(&owner)?;
     }
 
     config_store(deps.storage).save(&config)?;
@@ -386,10 +385,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
 }
 
 pub fn query_balance(deps: Deps, staker_addr: String, height: u64) -> StdResult<BalanceResponse> {
-    let staker_addr_validated = deps.api.addr_validate(&staker_addr.as_str())?;
-    let staker_addr_raw = deps
-        .api
-        .addr_canonicalize(&staker_addr_validated.as_str())?;
+    let staker_addr_raw = deps.api.addr_canonicalize(&staker_addr)?;
     let mut state = read_state(deps.storage)?;
 
     let config = read_config(deps.storage)?;
