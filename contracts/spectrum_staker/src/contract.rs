@@ -2,8 +2,8 @@ use crate::state::{config_store, read_config, Config};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_binary, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, Uint128, WasmMsg,
+    attr, to_binary, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
+    StdError, StdResult, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 use spectrum_protocol::mirror_farm::Cw20HookMsg;
@@ -26,12 +26,7 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    msg: ExecuteMsg,
-) -> StdResult<Response> {
+pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
         ExecuteMsg::bond {
             contract,
@@ -78,10 +73,7 @@ fn bond(
     compound_rate: Option<Decimal>,
 ) -> StdResult<Response> {
     let config = read_config(deps.storage)?;
-    let terraswap_factory = deps
-        .api
-        .addr_humanize(&config.terraswap_factory)?
-        .to_string();
+    let terraswap_factory = deps.api.addr_humanize(&config.terraswap_factory)?;
 
     let mut native_asset_op: Option<Asset> = None;
     let mut token_info_op: Option<(String, Uint128)> = None;
@@ -109,11 +101,7 @@ fn bond(
 
     // query pair info to obtain pair contract address
     let asset_infos = [assets[0].info.clone(), assets[1].info.clone()];
-    let terraswap_pair = query_pair_info(
-        &deps.querier,
-        deps.api.addr_validate(&terraswap_factory)?,
-        &asset_infos,
-    )?;
+    let terraswap_pair = query_pair_info(&deps.querier, terraswap_factory, &asset_infos)?;
 
     // get current lp token amount to later compute the received amount
     let prev_staking_token_amount = query_token_balance(
