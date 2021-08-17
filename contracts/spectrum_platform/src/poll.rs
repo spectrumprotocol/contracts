@@ -64,7 +64,7 @@ pub fn poll_start(
         attr("action", "create_poll"),
         attr(
             "creator",
-            deps.api.addr_humanize(&new_poll.creator)?.as_str(),
+            deps.api.addr_humanize(&new_poll.creator)?.to_string(),
         ),
         attr("poll_id", &poll_id.to_string()),
         attr("end_height", new_poll.end_height.to_string()),

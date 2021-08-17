@@ -90,7 +90,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             expiration_period,
         } => update_config(
             deps,
-            env,
             info,
             owner,
             quorum,
@@ -99,16 +98,13 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             effective_delay,
             expiration_period,
         ),
-        ExecuteMsg::upsert_board { address, weight } => {
-            upsert_board(deps, env, info, address, weight)
-        }
+        ExecuteMsg::upsert_board { address, weight } => upsert_board(deps, info, address, weight),
     }
 }
 
 #[allow(clippy::too_many_arguments)]
 fn update_config(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     owner: Option<String>,
     quorum: Option<Decimal>,
@@ -154,7 +150,6 @@ fn update_config(
 
 fn upsert_board(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     address: String,
     weight: u32,
@@ -185,7 +180,7 @@ fn upsert_board(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps,  _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::boards {} => to_binary(&query_boards(deps)?),
         QueryMsg::config {} => to_binary(&query_config(deps)?),
