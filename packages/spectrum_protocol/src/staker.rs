@@ -1,4 +1,4 @@
-use cosmwasm_std::{Decimal, Uint128};
+use cosmwasm_std::{Decimal};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use terraswap::asset::Asset;
@@ -20,8 +20,7 @@ pub enum ExecuteMsg {
         contract: String,
         asset_token: String,
         staking_token: String,
-        staker_addr: String,
-        prev_staking_token_amount: Uint128,
+        staker_addr: Option<String>,
         compound_rate: Option<Decimal>,
     },
 }

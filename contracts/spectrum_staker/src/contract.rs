@@ -52,7 +52,6 @@ pub fn execute(
             asset_token,
             staking_token,
             staker_addr,
-            prev_staking_token_amount,
             compound_rate,
         } => bond_hook(
             deps,
@@ -62,7 +61,6 @@ pub fn execute(
             asset_token,
             staking_token,
             staker_addr,
-            prev_staking_token_amount,
             compound_rate,
         ),
     }
@@ -113,13 +111,6 @@ fn bond(
         &deps.querier,
         deps.api.addr_validate(&terraswap_factory)?,
         &asset_infos,
-    )?;
-
-    // get current lp token amount to later compute the received amount
-    let prev_staking_token_amount = query_token_balance(
-        &deps.querier,
-        deps.api.addr_validate(&terraswap_pair.liquidity_token)?,
-        env.contract.address.clone(),
     )?;
 
     // compute tax
@@ -176,8 +167,7 @@ fn bond(
                     contract,
                     asset_token: token_addr.clone(),
                     staking_token: terraswap_pair.liquidity_token,
-                    staker_addr: info.sender.to_string(),
-                    prev_staking_token_amount,
+                    staker_addr: Some(info.sender.to_string()),
                     compound_rate,
                 })?,
                 funds: vec![],
@@ -198,22 +188,16 @@ fn bond_hook(
     contract: String,
     asset_token: String,
     staking_token: String,
-    staker_addr: String,
-    prev_staking_token_amount: Uint128,
+    staker_addr: Option<String>,
     compound_rate: Option<Decimal>,
 ) -> StdResult<Response> {
-    // only can be called by itself
-    if info.sender != env.contract.address {
-        return Err(StdError::generic_err("unauthorized"));
-    }
 
     // stake all lp tokens received, compare with staking token amount before liquidity provision was executed
-    let current_staking_token_amount = query_token_balance(
+    let amount_to_stake = query_token_balance(
         &deps.querier,
         deps.api.addr_validate(&staking_token)?,
         env.contract.address,
     )?;
-    let amount_to_stake = current_staking_token_amount.checked_sub(prev_staking_token_amount)?;
 
     Ok(
         Response::new().add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
@@ -223,7 +207,7 @@ fn bond_hook(
                 contract,
                 msg: to_binary(&Cw20HookMsg::bond {
                     asset_token,
-                    staker_addr: Some(staker_addr),
+                    staker_addr: Some(staker_addr.unwrap_or_else(|| info.sender.to_string())),
                     compound_rate,
                 })?,
             })?,
