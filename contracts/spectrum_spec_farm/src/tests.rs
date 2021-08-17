@@ -63,8 +63,6 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
     let info = mock_info(GOV, &[]);
     let msg = ExecuteMsg::update_config {
         owner: Some(GOV.to_string()),
-        lock_start: None,
-        lock_end: None,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());

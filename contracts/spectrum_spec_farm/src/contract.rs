@@ -23,6 +23,11 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: ConfigInfo,
 ) -> StdResult<Response> {
+
+    if msg.lock_end < msg.lock_start {
+        return Err(StdError::generic_err("invalid lock parameters"));
+    }
+
     config_store(deps.storage).save(&Config {
         owner: deps.api.addr_canonicalize(&msg.owner)?,
         spectrum_gov: deps.api.addr_canonicalize(&msg.spectrum_gov)?,
@@ -57,9 +62,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         } => unbond(deps, env, info, asset_token, amount),
         ExecuteMsg::update_config {
             owner,
-            lock_start,
-            lock_end,
-        } => update_config(deps, info, owner, lock_start, lock_end),
+        } => update_config(deps, info, owner),
     }
 }
 
@@ -127,8 +130,6 @@ fn update_config(
     deps: DepsMut,
     info: MessageInfo,
     owner: Option<String>,
-    lock_start: Option<u64>,
-    lock_end: Option<u64>,
 ) -> StdResult<Response> {
     let mut config = read_config(deps.storage)?;
 
@@ -137,15 +138,10 @@ fn update_config(
     }
 
     if let Some(owner) = owner {
+        if config.owner == config.spectrum_gov {
+            return Err(StdError::generic_err("cannot update owner"));
+        }
         config.owner = deps.api.addr_canonicalize(&owner)?;
-    }
-
-    if let Some(lock_start) = lock_start {
-        config.lock_start = lock_start;
-    }
-
-    if let Some(lock_end) = lock_end {
-        config.lock_end = lock_end;
     }
 
     config_store(deps.storage).save(&config)?;

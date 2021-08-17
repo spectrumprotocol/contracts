@@ -30,6 +30,7 @@ const DEFAULT_EXPIRATION_PERIOD: u64 = 20000u64;
 const DEFAULT_PROPOSAL_DEPOSIT: u128 = 100u128;
 const DEFAULT_MINT_PER_BLOCK: u128 = 50u128;
 const DEFAULT_WARCHEST_RATIO: u64 = 10u64;
+const DEFAULT_MINT_START: u64 = 1_000_000u64;
 
 #[test]
 fn test() {
@@ -58,11 +59,11 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         effective_delay: 0,
         expiration_period: 0,
         proposal_deposit: Uint128::zero(),
-        mint_per_block: Uint128::zero(),
-        mint_start: 0,
-        mint_end: 0,
+        mint_per_block: Uint128::from(DEFAULT_MINT_PER_BLOCK),
+        mint_start: DEFAULT_MINT_START,
+        mint_end: DEFAULT_MINT_START + 5,
         warchest_address: None,
-        warchest_ratio: Decimal::zero(),
+        warchest_ratio: Decimal::percent(DEFAULT_WARCHEST_RATIO),
     };
 
     // validate quorum
@@ -94,7 +95,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
             poll_count: 0,
             poll_deposit: Uint128::zero(),
             total_share: Uint128::zero(),
-            last_mint: 0,
+            last_mint: env.block.height,
             total_weight: 0,
             total_staked: Uint128::zero(),
         }
@@ -110,11 +111,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         effective_delay: Some(DEFAULT_EFFECTIVE_DELAY),
         expiration_period: Some(DEFAULT_EXPIRATION_PERIOD),
         proposal_deposit: Some(Uint128::from(DEFAULT_PROPOSAL_DEPOSIT)),
-        mint_per_block: None,
-        mint_start: None,
-        mint_end: None,
         warchest_address: None,
-        warchest_ratio: None,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
@@ -142,11 +139,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         effective_delay: None,
         expiration_period: None,
         proposal_deposit: None,
-        mint_per_block: None,
-        mint_start: None,
-        mint_end: None,
         warchest_address: None,
-        warchest_ratio: None,
     };
     let res = execute(deps.as_mut(), env, info, msg);
     assert!(res.is_err());
@@ -646,6 +639,11 @@ fn test_poll_low_quorum(
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_err());
 
+    // mint before end poll
+    let msg = ExecuteMsg::mint {};
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    assert!(res.is_ok());
+
     // end poll success
     let msg = ExecuteMsg::poll_end { poll_id: 2 };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
@@ -890,6 +888,12 @@ fn test_reward(
 ) {
     let mut env = mock_env();
     let info = mock_info(MOCK_CONTRACT_ADDR, &[]);
+
+    // mint before add vault
+    let msg = ExecuteMsg::mint {};
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    assert!(res.is_ok());
+
     // add vault 1
     let msg = ExecuteMsg::upsert_vault {
         vault_address: TEST_VAULT.to_string(),
@@ -947,18 +951,14 @@ fn test_reward(
         effective_delay: None,
         expiration_period: None,
         proposal_deposit: None,
-        mint_per_block: Some(Uint128::from(DEFAULT_MINT_PER_BLOCK)),
-        mint_start: Some(env.block.height),
-        mint_end: Some(env.block.height + 5),
         warchest_address: Some(WARCHEST.to_string()),
-        warchest_ratio: Some(Decimal::percent(DEFAULT_WARCHEST_RATIO)),
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     let info = mock_info(VOTING_TOKEN, &[]);
     let height = 3u64;
-    env.block.height += height;
+    env.block.height = DEFAULT_MINT_START + height;
 
     let reward = Uint128::from(300u128);
 

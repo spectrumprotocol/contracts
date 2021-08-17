@@ -127,8 +127,8 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         anchor_token: ANC_TOKEN.to_string(),
         anchor_staking: ANC_STAKING.to_string(),
         terraswap_factory: TERRA_SWAP.to_string(),
-        platform: Some(SPEC_PLATFORM.to_string()),
-        controller: Some(TEST_CONTROLLER.to_string()),
+        platform: SPEC_PLATFORM.to_string(),
+        controller: TEST_CONTROLLER.to_string(),
         base_denom: "uusd".to_string(),
         community_fee: Decimal::zero(),
         platform_fee: Decimal::zero(),
@@ -164,14 +164,11 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
     let info = mock_info(SPEC_GOV, &[]);
     let msg = ExecuteMsg::update_config {
         owner: Some(SPEC_GOV.to_string()),
-        platform: None,
         controller: None,
         community_fee: None,
         platform_fee: None,
         controller_fee: None,
         deposit_fee: None,
-        lock_start: None,
-        lock_end: None,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
@@ -956,15 +953,12 @@ fn test_compound_anc_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMo
     let env = mock_env();
     let info = mock_info(SPEC_GOV, &[]);
     let msg = ExecuteMsg::update_config {
-        owner: Some(SPEC_GOV.to_string()),
-        platform: None,
+        owner: None,
         controller: None,
         community_fee: Some(Decimal::percent(3u64)),
         platform_fee: Some(Decimal::percent(1u64)),
         controller_fee: Some(Decimal::percent(1u64)),
         deposit_fee: None,
-        lock_start: None,
-        lock_end: None,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());

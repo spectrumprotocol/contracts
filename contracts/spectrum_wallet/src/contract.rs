@@ -311,6 +311,13 @@ fn upsert_share(
     lock_end: Option<u64>,
     lock_amount: Option<Uint128>,
 ) -> StdResult<Response> {
+
+    let lock_start = lock_start.unwrap_or(0u64);
+    let lock_end = lock_end.unwrap_or(0u64);
+    if lock_end < lock_start {
+        return Err(StdError::generic_err("invalid lock parameters"));
+    }
+
     let address_validated = deps.api.addr_validate(&address)?;
     let config = read_config(deps.storage)?;
     if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
@@ -327,8 +334,8 @@ fn upsert_share(
 
     state.total_weight = state.total_weight + weight - reward_info.weight;
     reward_info.weight = weight;
-    reward_info.lock_start = lock_start.unwrap_or(0u64);
-    reward_info.lock_end = lock_end.unwrap_or(0u64);
+    reward_info.lock_start = lock_start;
+    reward_info.lock_end = lock_end;
     reward_info.lock_amount = lock_amount.unwrap_or_else(Uint128::zero);
 
     state_store(deps.storage).save(&state)?;
@@ -357,6 +364,9 @@ fn update_config(
     }
 
     if let Some(owner) = owner {
+        if config.owner == config.spectrum_gov {
+            return Err(StdError::generic_err("cannot update owner"));
+        }
         config.owner = deps.api.addr_canonicalize(&owner.as_str())?;
     }
 

@@ -123,6 +123,10 @@ fn update_config(
     }
 
     if let Some(owner) = owner {
+        let state = read_state(deps.storage)?;
+        if config.owner == state.contract_addr {
+            return Err(StdError::generic_err("cannot update owner"));
+        }
         config.owner = deps.api.addr_canonicalize(&owner)?;
     }
 
