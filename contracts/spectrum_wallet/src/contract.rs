@@ -384,7 +384,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
     Ok(resp)
 }
 
-pub fn query_balance(deps: Deps, staker_addr: String, height: u64) -> StdResult<BalanceResponse> {
+fn query_balance(deps: Deps, staker_addr: String, height: u64) -> StdResult<BalanceResponse> {
     let staker_addr_raw = deps.api.addr_canonicalize(&staker_addr)?;
     let mut state = read_state(deps.storage)?;
 

@@ -356,6 +356,7 @@ pub fn unbond(
     // update pool info
     pool_info_store(deps.storage).save(asset_token_raw.as_slice(), &pool_info)?;
     state_store(deps.storage).save(&state)?;
+
     Ok(Response::new()
         .add_messages(vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
@@ -449,6 +450,7 @@ pub fn withdraw(
             funds: vec![],
         }));
     }
+
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "withdraw"),
         attr("farm_amount", farm_amount.to_string()),
@@ -465,7 +467,7 @@ fn withdraw_reward(
     asset_token: &Option<CanonicalAddr>,
     spec_staked: &SpecBalanceResponse,
 ) -> StdResult<(Uint128, Uint128, Uint128, Uint128)> {
-    let rewards_bucket = rewards_read(deps.storage, staker_addr);
+    let rewards_bucket = rewards_read(deps.storage, &staker_addr);
 
     // single reward withdraw; or all rewards
     let reward_pairs: Vec<(CanonicalAddr, RewardInfo)>;
@@ -543,9 +545,9 @@ fn withdraw_reward(
             && reward_info.auto_bond_share.is_zero()
             && reward_info.stake_bond_share.is_zero()
         {
-            rewards_store(deps.storage, staker_addr).remove(key);
+            rewards_store(deps.storage, &staker_addr).remove(key);
         } else {
-            rewards_store(deps.storage, staker_addr).save(key, &reward_info)?;
+            rewards_store(deps.storage, &staker_addr).save(key, &reward_info)?;
         }
     }
 
@@ -601,7 +603,7 @@ fn read_reward_infos(
     staker_addr: &CanonicalAddr,
     spec_staked: &SpecBalanceResponse,
 ) -> StdResult<Vec<RewardInfoResponseItem>> {
-    let rewards_bucket = rewards_read(deps.storage, staker_addr);
+    let rewards_bucket = rewards_read(deps.storage, &staker_addr);
 
     let reward_pair = rewards_bucket
         .range(None, None, Order::Ascending)

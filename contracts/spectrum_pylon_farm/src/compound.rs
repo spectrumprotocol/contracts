@@ -426,6 +426,7 @@ pub fn stake(
     let staking_token = deps.api.addr_humanize(&pool_info.staking_token)?;
 
     let amount = query_token_balance(&deps.querier, staking_token.clone(), env.contract.address)?;
+
     Ok(Response::new()
         .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: staking_token.to_string(),
