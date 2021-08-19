@@ -4,8 +4,7 @@ use cosmwasm_std::{
 };
 use spectrum_protocol::common::OrderBy;
 use spectrum_protocol::gov::{
-    PollExecuteMsg, PollInfo, PollStatus, PollsResponse, VoteOption, VoterInfo,
-    VotersResponse,
+    PollExecuteMsg, PollInfo, PollStatus, PollsResponse, VoteOption, VoterInfo, VotersResponse,
 };
 
 use crate::stake::validate_minted;
@@ -68,13 +67,11 @@ pub fn poll_start(
         .save(&poll_id.to_be_bytes(), &true)?;
 
     state_store(deps.storage).save(&state)?;
+
     Ok(Response::new().add_attributes(vec![
         attr("action", "create_poll"),
-        attr(
-            "creator",
-            deps.api.addr_humanize(&new_poll.creator)?.as_str(),
-        ),
-        attr("poll_id", &poll_id.to_string()),
+        attr("creator", deps.api.addr_humanize(&new_poll.creator)?),
+        attr("poll_id", poll_id.to_string()),
         attr("end_height", new_poll.end_height.to_string()),
     ]))
 }
@@ -155,11 +152,12 @@ pub fn poll_vote(
 
     // convert share to amount
     let total_share = state.total_share;
-    let total_balance =
-        query_token_balance(&deps.querier,
-                            deps.api.addr_humanize(&config.spec_token)?,
-                            deps.api.addr_humanize(&state.contract_addr)?)?
-            .checked_sub(state.poll_deposit)?;
+    let total_balance = query_token_balance(
+        &deps.querier,
+        deps.api.addr_humanize(&config.spec_token)?,
+        deps.api.addr_humanize(&state.contract_addr)?,
+    )?
+    .checked_sub(state.poll_deposit)?;
 
     if account.calc_balance(total_balance, total_share) < amount {
         return Err(StdError::generic_err(
@@ -188,8 +186,8 @@ pub fn poll_vote(
     Ok(Response::new().add_attributes(vec![
         attr("action", "cast_vote"),
         attr("poll_id", poll_id.to_string()),
-        attr("amount", amount.to_string()),
-        attr("voter", info.sender.as_str()),
+        attr("amount", amount),
+        attr("voter", info.sender),
         attr("vote_option", vote_info.vote.to_string()),
     ]))
 }
@@ -216,10 +214,12 @@ pub fn poll_end(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
     let staked = if state.total_share.is_zero() {
         Uint128::zero()
     } else {
-        query_token_balance(&deps.querier,
-                            deps.api.addr_humanize(&config.spec_token)?,
-                            deps.api.addr_humanize(&state.contract_addr)?)?
-            .checked_sub(state.poll_deposit)?
+        query_token_balance(
+            &deps.querier,
+            deps.api.addr_humanize(&config.spec_token)?,
+            deps.api.addr_humanize(&state.contract_addr)?,
+        )?
+        .checked_sub(state.poll_deposit)?
     };
 
     let quorum = if staked.is_zero() {
@@ -297,14 +297,12 @@ pub fn poll_end(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
     poll_indexer_store(deps.storage, &PollStatus::in_progress).remove(&a_poll.id.to_be_bytes());
     poll_indexer_store(deps.storage, &a_poll.status).save(&a_poll.id.to_be_bytes(), &true)?;
 
-    Ok(Response::new()
-        .add_messages(messages)
-        .add_attributes(vec![
-            attr("action", "end_poll"),
-            attr("poll_id", &poll_id.to_string()),
-            attr("rejected_reason", rejected_reason),
-            attr("passed", &passed.to_string()),
-        ]))
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
+        attr("action", "end_poll"),
+        attr("poll_id", poll_id.to_string()),
+        attr("rejected_reason", rejected_reason),
+        attr("passed", passed.to_string()),
+    ]))
 }
 
 /*

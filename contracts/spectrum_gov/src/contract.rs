@@ -167,7 +167,6 @@ fn receive_cw20(
         ),
         Ok(Cw20HookMsg::stake_tokens { staker_addr }) => stake_tokens(
             deps,
-            env,
             staker_addr.unwrap_or(cw20_msg.sender),
             cw20_msg.amount,
         ),
@@ -335,9 +334,11 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
 fn query_state(deps: Deps, height: u64) -> StdResult<StateInfo> {
     let state = read_state(deps.storage)?;
     let config = read_config(deps.storage)?;
-    let balance = query_token_balance(&deps.querier,
-                                      deps.api.addr_humanize(&config.spec_token)?,
-                                      deps.api.addr_humanize(&state.contract_addr)?)?;
+    let balance = query_token_balance(
+        &deps.querier,
+        deps.api.addr_humanize(&config.spec_token)?,
+        deps.api.addr_humanize(&state.contract_addr)?,
+    )?;
     let mintable = calc_mintable(&state, &config, height);
     Ok(StateInfo {
         poll_count: state.poll_count,

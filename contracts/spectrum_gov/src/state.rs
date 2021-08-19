@@ -177,7 +177,7 @@ pub fn read_polls<'a>(
 static PREFIX_POLL_VOTER: &[u8] = b"poll_voter";
 
 pub fn poll_voter_store(storage: &mut dyn Storage, poll_id: u64) -> Bucket<VoterInfo> {
-    Bucket::multilevel(storage,&[PREFIX_POLL_VOTER, &poll_id.to_be_bytes()])
+    Bucket::multilevel(storage, &[PREFIX_POLL_VOTER, &poll_id.to_be_bytes()])
 }
 
 pub fn read_poll_voter(
