@@ -40,6 +40,7 @@ pub fn instantiate(
     validate_percentage(msg.community_fee, "community_fee")?;
     validate_percentage(msg.platform_fee, "platform_fee")?;
     validate_percentage(msg.controller_fee, "controller_fee")?;
+    validate_percentage(msg.deposit_fee, "deposit_fee")?;
 
     if msg.lock_end < msg.lock_start {
         return Err(StdError::generic_err("invalid lock parameters"));
