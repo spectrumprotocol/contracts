@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Binary, CanonicalAddr, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Order,  Response, StdError, StdResult, Uint128,
+    attr, from_binary, to_binary, Binary, CanonicalAddr, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Order, Response, StdError, StdResult, Uint128,
 };
 
 use crate::{
@@ -17,9 +17,9 @@ use spectrum_protocol::mirror_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
 
-use crate::bond::{deposit_spec_reward, query_reward_info, unbond, withdraw, spec_reward_to_pool};
-use crate::state::{pool_info_read, pool_info_store, read_state};
+use crate::bond::{deposit_spec_reward, query_reward_info, spec_reward_to_pool, unbond, withdraw};
 use crate::querier::query_mirror_pool_balance;
+use crate::state::{pool_info_read, pool_info_store, read_state};
 
 /// (we require 0-1)
 fn validate_percentage(value: Decimal, field: &str) -> StdResult<()> {
@@ -100,7 +100,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             lock_end,
         } => update_config(
             deps,
-            env,
             info,
             owner,
             platform,
@@ -164,7 +163,6 @@ fn receive_cw20(
 #[allow(clippy::too_many_arguments)]
 pub fn update_config(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     owner: Option<String>,
     platform: Option<String>,
@@ -223,6 +221,7 @@ pub fn update_config(
     }
 
     store_config(deps.storage, &config)?;
+
     Ok(Response::new().add_attributes(vec![attr("action", "update_config")]))
 }
 
@@ -277,9 +276,10 @@ pub fn register_asset(
 
     pool_info_store(deps.storage).save(&asset_token_raw.as_slice(), &pool_info)?;
     state_store(deps.storage).save(&state)?;
+
     Ok(Response::new().add_attributes(vec![
         attr("action", "register_asset"),
-        attr("asset_token", asset_token.as_str()),
+        attr("asset_token", asset_token),
     ]))
 }
 
@@ -360,11 +360,13 @@ fn query_pools(deps: Deps) -> StdResult<PoolsResponse> {
             })
         })
         .collect::<StdResult<Vec<PoolItem>>>()?;
+
     Ok(PoolsResponse { pools })
 }
 
 fn query_state(deps: Deps) -> StdResult<StateInfo> {
     let state = read_state(deps.storage)?;
+
     Ok(StateInfo {
         spec_share_index: state.spec_share_index,
         previous_spec_share: state.previous_spec_share,
