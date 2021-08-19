@@ -119,7 +119,7 @@ fn register_asset(
     state_store(deps.storage).save(&state)?;
     Ok(Response::new().add_attributes(vec![
         attr("action", "register_asset"),
-        attr("asset_token", asset_token.as_str()),
+        attr("asset_token", asset_token),
     ]))
 }
 

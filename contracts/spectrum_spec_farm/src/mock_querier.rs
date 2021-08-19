@@ -1,5 +1,8 @@
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{from_binary, from_slice, to_binary, Coin, Empty, Querier, QuerierResult, QueryRequest, SystemError, Uint128, WasmQuery, OwnedDeps, SystemResult, ContractResult};
+use cosmwasm_std::{
+    from_binary, from_slice, to_binary, Coin, ContractResult, Empty, OwnedDeps, Querier,
+    QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
+};
 use spectrum_protocol::gov::{BalanceResponse, QueryMsg};
 use std::collections::HashMap;
 

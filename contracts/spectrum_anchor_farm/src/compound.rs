@@ -84,9 +84,9 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
             anchor_amount.multiply_ratio(auto_bond_amount, anchor_reward_info.bond_amount);
         let stake_amount = anchor_amount.checked_sub(compound_amount)?;
 
-        attributes.push(attr("commission", commission.to_string()));
-        attributes.push(attr("compound_amount", compound_amount.to_string()));
-        attributes.push(attr("stake_amount", stake_amount.to_string()));
+        attributes.push(attr("commission", commission));
+        attributes.push(attr("compound_amount", compound_amount));
+        attributes.push(attr("stake_amount", stake_amount));
 
         total_anc_stake_amount += stake_amount;
     }
@@ -171,10 +171,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     pool_info.reinvest_allowance = swap_amount.checked_sub(provide_anc)?;
     pool_info_store(deps.storage).save(&config.anchor_token.as_slice(), &pool_info)?;
 
-    attributes.push(attr(
-        "total_ust_return_amount",
-        total_ust_return_amount.to_string(),
-    ));
+    attributes.push(attr("total_ust_return_amount", total_ust_return_amount));
 
     let mut messages: Vec<CosmosMsg> = vec![];
     let withdraw_all_anc: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
@@ -239,11 +236,8 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
             &net_commission,
         )?;
 
-        attributes.push(attr("net_commission", net_commission.amount.to_string()));
-        attributes.push(attr(
-            "spec_commission",
-            spec_swap_rate.return_amount.to_string(),
-        ));
+        attributes.push(attr("net_commission", net_commission.amount));
+        attributes.push(attr("spec_commission", spec_swap_rate.return_amount));
 
         let swap_spec = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: spec_pair_info.contract_addr,
@@ -378,13 +372,13 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     });
 
     attributes.push(attr("action", "compound"));
-    attributes.push(attr("asset_token", anchor_token.as_str()));
-    attributes.push(attr("reinvest_allowance", reinvest_allowance.to_string()));
-    attributes.push(attr("provide_token_amount", provide_anc.to_string()));
-    attributes.push(attr("provide_ust_amount", net_reinvest_ust.to_string()));
+    attributes.push(attr("asset_token", anchor_token));
+    attributes.push(attr("reinvest_allowance", reinvest_allowance));
+    attributes.push(attr("provide_token_amount", provide_anc));
+    attributes.push(attr("provide_ust_amount", net_reinvest_ust));
     attributes.push(attr(
         "remaining_reinvest_allowance",
-        pool_info.reinvest_allowance.to_string(),
+        pool_info.reinvest_allowance,
     ));
 
     messages.push(increase_allowance);
@@ -439,8 +433,8 @@ pub fn stake(
         })])
         .add_attributes(vec![
             attr("action", "stake"),
-            attr("asset_token", asset_token.as_str()),
-            attr("staking_token", staking_token.as_str()),
-            attr("amount", amount.to_string()),
+            attr("asset_token", asset_token),
+            attr("staking_token", staking_token),
+            attr("amount", amount),
         ]))
 }

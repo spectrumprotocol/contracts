@@ -1,7 +1,7 @@
 use crate::contract::{execute, instantiate, query};
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
-use cosmwasm_std::testing::{mock_env, MockApi, MockStorage, MOCK_CONTRACT_ADDR, mock_info};
-use cosmwasm_std::{from_binary, to_binary, CosmosMsg, Decimal, Uint128, WasmMsg, OwnedDeps};
+use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
+use cosmwasm_std::{from_binary, to_binary, CosmosMsg, Decimal, OwnedDeps, Uint128, WasmMsg};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use spectrum_protocol::gov::ExecuteMsg as GovExecuteMsg;
 use spectrum_protocol::spec_farm::{
@@ -130,20 +130,17 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         sender: USER1.to_string(),
         amount: Uint128::from(100u128),
         msg: to_binary(&Cw20HookMsg::bond {
-                staker_addr: None,
-                asset_token: TOKEN.to_string(),
-            })
-            .unwrap(),
+            staker_addr: None,
+            asset_token: TOKEN.to_string(),
+        })
+        .unwrap(),
     });
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
 
     deps.querier.with_token_balances(&[(
         &GOV.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from(100u128),
-        )],
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(100u128))],
     )]);
 
     // bond success
@@ -153,10 +150,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
 
     deps.querier.with_token_balances(&[(
         &GOV.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from(500u128),
-        )],
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(500u128))],
     )]);
 
     // query balance
@@ -165,7 +159,8 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         asset_token: None,
         height: 100u64,
     };
-    let res: RewardInfoResponse = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+    let res: RewardInfoResponse =
+        from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
@@ -206,7 +201,11 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
     assert_eq!(
-        res.unwrap().messages.into_iter().map(|it| it.msg).collect::<Vec<CosmosMsg>>(),
+        res.unwrap()
+            .messages
+            .into_iter()
+            .map(|it| it.msg)
+            .collect::<Vec<CosmosMsg>>(),
         vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: GOV.to_string(),
@@ -230,10 +229,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
 
     deps.querier.with_token_balances(&[(
         &GOV.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from(450u128),
-        )],
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(450u128))],
     )]);
 
     // bond user2
@@ -242,20 +238,17 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         sender: USER2.to_string(),
         amount: Uint128::from(70u128),
         msg: to_binary(&Cw20HookMsg::bond {
-                staker_addr: None,
-                asset_token: TOKEN.to_string(),
-            })
-            .unwrap(),
+            staker_addr: None,
+            asset_token: TOKEN.to_string(),
+        })
+        .unwrap(),
     });
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     deps.querier.with_token_balances(&[(
         &GOV.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from(600u128),
-        )],
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(600u128))],
     )]);
 
     // query balance1
@@ -264,7 +257,8 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         asset_token: None,
         height: 40u64,
     };
-    let res: RewardInfoResponse = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+    let res: RewardInfoResponse =
+        from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {

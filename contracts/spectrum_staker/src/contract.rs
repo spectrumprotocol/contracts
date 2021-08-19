@@ -174,7 +174,7 @@ fn bond(
         .add_attributes(vec![
             attr("action", "bond"),
             attr("asset_token", token_addr),
-            attr("tax_amount", tax_amount.to_string()),
+            attr("tax_amount", tax_amount),
         ]))
 }
 

@@ -735,8 +735,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         staker_addr: USER2.to_string(),
         height: 0u64,
     };
-    let res: RewardInfoResponse =
-        from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
+    let res: RewardInfoResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
@@ -926,8 +925,7 @@ fn test_compound_mine(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
         staker_addr: USER2.to_string(),
         height: 0u64,
     };
-    let res: RewardInfoResponse =
-        from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
+    let res: RewardInfoResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {

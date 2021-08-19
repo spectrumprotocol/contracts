@@ -97,10 +97,7 @@ fn deposit(deps: DepsMut, _env: Env, sender: String, amount: Uint128) -> StdResu
     let mut reward_info = read_reward(deps.storage, &staker_addr)?;
     reward_info.amount += amount;
     reward_store(deps.storage).save(staker_addr.as_slice(), &reward_info)?;
-    Ok(Response::new().add_attributes(vec![
-        attr("action", "dep"),
-        attr("amount", amount.to_string()),
-    ]))
+    Ok(Response::new().add_attributes(vec![attr("action", "dep"), attr("amount", amount)]))
 }
 
 fn poll_vote(
@@ -171,10 +168,7 @@ fn stake(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint128) -> StdResu
             })?,
             funds: vec![],
         })])
-        .add_attributes(vec![
-            attr("action", "stake"),
-            attr("amount", amount.to_string()),
-        ]))
+        .add_attributes(vec![attr("action", "stake"), attr("amount", amount)]))
 }
 
 fn unstake(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint128) -> StdResult<Response> {
@@ -203,10 +197,7 @@ fn unstake(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint128) -> StdRe
             })?,
             funds: vec![],
         })])
-        .add_attributes(vec![
-            attr("action", "unstake"),
-            attr("amount", amount.to_string()),
-        ]))
+        .add_attributes(vec![attr("action", "unstake"), attr("amount", amount)]))
 }
 
 fn withdraw(
@@ -252,7 +243,7 @@ fn withdraw(
         })])
         .add_attributes(vec![
             attr("action", "withdraw"),
-            attr("amount", withdraw_amount.to_string()),
+            attr("amount", withdraw_amount),
         ]))
 }
 

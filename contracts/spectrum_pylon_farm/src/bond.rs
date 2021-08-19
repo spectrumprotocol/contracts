@@ -275,9 +275,9 @@ fn stake_token(
         })])
         .add_attributes(vec![
             attr("action", "bond"),
-            attr("staking_token", staking_token.as_str()),
-            attr("asset_token", asset_token.as_str()),
-            attr("amount", amount.to_string()),
+            attr("staking_token", staking_token),
+            attr("asset_token", asset_token),
+            attr("amount", amount),
         ]))
 }
 
@@ -378,9 +378,9 @@ pub fn unbond(
         ])
         .add_attributes(vec![
             attr("action", "unbond"),
-            attr("staker_addr", info.sender.as_str()),
-            attr("asset_token", asset_token.as_str()),
-            attr("amount", amount.to_string()),
+            attr("staker_addr", info.sender),
+            attr("asset_token", asset_token),
+            attr("amount", amount),
         ]))
 }
 
@@ -453,8 +453,8 @@ pub fn withdraw(
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "withdraw"),
-        attr("farm_amount", farm_amount.to_string()),
-        attr("spec_amount", spec_amount.to_string()),
+        attr("farm_amount", farm_amount),
+        attr("spec_amount", spec_amount),
     ]))
 }
 

@@ -57,9 +57,9 @@ pub fn bond(
     state_store(deps.storage).save(&state)?;
     Ok(Response::new().add_attributes(vec![
         attr("action", "bond"),
-        attr("staker_addr", staker_addr.as_str()),
-        attr("asset_token", asset_token.as_str()),
-        attr("amount", amount.to_string()),
+        attr("staker_addr", staker_addr),
+        attr("asset_token", asset_token),
+        attr("amount", amount),
     ]))
 }
 
@@ -113,8 +113,8 @@ fn reward_to_pool(state: &State, pool_info: &mut PoolInfo) -> StdResult<()> {
 }
 
 fn before_share_change(pool_info: &PoolInfo, reward_info: &mut RewardInfo) -> StdResult<()> {
-    let share = reward_info.bond_amount
-        * (pool_info.spec_share_index - reward_info.spec_share_index);
+    let share =
+        reward_info.bond_amount * (pool_info.spec_share_index - reward_info.spec_share_index);
     reward_info.spec_share += share;
     reward_info.accum_spec_share += share;
     reward_info.spec_share_index = pool_info.spec_share_index;
@@ -177,9 +177,9 @@ pub fn unbond(
         })])
         .add_attributes(vec![
             attr("action", "unbond"),
-            attr("staker_addr", info.sender.as_str()),
-            attr("asset_token", asset_token.as_str()),
-            attr("amount", amount.to_string()),
+            attr("staker_addr", info.sender),
+            attr("asset_token", asset_token),
+            attr("amount", amount),
         ]))
 }
 
@@ -224,10 +224,7 @@ pub fn withdraw(
                 funds: vec![],
             }),
         ])
-        .add_attributes(vec![
-            attr("action", "withdraw"),
-            attr("amount", amount.to_string()),
-        ]))
+        .add_attributes(vec![attr("action", "withdraw"), attr("amount", amount)]))
 }
 
 fn withdraw_reward(
