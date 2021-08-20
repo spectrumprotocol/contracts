@@ -40,6 +40,11 @@ pub fn instantiate(
     validate_percentage(msg.community_fee, "community_fee")?;
     validate_percentage(msg.platform_fee, "platform_fee")?;
     validate_percentage(msg.controller_fee, "controller_fee")?;
+    validate_percentage(msg.deposit_fee, "deposit_fee")?;
+
+    if msg.lock_end < msg.lock_start {
+        return Err(StdError::generic_err("invalid lock parameters"));
+    }
 
     let api = deps.api;
     store_config(
@@ -52,16 +57,8 @@ pub fn instantiate(
             mirror_token: deps.api.addr_canonicalize(&msg.mirror_token)?,
             mirror_staking: deps.api.addr_canonicalize(&msg.mirror_staking)?,
             mirror_gov: deps.api.addr_canonicalize(&msg.mirror_gov)?,
-            platform: if let Some(platform) = msg.platform {
-                api.addr_canonicalize(&platform)?
-            } else {
-                CanonicalAddr::from(vec![])
-            },
-            controller: if let Some(controller) = msg.controller {
-                api.addr_canonicalize(&controller)?
-            } else {
-                CanonicalAddr::from(vec![])
-            },
+            platform: api.addr_canonicalize(&msg.platform)?,
+            controller: api.addr_canonicalize(&msg.controller)?,
             base_denom: msg.base_denom,
             community_fee: msg.community_fee,
             platform_fee: msg.platform_fee,
@@ -90,26 +87,20 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::update_config {
             owner,
-            platform,
             controller,
             community_fee,
             platform_fee,
             controller_fee,
             deposit_fee,
-            lock_start,
-            lock_end,
         } => update_config(
             deps,
             info,
             owner,
-            platform,
             controller,
             community_fee,
             platform_fee,
             controller_fee,
             deposit_fee,
-            lock_start,
-            lock_end,
         ),
         ExecuteMsg::register_asset {
             asset_token,
@@ -165,14 +156,11 @@ pub fn update_config(
     deps: DepsMut,
     info: MessageInfo,
     owner: Option<String>,
-    platform: Option<String>,
     controller: Option<String>,
     community_fee: Option<Decimal>,
     platform_fee: Option<Decimal>,
     controller_fee: Option<Decimal>,
     deposit_fee: Option<Decimal>,
-    lock_start: Option<u64>,
-    lock_end: Option<u64>,
 ) -> StdResult<Response> {
     let mut config: Config = read_config(deps.storage)?;
 
@@ -181,11 +169,10 @@ pub fn update_config(
     }
 
     if let Some(owner) = owner {
+        if config.owner == config.spectrum_gov {
+            return Err(StdError::generic_err("cannot update owner"));
+        }
         config.owner = deps.api.addr_canonicalize(&owner)?;
-    }
-
-    if let Some(platform) = platform {
-        config.platform = deps.api.addr_canonicalize(&platform)?;
     }
 
     if let Some(controller) = controller {
@@ -210,14 +197,6 @@ pub fn update_config(
     if let Some(deposit_fee) = deposit_fee {
         validate_percentage(deposit_fee, "deposit_fee")?;
         config.deposit_fee = deposit_fee;
-    }
-
-    if let Some(lock_start) = lock_start {
-        config.lock_start = lock_start;
-    }
-
-    if let Some(lock_end) = lock_end {
-        config.lock_end = lock_end;
     }
 
     store_config(deps.storage, &config)?;
@@ -310,16 +289,8 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         mirror_staking: deps.api.addr_humanize(&config.mirror_staking)?.to_string(),
         spectrum_gov: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
         mirror_gov: deps.api.addr_humanize(&config.mirror_gov)?.to_string(),
-        platform: if config.platform == CanonicalAddr::from(vec![]) {
-            None
-        } else {
-            Some(deps.api.addr_humanize(&config.platform)?.to_string())
-        },
-        controller: if config.controller == CanonicalAddr::from(vec![]) {
-            None
-        } else {
-            Some(deps.api.addr_humanize(&config.controller)?.to_string())
-        },
+        platform: deps.api.addr_humanize(&config.platform)?.to_string(),
+        controller: deps.api.addr_humanize(&config.controller)?.to_string(),
         base_denom: config.base_denom,
         community_fee: config.community_fee,
         platform_fee: config.platform_fee,

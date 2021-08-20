@@ -5,11 +5,13 @@
   "required": [
     "base_denom",
     "community_fee",
+    "controller",
     "controller_fee",
     "deposit_fee",
     "lock_end",
     "lock_start",
     "owner",
+    "platform",
     "platform_fee",
     "pylon_gov",
     "pylon_staking",
@@ -26,10 +28,7 @@
       "$ref": "#/definitions/Decimal"
     },
     "controller": {
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": "string"
     },
     "controller_fee": {
       "$ref": "#/definitions/Decimal"
@@ -51,10 +50,7 @@
       "type": "string"
     },
     "platform": {
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": "string"
     },
     "platform_fee": {
       "$ref": "#/definitions/Decimal"

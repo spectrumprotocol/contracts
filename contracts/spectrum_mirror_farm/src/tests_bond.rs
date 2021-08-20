@@ -70,8 +70,8 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         mirror_token: MIR_TOKEN.to_string(),
         mirror_staking: MIR_STAKING.to_string(),
         terraswap_factory: TERRA_SWAP.to_string(),
-        platform: Option::None,
-        controller: Option::None,
+        platform: TEST_CREATOR.to_string(),
+        controller: TEST_CREATOR.to_string(),
         base_denom: "uusd".to_string(),
         community_fee: Decimal::zero(),
         platform_fee: Decimal::zero(),
@@ -107,14 +107,11 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
     let info = mock_info(SPEC_GOV, &[]);
     let msg = ExecuteMsg::update_config {
         owner: Some(SPEC_GOV.to_string()),
-        platform: None,
         controller: None,
         community_fee: None,
         platform_fee: None,
         controller_fee: None,
         deposit_fee: None,
-        lock_start: None,
-        lock_end: None,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
@@ -564,14 +561,11 @@ fn test_deposit_fee(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
     let info = mock_info(SPEC_GOV, &[]);
     let msg = ExecuteMsg::update_config {
         owner: None,
-        platform: None,
         controller: None,
         community_fee: None,
         platform_fee: None,
         controller_fee: None,
         deposit_fee: Some(Decimal::percent(20)),
-        lock_start: None,
-        lock_end: None,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());

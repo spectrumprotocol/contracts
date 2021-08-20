@@ -51,11 +51,7 @@ pub enum ExecuteMsg {
         effective_delay: Option<u64>,
         expiration_period: Option<u64>,
         proposal_deposit: Option<Uint128>,
-        mint_per_block: Option<Uint128>,
-        mint_start: Option<u64>,
-        mint_end: Option<u64>,
         warchest_address: Option<String>,
-        warchest_ratio: Option<Decimal>,
     },
     upsert_vault {
         vault_address: String,

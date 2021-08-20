@@ -13,8 +13,8 @@ pub struct ConfigInfo {
     pub pylon_token: String,
     pub pylon_staking: String,
     pub pylon_gov: String,
-    pub platform: Option<String>,
-    pub controller: Option<String>,
+    pub platform: String,
+    pub controller: String,
     pub base_denom: String,
     pub community_fee: Decimal,
     pub platform_fee: Decimal,
@@ -30,14 +30,11 @@ pub enum ExecuteMsg {
     // Update config
     update_config {
         owner: Option<String>,
-        platform: Option<String>,
         controller: Option<String>,
         community_fee: Option<Decimal>,
         platform_fee: Option<Decimal>,
         controller_fee: Option<Decimal>,
         deposit_fee: Option<Decimal>,
-        lock_start: Option<u64>,
-        lock_end: Option<u64>,
     },
     // Unbond lp token
     unbond {

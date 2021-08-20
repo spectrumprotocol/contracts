@@ -12,10 +12,7 @@ use crate::poll::{
     poll_end, poll_execute, poll_expire, poll_start, poll_vote, query_poll, query_polls,
     query_voters,
 };
-use crate::stake::{
-    calc_mintable, mint, query_balances, query_vaults, stake_tokens, upsert_vault, validate_minted,
-    withdraw,
-};
+use crate::stake::{calc_mintable, mint, query_balances, query_vaults, stake_tokens, upsert_vault, withdraw, validate_minted};
 use crate::state::{config_store, read_config, read_state, state_store, Config, State};
 use cw20::Cw20ReceiveMsg;
 use terraswap::querier::query_token_balance;
@@ -30,6 +27,10 @@ pub fn instantiate(
     validate_percentage(msg.quorum, "quorum")?;
     validate_percentage(msg.threshold, "threshold")?;
     validate_percentage(msg.warchest_ratio, "warchest_ratio")?;
+
+    if msg.mint_end < msg.mint_start {
+        return Err(StdError::generic_err("invalid mint parameters"));
+    }
 
     let config = Config {
         owner: deps.api.addr_canonicalize(&msg.owner)?,
@@ -106,11 +107,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             effective_delay,
             expiration_period,
             proposal_deposit,
-            mint_per_block,
-            mint_start,
-            mint_end,
             warchest_address,
-            warchest_ratio,
         } => update_config(
             deps,
             env,
@@ -123,11 +120,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             effective_delay,
             expiration_period,
             proposal_deposit,
-            mint_per_block,
-            mint_start,
-            mint_end,
             warchest_address,
-            warchest_ratio,
         ),
         ExecuteMsg::upsert_vault {
             vault_address,
@@ -187,11 +180,7 @@ fn update_config(
     effective_delay: Option<u64>,
     expiration_period: Option<u64>,
     proposal_deposit: Option<Uint128>,
-    mint_per_block: Option<Uint128>,
-    mint_start: Option<u64>,
-    mint_end: Option<u64>,
     warchest_address: Option<String>,
-    warchest_ratio: Option<Decimal>,
 ) -> StdResult<Response> {
     let mut config = config_store(deps.storage).load()?;
     if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
@@ -199,6 +188,10 @@ fn update_config(
     }
 
     if let Some(owner) = owner {
+        let state = read_state(deps.storage)?;
+        if config.owner == state.contract_addr {
+            return Err(StdError::generic_err("cannot update owner"));
+        }
         config.owner = deps.api.addr_canonicalize(&owner)?;
     }
 
@@ -235,41 +228,13 @@ fn update_config(
         config.proposal_deposit = proposal_deposit;
     }
 
-    if mint_per_block.is_some()
-        || mint_start.is_some()
-        || mint_end.is_some()
-        || warchest_address.is_some()
-        || warchest_ratio.is_some()
-    {
+    if let Some(warchest_address) = warchest_address {
+        if config.warchest_address != CanonicalAddr::from(vec![]) {
+            return Err(StdError::generic_err("Warchest address is already assigned"));
+        }
         let state = read_state(deps.storage)?;
         validate_minted(&state, &config, env.block.height)?;
-    }
-
-    if let Some(mint_per_block) = mint_per_block {
-        config.mint_per_block = mint_per_block;
-    }
-
-    if let Some(mint_start) = mint_start {
-        config.mint_start = mint_start;
-    }
-
-    if let Some(mint_end) = mint_end {
-        config.mint_end = mint_end;
-
-        let mut state = state_store(deps.storage).load()?;
-        if validate_minted(&state, &config, env.block.height).is_err() {
-            state.last_mint = env.block.height;
-            state_store(deps.storage).save(&state)?;
-        }
-    }
-
-    if let Some(warchest_address) = warchest_address {
         config.warchest_address = deps.api.addr_canonicalize(&warchest_address)?;
-    }
-
-    if let Some(warchest_ratio) = warchest_ratio {
-        validate_percentage(warchest_ratio, "warchest_ratio")?;
-        config.warchest_ratio = warchest_ratio;
     }
 
     config_store(deps.storage).save(&config)?;

@@ -59,29 +59,7 @@
                 }
               ]
             },
-            "lock_end": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint64",
-              "minimum": 0.0
-            },
-            "lock_start": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint64",
-              "minimum": 0.0
-            },
             "owner": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "platform": {
               "type": [
                 "string",
                 "null"

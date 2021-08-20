@@ -26,8 +26,6 @@ pub enum ExecuteMsg {
     },
     update_config {
         owner: Option<String>,
-        lock_start: Option<u64>,
-        lock_end: Option<u64>,
     },
     withdraw {
         asset_token: Option<String>,
