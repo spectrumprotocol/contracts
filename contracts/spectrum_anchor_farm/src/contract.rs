@@ -44,7 +44,6 @@ pub fn instantiate(
         return Err(StdError::generic_err("invalid lock parameters"));
     }
 
-    let api = deps.api;
     store_config(
         deps.storage,
         &Config {
@@ -55,8 +54,8 @@ pub fn instantiate(
             anchor_token: deps.api.addr_canonicalize(&msg.anchor_token)?,
             anchor_staking: deps.api.addr_canonicalize(&msg.anchor_staking)?,
             anchor_gov: deps.api.addr_canonicalize(&msg.anchor_gov)?,
-            platform: api.addr_canonicalize(&msg.platform)?,
-            controller: api.addr_canonicalize(&msg.controller)?,
+            platform: deps.api.addr_canonicalize(&msg.platform)?,
+            controller: deps.api.addr_canonicalize(&msg.controller)?,
             base_denom: msg.base_denom,
             community_fee: msg.community_fee,
             platform_fee: msg.platform_fee,
