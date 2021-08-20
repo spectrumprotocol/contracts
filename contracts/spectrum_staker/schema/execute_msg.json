@@ -62,8 +62,6 @@
           "required": [
             "asset_token",
             "contract",
-            "prev_staking_token_amount",
-            "staker_addr",
             "staking_token"
           ],
           "properties": {
@@ -83,11 +81,11 @@
             "contract": {
               "type": "string"
             },
-            "prev_staking_token_amount": {
-              "$ref": "#/definitions/Uint128"
-            },
             "staker_addr": {
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "staking_token": {
               "type": "string"
