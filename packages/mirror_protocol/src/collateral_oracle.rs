@@ -1,9 +1,7 @@
-use std::fmt;
-
+use cosmwasm_std::Decimal;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use cosmwasm_std::Decimal;
+use std::fmt;
 use terraswap::asset::AssetInfo;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -49,8 +47,13 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     Config {},
-    CollateralPrice { asset: String, block_height: Option<u64> },
-    CollateralAssetInfo { asset: String },
+    CollateralPrice {
+        asset: String,
+        block_height: Option<u64>,
+    },
+    CollateralAssetInfo {
+        asset: String,
+    },
     CollateralAssetInfos {},
 }
 

@@ -41,7 +41,7 @@ spectrum-protocol = { version = "0.2.0-rc1", path = "../../packages/spectrum_pro
 terraswap = "2.4.0"
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-mirror-protocol = { version = "2.0.0", path = "../../packages/mirror_protocol" }
+mirror-protocol = { version = "2.1.0", path = "../../packages/mirror_protocol" }
 
 [dev-dependencies]
 cosmwasm-schema = "0.16.0"
