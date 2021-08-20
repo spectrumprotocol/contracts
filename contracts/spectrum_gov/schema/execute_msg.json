@@ -147,32 +147,6 @@
               "format": "uint64",
               "minimum": 0.0
             },
-            "mint_end": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint64",
-              "minimum": 0.0
-            },
-            "mint_per_block": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/Uint128"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "mint_start": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint64",
-              "minimum": 0.0
-            },
             "owner": {
               "type": [
                 "string",
@@ -227,16 +201,6 @@
               "type": [
                 "string",
                 "null"
-              ]
-            },
-            "warchest_ratio": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/Decimal"
-                },
-                {
-                  "type": "null"
-                }
               ]
             }
           }
