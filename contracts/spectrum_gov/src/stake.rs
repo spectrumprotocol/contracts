@@ -33,10 +33,12 @@ pub fn mint(deps: DepsMut, env: Env) -> StdResult<Response> {
     let total_balance = if state.total_share.is_zero() {
         Uint128::zero()
     } else {
-        query_token_balance(&deps.querier,
-                            deps.api.addr_humanize(&config.spec_token)?,
-                            deps.api.addr_humanize(&state.contract_addr)?)?
-            .checked_sub(state.poll_deposit)?
+        query_token_balance(
+            &deps.querier,
+            deps.api.addr_humanize(&config.spec_token)?,
+            deps.api.addr_humanize(&state.contract_addr)?,
+        )?
+        .checked_sub(state.poll_deposit)?
     };
     let mut mint_share = Uint128::zero();
     let mut to_warchest = Uint128::zero();
@@ -70,6 +72,7 @@ pub fn mint(deps: DepsMut, env: Env) -> StdResult<Response> {
     state.total_share += mint_share;
     state.last_mint = env.block.height;
     state_store(deps.storage).save(&state)?;
+
     Ok(Response::new()
         .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.spec_token)?.to_string(),
@@ -79,18 +82,10 @@ pub fn mint(deps: DepsMut, env: Env) -> StdResult<Response> {
             })?,
             funds: vec![],
         })])
-        .add_attributes(vec![
-            attr("action", "mint"),
-            attr("amount", mintable.to_string()),
-        ]))
+        .add_attributes(vec![attr("action", "mint"), attr("amount", mintable)]))
 }
 
-pub fn stake_tokens(
-    deps: DepsMut,
-    _env: Env,
-    sender: String,
-    amount: Uint128,
-) -> StdResult<Response> {
+pub fn stake_tokens(deps: DepsMut, sender: String, amount: Uint128) -> StdResult<Response> {
     if amount.is_zero() {
         return Err(StdError::generic_err("Insufficient funds sent"));
     }
@@ -105,10 +100,11 @@ pub fn stake_tokens(
     let mut state = state_store(deps.storage).load()?;
 
     // balance already increased, so subtract deposit amount
-    let current_balance =
-        query_token_balance(&deps.querier,
-                            deps.api.addr_humanize(&config.spec_token)?,
-                            deps.api.addr_humanize(&state.contract_addr)?)?;
+    let current_balance = query_token_balance(
+        &deps.querier,
+        deps.api.addr_humanize(&config.spec_token)?,
+        deps.api.addr_humanize(&state.contract_addr)?,
+    )?;
     let total_balance = current_balance.checked_sub(state.poll_deposit + amount)?;
 
     let share = state.calc_share(amount, total_balance);
@@ -120,9 +116,9 @@ pub fn stake_tokens(
 
     Ok(Response::new().add_attributes(vec![
         attr("action", "staking"),
-        attr("sender", sender.as_str()),
-        attr("share", share.to_string()),
-        attr("amount", amount.to_string()),
+        attr("sender", sender),
+        attr("share", share),
+        attr("amount", amount),
     ]))
 }
 
@@ -141,14 +137,16 @@ pub fn withdraw(
 
         // Load total share & total balance except proposal deposit amount
         let total_share = state.total_share.u128();
-        let total_balance =
-            query_token_balance(&deps.querier,
-                                deps.api.addr_humanize(&config.spec_token)?,
-                                deps.api.addr_humanize(&state.contract_addr)?)?
-                .checked_sub(state.poll_deposit)?
-                .u128();
+        let total_balance = query_token_balance(
+            &deps.querier,
+            deps.api.addr_humanize(&config.spec_token)?,
+            deps.api.addr_humanize(&state.contract_addr)?,
+        )?
+        .checked_sub(state.poll_deposit)?
+        .u128();
 
-        let locked_balance = compute_locked_balance(deps.branch(), &mut account, &sender_address_raw)?;
+        let locked_balance =
+            compute_locked_balance(deps.branch(), &mut account, &sender_address_raw)?;
         let locked_share = locked_balance * total_share / total_balance;
         let user_share = account.share.u128();
 
@@ -205,9 +203,9 @@ fn send_tokens(
             funds: vec![],
         })])
         .add_attributes(vec![
-            ("action", action),
-            ("recipient", recipient_human.as_str()),
-            ("amount", amount.to_string().as_str()),
+            attr("action", action),
+            attr("recipient", recipient_human),
+            attr("amount", amount.to_string()),
         ]))
 }
 
@@ -268,6 +266,7 @@ pub fn upsert_vault(
     } else {
         vault_store(deps.storage).save(key, &vault)?;
     }
+
     Ok(Response::new().add_attributes(vec![attr(
         "new_total_weight",
         state.total_weight.to_string(),
@@ -296,10 +295,12 @@ pub fn query_balances(
     let total_balance = if state.total_share.is_zero() {
         Uint128::zero()
     } else {
-        query_token_balance(&deps.querier,
-                            deps.api.addr_humanize(&config.spec_token)?,
-                            deps.api.addr_humanize(&state.contract_addr)?)?
-            .checked_sub(state.poll_deposit)?
+        query_token_balance(
+            &deps.querier,
+            deps.api.addr_humanize(&config.spec_token)?,
+            deps.api.addr_humanize(&state.contract_addr)?,
+        )?
+        .checked_sub(state.poll_deposit)?
     };
 
     let mut balance = account.calc_balance(total_balance, state.total_share);

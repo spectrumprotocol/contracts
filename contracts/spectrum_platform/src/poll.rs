@@ -62,11 +62,8 @@ pub fn poll_start(
     state_store(deps.storage).save(&state)?;
     Ok(Response::new().add_attributes(vec![
         attr("action", "create_poll"),
-        attr(
-            "creator",
-            deps.api.addr_humanize(&new_poll.creator)?.as_str(),
-        ),
-        attr("poll_id", &poll_id.to_string()),
+        attr("creator", deps.api.addr_humanize(&new_poll.creator)?),
+        attr("poll_id", poll_id.to_string()),
         attr("end_height", new_poll.end_height.to_string()),
     ]))
 }
@@ -164,7 +161,7 @@ pub fn poll_vote(
         attr("action", "cast_vote"),
         attr("poll_id", poll_id.to_string()),
         attr("amount", weight.to_string()),
-        attr("voter", info.sender.as_str()),
+        attr("voter", info.sender),
         attr("vote_option", vote_info.vote.to_string()),
     ]))
 }

@@ -99,18 +99,9 @@ pub fn harvest_all(mut deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<
         total_mir_stake_amount += stake_amount
     }
 
-    attributes.push(attr(
-        "total_mir_commission",
-        total_mir_commission.to_string(),
-    ));
-    attributes.push(attr(
-        "total_mir_swap_amount",
-        total_mir_swap_amount.to_string(),
-    ));
-    attributes.push(attr(
-        "total_mir_stake_amount",
-        total_mir_stake_amount.to_string(),
-    ));
+    attributes.push(attr("total_mir_commission", total_mir_commission));
+    attributes.push(attr("total_mir_swap_amount", total_mir_swap_amount));
+    attributes.push(attr("total_mir_stake_amount", total_mir_stake_amount));
 
     deposit_farm_share(deps.branch(), &config, stake_amount_pairs)?;
 
@@ -138,7 +129,6 @@ pub fn harvest_all(mut deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<
         deps.api.addr_validate(&mir_pair_info.contract_addr)?,
         &mir,
     )?;
-    //
 
     let return_asset = Asset {
         info: AssetInfo::NativeToken {
@@ -150,10 +140,7 @@ pub fn harvest_all(mut deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<
     let total_ust_commission_amount =
         total_ust_return_amount.multiply_ratio(total_mir_commission, total_mir_swap_amount);
 
-    attributes.push(attr(
-        "total_ust_return_amount",
-        total_ust_return_amount.to_string(),
-    ));
+    attributes.push(attr("total_ust_return_amount", total_ust_return_amount));
 
     for mirror_reward_info in mirror_reward_infos.reward_infos.iter() {
         let asset_token_raw = deps
@@ -236,13 +223,9 @@ pub fn harvest_all(mut deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<
             deps.api.addr_validate(&spec_pair_info.contract_addr)?,
             &net_commission,
         )?;
-        //
 
-        attributes.push(attr("net_commission", net_commission.amount.to_string()));
-        attributes.push(attr(
-            "spec_commission",
-            spec_swap_rate.return_amount.to_string(),
-        ));
+        attributes.push(attr("net_commission", net_commission.amount));
+        attributes.push(attr("spec_commission", spec_swap_rate.return_amount));
 
         let swap_spec = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: spec_pair_info.contract_addr,
@@ -331,6 +314,7 @@ pub fn harvest_all(mut deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<
         });
         messages.push(stake_mir);
     }
+
     Ok(Response::new()
         .add_messages(messages)
         .add_attributes(attributes))

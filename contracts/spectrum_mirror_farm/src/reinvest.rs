@@ -47,15 +47,13 @@ fn deduct_tax(deps: Deps, amount: Uint128, base_denom: String) -> Uint128 {
         amount,
     };
     let after_tax = Asset {
-        info: AssetInfo::NativeToken {
-            denom: base_denom,
-        },
+        info: AssetInfo::NativeToken { denom: base_denom },
         amount: asset.deduct_tax(&deps.querier).unwrap().amount,
     };
     after_tax.amount
 }
 
-pub fn re_invest_asset(
+fn re_invest_asset(
     deps: DepsMut,
     env: Env,
     config: Config,
@@ -106,7 +104,7 @@ pub fn re_invest_asset(
     )?;
 
     let swap_asset_token = CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: pair_info.contract_addr.to_string(),
+        contract_addr: pair_info.contract_addr.clone(),
         msg: to_binary(&TerraswapExecuteMsg::Swap {
             offer_asset: net_swap_asset,
             max_spread: None,
@@ -120,9 +118,9 @@ pub fn re_invest_asset(
     });
 
     let increase_allowance = CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: asset_token.to_string(),
+        contract_addr: asset_token.clone(),
         msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-            spender: pair_info.contract_addr.to_string(),
+            spender: pair_info.contract_addr.clone(),
             amount: swap_rate.return_amount,
             expires: None,
         })?,
@@ -171,18 +169,15 @@ pub fn re_invest_asset(
         ])
         .add_attributes(vec![
             attr("action", "re-invest"),
-            attr("asset_token", asset_token.as_str()),
-            attr("reinvest_allowance", reinvest_allowance.to_string()),
-            attr("provide_token_amount", swap_rate.return_amount.to_string()),
-            attr("provide_ust_amount", net_liquidity_after_tax.to_string()),
-            attr(
-                "remaining_reinvest_allowance",
-                pool_info.reinvest_allowance.to_string(),
-            ),
+            attr("asset_token", asset_token),
+            attr("reinvest_allowance", reinvest_allowance),
+            attr("provide_token_amount", swap_rate.return_amount),
+            attr("provide_ust_amount", net_liquidity_after_tax),
+            attr("remaining_reinvest_allowance", pool_info.reinvest_allowance),
         ]))
 }
 
-pub fn re_invest_mir(
+fn re_invest_mir(
     deps: DepsMut,
     env: Env,
     config: Config,
@@ -305,18 +300,16 @@ pub fn re_invest_mir(
         })?,
         funds: vec![],
     });
+
     Ok(Response::new()
         .add_messages(vec![swap_mir, increase_allowance, provide_liquidity, stake])
         .add_attributes(vec![
             attr("action", "re-invest"),
-            attr("asset_token", mir_token.as_str()),
-            attr("reinvest_allowance", reinvest_allowance.to_string()),
-            attr("provide_token_amount", provide_mir.to_string()),
-            attr("provide_ust_amount", net_reinvest_ust.to_string()),
-            attr(
-                "remaining_reinvest_allowance",
-                pool_info.reinvest_allowance.to_string(),
-            ),
+            attr("asset_token", mir_token),
+            attr("reinvest_allowance", reinvest_allowance),
+            attr("provide_token_amount", provide_mir),
+            attr("provide_ust_amount", net_reinvest_ust),
+            attr("remaining_reinvest_allowance", pool_info.reinvest_allowance),
         ]))
 }
 
@@ -336,6 +329,7 @@ pub fn stake(
     let staking_token = deps.api.addr_humanize(&pool_info.staking_token)?;
 
     let amount = query_token_balance(&deps.querier, staking_token.clone(), env.contract.address)?;
+
     Ok(Response::new()
         .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: staking_token.to_string(),
@@ -350,8 +344,8 @@ pub fn stake(
         })])
         .add_attributes(vec![
             attr("action", "stake"),
-            attr("asset_token", asset_token.as_str()),
-            attr("staking_token", staking_token.as_str()),
-            attr("amount", amount.to_string()),
+            attr("asset_token", asset_token),
+            attr("staking_token", staking_token),
+            attr("amount", amount),
         ]))
 }

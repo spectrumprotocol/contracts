@@ -1,14 +1,15 @@
 use crate::contract::{execute, instantiate, query};
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
 use crate::state::{pool_info_read, pool_info_store};
-use cosmwasm_std::testing::{mock_env, MockApi, MockStorage, mock_info};
-use cosmwasm_std::{from_binary, to_binary, Api, Coin, CosmosMsg, Decimal, Uint128, WasmMsg, OwnedDeps};
-use cw20::{Cw20ExecuteMsg};
+use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage};
+use cosmwasm_std::{
+    from_binary, to_binary, Api, Coin, CosmosMsg, Decimal, OwnedDeps, Uint128, WasmMsg,
+};
+use cw20::Cw20ExecuteMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use spectrum_protocol::mirror_farm::{
-    ConfigInfo, ExecuteMsg, PoolItem,
-    PoolsResponse, QueryMsg, StateInfo,
+    ConfigInfo, ExecuteMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
 use std::fmt::Debug;
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
@@ -254,7 +255,10 @@ fn test_reinvest_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
     assert_eq!(
-        res.messages.into_iter().map(|it| it.msg).collect::<Vec<CosmosMsg>>(),
+        res.messages
+            .into_iter()
+            .map(|it| it.msg)
+            .collect::<Vec<CosmosMsg>>(),
         vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: MIR_TOKEN.to_string(),
@@ -262,11 +266,11 @@ fn test_reinvest_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                     contract: "pair0000".to_string(),
                     amount: Uint128::zero(),
                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                            max_spread: None,
-                            belief_price: None,
-                            to: None,
-                        })
-                        .unwrap()
+                        max_spread: None,
+                        belief_price: None,
+                        to: None,
+                    })
+                    .unwrap()
                 })
                 .unwrap(),
                 funds: vec![],
@@ -324,10 +328,7 @@ fn test_reinvest_mir(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
     let env = mock_env();
     let info = mock_info(TEST_CONTROLLER, &[]);
 
-    let asset_token_raw = deps
-        .api
-        .addr_canonicalize(&MIR_TOKEN.to_string())
-        .unwrap();
+    let asset_token_raw = deps.api.addr_canonicalize(&MIR_TOKEN.to_string()).unwrap();
     let mut pool_info = pool_info_read(deps.as_ref().storage)
         .load(asset_token_raw.as_slice())
         .unwrap();
@@ -348,7 +349,10 @@ fn test_reinvest_mir(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
     assert_eq!(Uint128::from(1_132_243u128), pool_info.reinvest_allowance);
 
     assert_eq!(
-        res.messages.into_iter().map(|it| it.msg).collect::<Vec<CosmosMsg>>(),
+        res.messages
+            .into_iter()
+            .map(|it| it.msg)
+            .collect::<Vec<CosmosMsg>>(),
         vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: MIR_TOKEN.to_string(),
@@ -356,11 +360,11 @@ fn test_reinvest_mir(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
                     contract: "pair0000".to_string(),
                     amount: Uint128::from(50_000_000u128),
                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                            max_spread: None,
-                            belief_price: None,
-                            to: None,
-                        })
-                        .unwrap()
+                        max_spread: None,
+                        belief_price: None,
+                        to: None,
+                    })
+                    .unwrap()
                 })
                 .unwrap(),
                 funds: vec![],
@@ -418,10 +422,7 @@ fn test_reinvest_spy(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
     let env = mock_env();
     let info = mock_info(TEST_CONTROLLER, &[]);
 
-    let asset_token_raw = deps
-        .api
-        .addr_canonicalize(&SPY_TOKEN.to_string())
-        .unwrap();
+    let asset_token_raw = deps.api.addr_canonicalize(&SPY_TOKEN.to_string()).unwrap();
     let mut pool_info = pool_info_read(deps.as_ref().storage)
         .load(asset_token_raw.as_slice())
         .unwrap();
@@ -449,7 +450,10 @@ fn test_reinvest_spy(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
     };
 
     assert_eq!(
-        res.messages.into_iter().map(|it| it.msg).collect::<Vec<CosmosMsg>>(),
+        res.messages
+            .into_iter()
+            .map(|it| it.msg)
+            .collect::<Vec<CosmosMsg>>(),
         vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: "pair0001".to_string(),

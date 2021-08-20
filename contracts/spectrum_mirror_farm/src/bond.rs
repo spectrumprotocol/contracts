@@ -204,13 +204,14 @@ pub fn spec_reward_to_pool(
             pool_info.auto_spec_share_index + auto_share_per_bond.into();
     }
     pool_info.state_spec_share_index = state.spec_share_index;
+
     Ok(())
 }
 
 // withdraw reward to pending reward
 fn before_share_change(pool_info: &PoolInfo, reward_info: &mut RewardInfo) -> StdResult<()> {
-    let farm_share = (pool_info.farm_share_index - reward_info.farm_share_index)
-        * reward_info.stake_bond_share;
+    let farm_share =
+        (pool_info.farm_share_index - reward_info.farm_share_index) * reward_info.stake_bond_share;
     reward_info.farm_share += farm_share;
     reward_info.farm_share_index = pool_info.farm_share_index;
 
@@ -291,9 +292,9 @@ fn stake_token(
         })])
         .add_attributes(vec![
             attr("action", "bond"),
-            attr("staking_token", staking_token.as_str()),
-            attr("asset_token", asset_token.as_str()),
-            attr("amount", amount.to_string()),
+            attr("staking_token", staking_token),
+            attr("asset_token", asset_token),
+            attr("amount", amount),
         ]))
 }
 
@@ -395,9 +396,9 @@ pub fn unbond(
         ])
         .add_attributes(vec![
             attr("action", "unbond"),
-            attr("staker_addr", info.sender.as_str()),
-            attr("asset_token", asset_token.as_str()),
-            attr("amount", amount.to_string()),
+            attr("staker_addr", info.sender),
+            attr("asset_token", asset_token),
+            attr("amount", amount),
         ]))
 }
 
@@ -467,13 +468,11 @@ pub fn withdraw(
             funds: vec![],
         }));
     }
-    Ok(Response::new()
-        .add_messages(messages)
-        .add_attributes(vec![
-            attr("action", "withdraw"),
-            attr("farm_amount", farm_amount.to_string()),
-            attr("spec_amount", spec_amount.to_string()),
-        ]))
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
+        attr("action", "withdraw"),
+        attr("farm_amount", farm_amount),
+        attr("spec_amount", spec_amount),
+    ]))
 }
 
 fn withdraw_reward(
@@ -674,11 +673,11 @@ fn read_reward_infos(
         .into_iter()
         .map(|(asset_token_raw, reward_info)| {
             let mut pool_info = bucket.load(asset_token_raw.as_slice())?;
-            let asset_token = &deps.api.addr_humanize(&asset_token_raw)?.to_string();
+            let asset_token = deps.api.addr_humanize(&asset_token_raw)?.to_string();
 
             // update pending rewards
             let mut reward_info = reward_info;
-            let lp_balance = *mirror_map.get(asset_token).unwrap_or(&Uint128::zero());
+            let lp_balance = *mirror_map.get(&asset_token).unwrap_or(&Uint128::zero());
             let farm_share_index = reward_info.farm_share_index;
             let auto_spec_index = reward_info.auto_spec_share_index;
             let stake_spec_index = reward_info.stake_spec_share_index;
@@ -691,7 +690,7 @@ fn read_reward_infos(
             let stake_bond_amount = pool_info.calc_user_stake_balance(reward_info.stake_bond_share);
             let locked_spec_share = config.calc_locked_reward(reward_info.accum_spec_share, height);
             Ok(RewardInfoResponseItem {
-                asset_token: asset_token.to_string(),
+                asset_token: asset_token,
                 farm_share_index,
                 auto_spec_share_index: auto_spec_index,
                 stake_spec_share_index: stake_spec_index,

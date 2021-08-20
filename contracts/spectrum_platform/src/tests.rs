@@ -1,16 +1,14 @@
 use crate::contract::{execute, instantiate, query};
-use cosmwasm_std::testing::{
-    mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR,
-};
+use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     from_binary, to_vec, Binary, CosmosMsg, Decimal, DepsMut, SubMsg, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
+use spectrum_protocol::common::OrderBy;
 use spectrum_protocol::platform::{
     BoardsResponse, ConfigInfo, ExecuteMsg, PollExecuteMsg, PollInfo, PollStatus, PollsResponse,
     QueryMsg, StateInfo, VoteOption, VoterInfo, VotersResponse,
 };
-use spectrum_protocol::common::OrderBy;
 
 const VOTING_TOKEN: &str = "voting_token";
 const TEST_CREATOR: &str = "creator";
@@ -163,8 +161,7 @@ fn test_board(mut deps: DepsMut) -> (u32, u32, u32) {
 
     // query boards
     let msg = QueryMsg::boards {};
-    let res: BoardsResponse =
-        from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
+    let res: BoardsResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(res.boards[0].weight, weight);
     assert_eq!(res.boards[1].weight, weight_2);
 
@@ -365,10 +362,7 @@ fn test_poll_executed(
     assert!(res.is_err());
 }
 
-fn test_poll_low_quorum(
-    mut deps: DepsMut,
-    total_weight: u32,
-) {
+fn test_poll_low_quorum(mut deps: DepsMut, total_weight: u32) {
     // start poll2
     let mut env = mock_env();
     let info = mock_info(TEST_VOTER, &[]);
@@ -409,16 +403,10 @@ fn test_poll_low_quorum(
     let msg = QueryMsg::poll { poll_id: 2 };
     let res: PollInfo = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(res.status, PollStatus::rejected);
-    assert_eq!(
-        res.total_balance_at_end_poll,
-        Some(total_weight)
-    );
+    assert_eq!(res.total_balance_at_end_poll, Some(total_weight));
 }
 
-fn test_poll_low_threshold(
-    mut deps: DepsMut,
-    total_weight: u32,
-) {
+fn test_poll_low_threshold(mut deps: DepsMut, total_weight: u32) {
     // start poll3
     let mut env = mock_env();
     let info = mock_info(TEST_VOTER, &[]);
@@ -460,15 +448,10 @@ fn test_poll_low_threshold(
     let msg = QueryMsg::poll { poll_id: 3 };
     let res: PollInfo = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(res.status, PollStatus::rejected);
-    assert_eq!(
-        res.total_balance_at_end_poll,
-        Some(total_weight)
-    );
+    assert_eq!(res.total_balance_at_end_poll, Some(total_weight));
 }
 
-fn test_poll_expired(
-    mut deps: DepsMut,
-) {
+fn test_poll_expired(mut deps: DepsMut) {
     // start poll
     let mut env = mock_env();
     let info = mock_info(TEST_VOTER, &[]);
@@ -478,9 +461,9 @@ fn test_poll_expired(
             to_vec(&Cw20ExecuteMsg::Burn {
                 amount: Uint128::new(123),
             })
-                .unwrap(),
-        )
             .unwrap(),
+        )
+        .unwrap(),
     };
     let msg = ExecuteMsg::poll_start {
         title: "title".to_string(),
