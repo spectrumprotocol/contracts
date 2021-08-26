@@ -15,7 +15,7 @@ use spectrum_protocol::spec_farm::{RewardInfoResponse, RewardInfoResponseItem};
 
 pub fn bond(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     staker_addr: String,
     asset_token: String,
@@ -35,7 +35,7 @@ pub fn bond(
     // Withdraw reward to pending reward; before changing share
     let config = read_config(deps.storage)?;
     if !pool_info.total_bond_amount.is_zero() {
-        deposit_reward(deps.as_ref(), &mut state, &config, env.block.height, false)?;
+        deposit_reward(deps.as_ref(), &mut state, &config, false)?;
         reward_to_pool(&state, &mut pool_info)?;
     }
 
@@ -67,7 +67,6 @@ pub fn deposit_reward(
     deps: Deps,
     state: &mut State,
     config: &Config,
-    height: u64,
     query: bool,
 ) -> StdResult<BalanceResponse> {
     if state.total_weight == 0 {
@@ -82,7 +81,6 @@ pub fn deposit_reward(
         contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
         msg: to_binary(&QueryMsg::balance {
             address: deps.api.addr_humanize(&state.contract_addr)?.to_string(),
-            height: Some(height),
         })?,
     }))?;
     let diff = staked.share.checked_sub(state.previous_spec_share);
@@ -123,7 +121,7 @@ fn before_share_change(pool_info: &PoolInfo, reward_info: &mut RewardInfo) -> St
 
 pub fn unbond(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     asset_token: String,
     amount: Uint128,
@@ -143,7 +141,7 @@ pub fn unbond(
 
     // Distribute reward to pending reward; before changing share
     let config = read_config(deps.storage)?;
-    deposit_reward(deps.as_ref(), &mut state, &config, env.block.height, false)?;
+    deposit_reward(deps.as_ref(), &mut state, &config, false)?;
     reward_to_pool(&state, &mut pool_info)?;
     before_share_change(&pool_info, &mut reward_info)?;
 
@@ -194,7 +192,7 @@ pub fn withdraw(
     let mut state = read_state(deps.storage)?;
 
     let config = read_config(deps.storage)?;
-    let staked = deposit_reward(deps.as_ref(), &mut state, &config, env.block.height, false)?;
+    let staked = deposit_reward(deps.as_ref(), &mut state, &config, false)?;
     let (amount, share) = withdraw_reward(
         deps.storage,
         &config,
@@ -309,7 +307,7 @@ pub fn query_reward_info(
     let mut state = read_state(deps.storage)?;
 
     let config = read_config(deps.storage)?;
-    let staked = deposit_reward(deps, &mut state, &config, height, true)?;
+    let staked = deposit_reward(deps, &mut state, &config, true)?;
     let reward_infos = read_reward_infos(
         deps,
         &config,

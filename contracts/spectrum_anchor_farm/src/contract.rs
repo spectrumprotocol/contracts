@@ -204,7 +204,7 @@ pub fn update_config(
 
 fn register_asset(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     asset_token: String,
     staking_token: String,
@@ -227,7 +227,7 @@ fn register_asset(
     }
 
     let mut state = read_state(deps.storage)?;
-    deposit_spec_reward(deps.as_ref(), &mut state, &config, env.block.height, false)?;
+    deposit_spec_reward(deps.as_ref(), &mut state, &config, false)?;
 
     let mut pool_info = pool_info_read(deps.storage)
         .may_load(asset_token_raw.as_slice())?
@@ -258,14 +258,13 @@ fn register_asset(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::config {} => to_binary(&query_config(deps)?),
         QueryMsg::pools {} => to_binary(&query_pools(deps)?),
         QueryMsg::reward_info {
             staker_addr,
-            height,
-        } => to_binary(&query_reward_info(deps, staker_addr, height)?),
+        } => to_binary(&query_reward_info(deps, staker_addr, env.block.height)?),
         QueryMsg::state {} => to_binary(&query_state(deps)?),
     }
 }

@@ -115,7 +115,6 @@ impl fmt::Display for PollStatus {
 pub enum QueryMsg {
     balance {
         address: String,
-        height: Option<u64>,
     },
     config {},
     poll {
@@ -127,9 +126,7 @@ pub enum QueryMsg {
         limit: Option<u32>,
         order_by: Option<OrderBy>,
     },
-    state {
-        height: u64,
-    },
+    state {},
     vaults {},
     voters {
         poll_id: u64,

@@ -76,7 +76,7 @@ impl WasmMockQuerier {
         match &request {
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 match from_binary(&msg).unwrap() {
-                    QueryMsg::balance { address, height: _ } => {
+                    QueryMsg::balance { address } => {
                         let balances: &HashMap<String, Uint128> =
                             match self.token_querier.balances.get(contract_addr) {
                                 Some(balances) => balances,

@@ -122,7 +122,7 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
 
 fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // bond err
-    let env = mock_env();
+    let mut env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
     let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
         sender: USER1.to_string(),
@@ -152,10 +152,10 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     )]);
 
     // query balance
+    env.block.height = 100u64;
     let msg = QueryMsg::reward_info {
         staker_addr: USER1.to_string(),
         asset_token: None,
-        height: 100u64,
     };
     let res: RewardInfoResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -250,10 +250,10 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     )]);
 
     // query balance1
+    env.block.height = 40u64;
     let msg = QueryMsg::reward_info {
         staker_addr: USER1.to_string(),
         asset_token: None,
-        height: 40u64,
     };
     let res: RewardInfoResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -272,10 +272,10 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     );
 
     // query balance2
+    env.block.height = 0u64;
     let msg = QueryMsg::reward_info {
         staker_addr: USER2.to_string(),
         asset_token: None,
-        height: 0u64,
     };
     let res: RewardInfoResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(

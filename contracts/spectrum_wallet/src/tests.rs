@@ -177,7 +177,6 @@ fn test_stake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
 
     let msg = QueryMsg::balance {
         address: USER1.to_string(),
-        height: 0u64,
     };
     let res: BalanceResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(
@@ -208,15 +207,16 @@ fn test_withdraw(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
 }
 
 fn test_reward(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
-    let env = mock_env();
+    let mut env = mock_env();
     deps.querier.with_balance_percent(110u128);
     deps.querier.with_token_balances(&[(
         &SPEC_GOV.to_string(),
         &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(121u128))],
     )]);
+
+    env.block.height += 12u64;
     let msg = QueryMsg::balance {
         address: USER1.to_string(),
-        height: env.block.height + 12u64,
     };
     let res: BalanceResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(

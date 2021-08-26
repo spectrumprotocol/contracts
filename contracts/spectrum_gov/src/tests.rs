@@ -87,7 +87,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
     assert_eq!(res, config);
 
     // read state
-    let msg = QueryMsg::state { height: 0u64 };
+    let msg = QueryMsg::state { };
     let res: StateInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(
         res,
@@ -173,14 +173,13 @@ fn test_stake(
     assert!(res.is_ok());
 
     // read state
-    let msg = QueryMsg::state { height: 0u64 };
+    let msg = QueryMsg::state { };
     let res: StateInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(res.total_share, total_amount);
 
     // query account
     let msg = QueryMsg::balance {
         address: TEST_VOTER.to_string(),
-        height: None,
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -190,7 +189,6 @@ fn test_stake(
     // query account not found
     let msg = QueryMsg::balance {
         address: TEST_VOTER_2.to_string(),
-        height: None,
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -231,14 +229,13 @@ fn test_stake(
     assert!(res.is_ok());
 
     // read state
-    let msg = QueryMsg::state { height: 0u64 };
+    let msg = QueryMsg::state {  };
     let res: StateInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(res.total_share, total_amount);
 
     // query account
     let msg = QueryMsg::balance {
         address: TEST_VOTER.to_string(),
-        height: None,
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -248,7 +245,6 @@ fn test_stake(
     // query account 2
     let msg = QueryMsg::balance {
         address: TEST_VOTER_2.to_string(),
-        height: None,
     };
     let res: BalanceResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(res.balance, stake_amount_2);
@@ -296,7 +292,7 @@ fn test_poll_executed(
     )]);
 
     // read state
-    let msg = QueryMsg::state { height: 0u64 };
+    let msg = QueryMsg::state {  };
     let res: StateInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(res.poll_count, 1u64);
     assert_eq!(res.poll_deposit, deposit);
@@ -373,7 +369,6 @@ fn test_poll_executed(
     // query account
     let msg = QueryMsg::balance {
         address: TEST_VOTER.to_string(),
-        height: None,
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -434,7 +429,6 @@ fn test_poll_executed(
     // query account 2
     let msg = QueryMsg::balance {
         address: TEST_VOTER_2.to_string(),
-        height: None,
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -492,7 +486,7 @@ fn test_poll_executed(
     );
 
     // read state
-    let msg = QueryMsg::state { height: 0u64 };
+    let msg = QueryMsg::state {  };
     let res: StateInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(res.poll_deposit, Uint128::zero());
 
@@ -520,7 +514,6 @@ fn test_poll_executed(
     // query account 2
     let msg = QueryMsg::balance {
         address: TEST_VOTER_2.to_string(),
-        height: None,
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -545,7 +538,6 @@ fn test_poll_executed(
     // query account 2
     let msg = QueryMsg::balance {
         address: TEST_VOTER_2.to_string(),
-        height: None,
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -650,7 +642,7 @@ fn test_poll_low_quorum(
     assert!(res.is_ok());
 
     // read state
-    let msg = QueryMsg::state { height: 0u64 };
+    let msg = QueryMsg::state {  };
     let res: StateInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(res.poll_deposit, Uint128::zero());
 
@@ -668,7 +660,6 @@ fn test_poll_low_quorum(
     let stake_amount = stake_amount.multiply_ratio(total_amount, total_shares);
     let msg = QueryMsg::balance {
         address: TEST_VOTER.to_string(),
-        height: None,
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -678,7 +669,6 @@ fn test_poll_low_quorum(
     let stake_amount_2 = stake_amount_2.multiply_ratio(total_amount, total_shares);
     let msg = QueryMsg::balance {
         address: TEST_VOTER_2.to_string(),
-        height: None,
     };
     let res: BalanceResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(res.balance, stake_amount_2);
@@ -741,7 +731,7 @@ fn test_poll_low_threshold(
     assert!(res.is_ok());
 
     // read state
-    let msg = QueryMsg::state { height: 0u64 };
+    let msg = QueryMsg::state {  };
     let res: StateInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(res.poll_deposit, Uint128::zero());
 
@@ -759,7 +749,6 @@ fn test_poll_low_threshold(
     let stake_amount = stake_amount.multiply_ratio(total_amount, total_shares);
     let msg = QueryMsg::balance {
         address: TEST_VOTER.to_string(),
-        height: None,
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -769,7 +758,6 @@ fn test_poll_low_threshold(
     let stake_amount_2 = stake_amount_2.multiply_ratio(total_amount, total_shares);
     let msg = QueryMsg::balance {
         address: TEST_VOTER_2.to_string(),
-        height: None,
     };
     let res: BalanceResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(res.balance, stake_amount_2);
@@ -919,7 +907,7 @@ fn test_reward(
     assert!(res.is_ok());
 
     // validate weight
-    let msg = QueryMsg::state { height: 0u64 };
+    let msg = QueryMsg::state {  };
     let res: StateInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(9, res.total_weight);
 
@@ -993,7 +981,6 @@ fn test_reward(
     // check balance all users
     let msg = QueryMsg::balance {
         address: TEST_VOTER.to_string(),
-        height: None,
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -1001,7 +988,6 @@ fn test_reward(
 
     let msg = QueryMsg::balance {
         address: TEST_VOTER_2.to_string(),
-        height: None,
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -1009,7 +995,6 @@ fn test_reward(
 
     let msg = QueryMsg::balance {
         address: TEST_VAULT.to_string(),
-        height: None,
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -1017,7 +1002,6 @@ fn test_reward(
 
     let msg = QueryMsg::balance {
         address: TEST_VAULT_2.to_string(),
-        height: None,
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -1025,7 +1009,6 @@ fn test_reward(
 
     let msg = QueryMsg::balance {
         address: WARCHEST.to_string(),
-        height: None,
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -1040,7 +1023,6 @@ fn test_reward(
 
     let msg = QueryMsg::balance {
         address: TEST_VAULT.to_string(),
-        height: None,
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -1060,7 +1042,6 @@ fn test_reward(
     let vault_amount = vault_amount + add_vault_amount.multiply_ratio(5u32, 9u32);
     let msg = QueryMsg::balance {
         address: TEST_VAULT.to_string(),
-        height: Some(env.block.height),
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();

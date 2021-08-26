@@ -141,7 +141,6 @@ impl Querier for WasmMockQuerier {
 enum MockQueryMsg {
     balance {
         address: String,
-        height: u64,
     },
     Staker {
         address: String,
@@ -188,7 +187,7 @@ impl WasmMockQuerier {
             }
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 match from_binary(&msg).unwrap() {
-                    MockQueryMsg::balance { address, height: _ } => {
+                    MockQueryMsg::balance { address } => {
                         let balance = self.read_token_balance(contract_addr, address);
                         SystemResult::Ok(ContractResult::from(to_binary(&SpecBalanceResponse {
                             balance,

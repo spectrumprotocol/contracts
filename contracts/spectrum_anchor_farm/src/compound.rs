@@ -45,7 +45,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         deps.as_ref(),
         &config.anchor_staking,
         &deps.api.addr_canonicalize(env.contract.address.as_str())?,
-        env.block.height,
+        Some(env.block.height),
     )?;
 
     let mut total_anc_swap_amount = Uint128::zero();

@@ -131,11 +131,11 @@ fn poll_vote(
     )
 }
 
-fn stake(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint128) -> StdResult<Response> {
+fn stake(deps: DepsMut, _env: Env, info: MessageInfo, amount: Uint128) -> StdResult<Response> {
     // record reward before any share change
     let mut state = read_state(deps.storage)?;
     let config = read_config(deps.storage)?;
-    deposit_reward(deps.as_ref(), &mut state, &config, env.block.height, false)?;
+    deposit_reward(deps.as_ref(), &mut state, &config, false)?;
 
     let staker_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
     let mut reward_info = read_reward(deps.storage, &staker_addr)?;
@@ -144,9 +144,7 @@ fn stake(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint128) -> StdResu
     // calculate new stake share
     let gov_state: GovStateInfo = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
-        msg: to_binary(&GovQueryMsg::state {
-            height: env.block.height,
-        })?,
+        msg: to_binary(&GovQueryMsg::state {})?,
     }))?;
     let new_share = amount.multiply_ratio(gov_state.total_share, gov_state.total_staked);
 
@@ -171,11 +169,11 @@ fn stake(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint128) -> StdResu
         .add_attributes(vec![attr("action", "stake"), attr("amount", amount)]))
 }
 
-fn unstake(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint128) -> StdResult<Response> {
+fn unstake(deps: DepsMut, _env: Env, info: MessageInfo, amount: Uint128) -> StdResult<Response> {
     // record reward before any share change
     let mut state = read_state(deps.storage)?;
     let config = read_config(deps.storage)?;
-    let staked = deposit_reward(deps.as_ref(), &mut state, &config, env.block.height, false)?;
+    let staked = deposit_reward(deps.as_ref(), &mut state, &config, false)?;
 
     let staker_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
     let mut reward_info = read_reward(deps.storage, &staker_addr)?;
@@ -209,7 +207,7 @@ fn withdraw(
     // record reward before any share change
     let mut state = read_state(deps.storage)?;
     let config = read_config(deps.storage)?;
-    let staked = deposit_reward(deps.as_ref(), &mut state, &config, env.block.height, false)?;
+    let staked = deposit_reward(deps.as_ref(), &mut state, &config, false)?;
 
     let staker_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
     let mut reward_info = read_reward(deps.storage, &staker_addr)?;
@@ -251,7 +249,6 @@ fn deposit_reward(
     deps: Deps,
     state: &mut State,
     config: &Config,
-    height: u64,
     query: bool,
 ) -> StdResult<GovBalanceResponse> {
     if state.total_weight == 0u32 {
@@ -266,7 +263,6 @@ fn deposit_reward(
         contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
         msg: to_binary(&GovQueryMsg::balance {
             address: deps.api.addr_humanize(&state.contract_addr)?.to_string(),
-            height: Some(height),
         })?,
     }))?;
     let diff = staked.share.checked_sub(state.previous_share);
@@ -295,7 +291,7 @@ fn before_share_change(state: &State, reward_info: &mut RewardInfo) -> StdResult
 fn upsert_share(
     deps: DepsMut,
     info: MessageInfo,
-    env: Env,
+    _env: Env,
     address: String,
     weight: u32,
     lock_start: Option<u64>,
@@ -314,7 +310,7 @@ fn upsert_share(
         return Err(StdError::generic_err("unauthorized"));
     }
     let mut state = state_store(deps.storage).load()?;
-    deposit_reward(deps.as_ref(), &mut state, &config, env.block.height, false)?;
+    deposit_reward(deps.as_ref(), &mut state, &config, false)?;
 
     let address_raw = deps.api.addr_canonicalize(&address)?;
     let key = address_raw.as_slice();
@@ -365,10 +361,10 @@ fn update_config(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::config {} => to_binary(&query_config(deps)?),
-        QueryMsg::balance { address, height } => to_binary(&query_balance(deps, address, height)?),
+        QueryMsg::balance { address } => to_binary(&query_balance(deps, address, env.block.height)?),
         QueryMsg::shares {} => to_binary(&query_shares(deps)?),
         QueryMsg::state {} => to_binary(&query_state(deps)?),
     }
@@ -390,7 +386,7 @@ fn query_balance(deps: Deps, staker_addr: String, height: u64) -> StdResult<Bala
     let mut state = read_state(deps.storage)?;
 
     let config = read_config(deps.storage)?;
-    let staked = deposit_reward(deps, &mut state, &config, height, true)?;
+    let staked = deposit_reward(deps, &mut state, &config, true)?;
     let mut reward_info = read_reward(deps.storage, &staker_addr_raw)?;
     before_share_change(&state, &mut reward_info)?;
 

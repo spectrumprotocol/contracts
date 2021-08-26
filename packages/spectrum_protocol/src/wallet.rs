@@ -48,7 +48,7 @@ pub enum Cw20HookMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum QueryMsg {
-    balance { address: String, height: u64 },
+    balance { address: String },
     config {},
     state {},
     shares {},
