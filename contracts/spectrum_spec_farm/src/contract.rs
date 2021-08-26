@@ -49,17 +49,17 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
-        ExecuteMsg::receive(msg) => receive_cw20(deps, env, info, msg),
+        ExecuteMsg::receive(msg) => receive_cw20(deps, info, msg),
         ExecuteMsg::register_asset {
             asset_token,
             staking_token,
             weight,
-        } => register_asset(deps, env, info, asset_token, staking_token, weight),
+        } => register_asset(deps, info, asset_token, staking_token, weight),
         ExecuteMsg::withdraw { asset_token } => withdraw(deps, env, info, asset_token),
         ExecuteMsg::unbond {
             asset_token,
             amount,
-        } => unbond(deps, env, info, asset_token, amount),
+        } => unbond(deps, info, asset_token, amount),
         ExecuteMsg::update_config {
             owner,
         } => update_config(deps, info, owner),
@@ -68,7 +68,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
 
 fn receive_cw20(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> StdResult<Response> {
@@ -78,7 +77,6 @@ fn receive_cw20(
             asset_token,
         }) => bond(
             deps,
-            env,
             info,
             staker_addr.unwrap_or(cw20_msg.sender),
             asset_token,
@@ -90,7 +88,6 @@ fn receive_cw20(
 
 fn register_asset(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     asset_token: String,
     staking_token: String,

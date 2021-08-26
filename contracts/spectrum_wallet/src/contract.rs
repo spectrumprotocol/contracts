@@ -50,10 +50,10 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             poll_id,
             vote,
             amount,
-        } => poll_vote(deps, env, info, poll_id, vote, amount),
-        ExecuteMsg::receive(msg) => receive_cw20(deps, env, info, msg),
-        ExecuteMsg::stake { amount } => stake(deps, env, info, amount),
-        ExecuteMsg::unstake { amount } => unstake(deps, env, info, amount),
+        } => poll_vote(deps, info, poll_id, vote, amount),
+        ExecuteMsg::receive(msg) => receive_cw20(deps, info, msg),
+        ExecuteMsg::stake { amount } => stake(deps, info, amount),
+        ExecuteMsg::unstake { amount } => unstake(deps, info, amount),
         ExecuteMsg::upsert_share {
             address,
             weight,
@@ -63,21 +63,19 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         } => upsert_share(
             deps,
             info,
-            env,
             address,
             weight,
             lock_start,
             lock_end,
             lock_amount,
         ),
-        ExecuteMsg::update_config { owner } => update_config(deps, env, info, owner),
+        ExecuteMsg::update_config { owner } => update_config(deps, info, owner),
         ExecuteMsg::withdraw { amount } => withdraw(deps, env, info, amount),
     }
 }
 
 fn receive_cw20(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> StdResult<Response> {
@@ -87,12 +85,12 @@ fn receive_cw20(
         return Err(StdError::generic_err("unauthorized"));
     }
     match from_binary(&cw20_msg.msg) {
-        Ok(Cw20HookMsg::deposit {}) => deposit(deps, env, cw20_msg.sender, cw20_msg.amount),
+        Ok(Cw20HookMsg::deposit {}) => deposit(deps, cw20_msg.sender, cw20_msg.amount),
         Err(_) => Err(StdError::generic_err("data should be given")),
     }
 }
 
-fn deposit(deps: DepsMut, _env: Env, sender: String, amount: Uint128) -> StdResult<Response> {
+fn deposit(deps: DepsMut, sender: String, amount: Uint128) -> StdResult<Response> {
     let staker_addr = deps.api.addr_canonicalize(&sender)?;
     let mut reward_info = read_reward(deps.storage, &staker_addr)?;
     reward_info.amount += amount;
@@ -102,7 +100,6 @@ fn deposit(deps: DepsMut, _env: Env, sender: String, amount: Uint128) -> StdResu
 
 fn poll_vote(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     poll_id: u64,
     vote: VoteOption,
@@ -131,7 +128,7 @@ fn poll_vote(
     )
 }
 
-fn stake(deps: DepsMut, _env: Env, info: MessageInfo, amount: Uint128) -> StdResult<Response> {
+fn stake(deps: DepsMut, info: MessageInfo, amount: Uint128) -> StdResult<Response> {
     // record reward before any share change
     let mut state = read_state(deps.storage)?;
     let config = read_config(deps.storage)?;
@@ -169,7 +166,7 @@ fn stake(deps: DepsMut, _env: Env, info: MessageInfo, amount: Uint128) -> StdRes
         .add_attributes(vec![attr("action", "stake"), attr("amount", amount)]))
 }
 
-fn unstake(deps: DepsMut, _env: Env, info: MessageInfo, amount: Uint128) -> StdResult<Response> {
+fn unstake(deps: DepsMut, info: MessageInfo, amount: Uint128) -> StdResult<Response> {
     // record reward before any share change
     let mut state = read_state(deps.storage)?;
     let config = read_config(deps.storage)?;
@@ -291,7 +288,6 @@ fn before_share_change(state: &State, reward_info: &mut RewardInfo) -> StdResult
 fn upsert_share(
     deps: DepsMut,
     info: MessageInfo,
-    _env: Env,
     address: String,
     weight: u32,
     lock_start: Option<u64>,
@@ -339,7 +335,6 @@ fn upsert_share(
 
 fn update_config(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     owner: Option<String>,
 ) -> StdResult<Response> {

@@ -15,7 +15,6 @@ use spectrum_protocol::spec_farm::{RewardInfoResponse, RewardInfoResponseItem};
 
 pub fn bond(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     staker_addr: String,
     asset_token: String,
@@ -121,7 +120,6 @@ fn before_share_change(pool_info: &PoolInfo, reward_info: &mut RewardInfo) -> St
 
 pub fn unbond(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     asset_token: String,
     amount: Uint128,

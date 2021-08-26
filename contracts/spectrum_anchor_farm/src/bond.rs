@@ -26,7 +26,6 @@ use spectrum_protocol::math::UDec128;
 
 pub fn bond(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     sender_addr: String,
     asset_token: String,
@@ -281,7 +280,6 @@ fn stake_token(
 
 pub fn unbond(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     asset_token: String,
     amount: Uint128,
