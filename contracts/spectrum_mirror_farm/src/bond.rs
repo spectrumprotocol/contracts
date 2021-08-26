@@ -686,7 +686,7 @@ fn read_reward_infos(
             let stake_bond_amount = pool_info.calc_user_stake_balance(reward_info.stake_bond_share);
             let locked_spec_share = config.calc_locked_reward(reward_info.accum_spec_share, height);
             Ok(RewardInfoResponseItem {
-                asset_token: asset_token,
+                asset_token,
                 farm_share_index,
                 auto_spec_share_index: auto_spec_index,
                 stake_spec_share_index: stake_spec_index,
