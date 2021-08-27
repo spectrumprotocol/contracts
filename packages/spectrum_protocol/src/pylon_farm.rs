@@ -75,7 +75,6 @@ pub enum QueryMsg {
     // get deposited balances
     reward_info {
         staker_addr: String,
-        height: u64,
     },
     state {},
 }

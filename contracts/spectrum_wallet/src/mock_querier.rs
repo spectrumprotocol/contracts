@@ -83,9 +83,7 @@ pub enum MockQueryMsg {
         address: String,
         height: Option<u64>,
     },
-    state {
-        height: u64,
-    },
+    state {},
 }
 
 impl WasmMockQuerier {
@@ -102,7 +100,7 @@ impl WasmMockQuerier {
                             locked_balance: vec![],
                         })))
                     }
-                    MockQueryMsg::state { height: _ } => {
+                    MockQueryMsg::state { } => {
                         SystemResult::Ok(ContractResult::from(to_binary(&StateInfo {
                             poll_count: 0u64,
                             last_mint: 0u64,

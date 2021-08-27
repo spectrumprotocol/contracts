@@ -35,7 +35,6 @@
         "reward_info": {
           "type": "object",
           "required": [
-            "height",
             "staker_addr"
           ],
           "properties": {
@@ -44,11 +43,6 @@
                 "string",
                 "null"
               ]
-            },
-            "height": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
             },
             "staker_addr": {
               "type": "string"

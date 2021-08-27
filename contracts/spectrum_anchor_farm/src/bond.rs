@@ -10,7 +10,7 @@ use crate::state::{
 
 use cw20::Cw20ExecuteMsg;
 
-use crate::querier::query_anchor_reward_info;
+use crate::querier::query_anchor_pool_balance;
 use anchor_token::gov::{
     ExecuteMsg as AnchorGovExecuteMsg, QueryMsg as AnchorGovQueryMsg,
     StakerResponse as AnchorStakerResponse,
@@ -26,7 +26,6 @@ use spectrum_protocol::math::UDec128;
 
 pub fn bond(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     sender_addr: String,
     asset_token: String,
@@ -46,17 +45,15 @@ pub fn bond(
     let mut state = read_state(deps.storage)?;
 
     let config = read_config(deps.storage)?;
-    let lp_balance = query_anchor_reward_info(
+    let lp_balance = query_anchor_pool_balance(
         deps.as_ref(),
         &config.anchor_staking,
         &state.contract_addr,
-        env.block.height,
-    )?
-    .bond_amount;
+    )?;
 
     // update reward index; before changing share
     if !pool_info.total_auto_bond_share.is_zero() || !pool_info.total_stake_bond_share.is_zero() {
-        deposit_spec_reward(deps.as_ref(), &mut state, &config, env.block.height, false)?;
+        deposit_spec_reward(deps.as_ref(), &mut state, &config, false)?;
         spec_reward_to_pool(&state, &mut pool_info, lp_balance)?;
     }
 
@@ -132,7 +129,6 @@ pub fn deposit_spec_reward(
     deps: Deps,
     state: &mut State,
     config: &Config,
-    height: u64,
     query: bool,
 ) -> StdResult<SpecBalanceResponse> {
     if state.total_weight == 0 {
@@ -148,7 +144,6 @@ pub fn deposit_spec_reward(
             contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
             msg: to_binary(&SpecQueryMsg::balance {
                 address: deps.api.addr_humanize(&state.contract_addr)?.to_string(),
-                height: Some(height),
             })?,
         }))?;
 
@@ -285,7 +280,6 @@ fn stake_token(
 
 pub fn unbond(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     asset_token: String,
     amount: Uint128,
@@ -299,13 +293,11 @@ pub fn unbond(
     let mut reward_info =
         rewards_read(deps.storage, &staker_addr_raw).load(asset_token_raw.as_slice())?;
 
-    let lp_balance = query_anchor_reward_info(
+    let lp_balance = query_anchor_pool_balance(
         deps.as_ref(),
         &config.anchor_staking,
         &state.contract_addr,
-        env.block.height,
-    )?
-    .bond_amount;
+    )?;
     let user_auto_balance =
         pool_info.calc_user_auto_balance(lp_balance, reward_info.auto_bond_share);
     let user_stake_balance = pool_info.calc_user_stake_balance(reward_info.stake_bond_share);
@@ -317,7 +309,7 @@ pub fn unbond(
 
     // distribute reward to pending reward; before changing share
     let config = read_config(deps.storage)?;
-    deposit_spec_reward(deps.as_ref(), &mut state, &config, env.block.height, false)?;
+    deposit_spec_reward(deps.as_ref(), &mut state, &config, false)?;
     spec_reward_to_pool(&state, &mut pool_info, lp_balance)?;
     before_share_change(&pool_info, &mut reward_info)?;
 
@@ -399,7 +391,7 @@ pub fn withdraw(
     // update pending reward; before withdraw
     let config = read_config(deps.storage)?;
     let spec_staked =
-        deposit_spec_reward(deps.as_ref(), &mut state, &config, env.block.height, false)?;
+        deposit_spec_reward(deps.as_ref(), &mut state, &config, false)?;
 
     let (spec_amount, spec_share, farm_amount, farm_share) = withdraw_reward(
         deps.branch(),
@@ -499,11 +491,10 @@ fn withdraw_reward(
             })?,
         }))?;
 
-    let anchor_reward_info = query_anchor_reward_info(
+    let lp_balance = query_anchor_pool_balance(
         deps.as_ref(),
         &config.anchor_staking,
         &state.contract_addr,
-        height,
     )?;
 
     let mut spec_amount = Uint128::zero();
@@ -516,7 +507,6 @@ fn withdraw_reward(
         // withdraw reward to pending reward
         let key = asset_token_raw.as_slice();
         let mut pool_info = pool_info_read(deps.storage).load(key)?;
-        let lp_balance = anchor_reward_info.bond_amount;
         spec_reward_to_pool(state, &mut pool_info, lp_balance)?;
         before_share_change(&pool_info, &mut reward_info)?;
 
@@ -581,7 +571,7 @@ pub fn query_reward_info(
     let mut state = read_state(deps.storage)?;
 
     let config = read_config(deps.storage)?;
-    let spec_staked = deposit_spec_reward(deps, &mut state, &config, height, true)?;
+    let spec_staked = deposit_spec_reward(deps, &mut state, &config, true)?;
     let reward_infos = read_reward_infos(
         deps,
         &config,
@@ -623,8 +613,8 @@ fn read_reward_infos(
             })?,
         }))?;
 
-    let anchor_reward_infos =
-        query_anchor_reward_info(deps, &config.anchor_staking, &state.contract_addr, height)?;
+    let lp_balance =
+        query_anchor_pool_balance(deps, &config.anchor_staking, &state.contract_addr)?;
 
     let bucket = pool_info_read(deps.storage);
     let reward_infos: Vec<RewardInfoResponseItem> = reward_pair
@@ -634,7 +624,6 @@ fn read_reward_infos(
 
             // update pending rewards
             let mut reward_info = reward_info;
-            let lp_balance = anchor_reward_infos.bond_amount;
             let farm_share_index = reward_info.farm_share_index;
             let auto_spec_index = reward_info.auto_spec_share_index;
             let stake_spec_index = reward_info.stake_spec_share_index;

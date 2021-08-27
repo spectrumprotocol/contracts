@@ -473,7 +473,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // query balance for user1
     let msg = QueryMsg::reward_info {
         staker_addr: USER1.to_string(),
-        height: 0u64,
     };
     let res: RewardInfoResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -600,7 +599,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // query balance for user2
     let msg = QueryMsg::reward_info {
         staker_addr: USER2.to_string(),
-        height: 0u64,
     };
     let res: RewardInfoResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -609,7 +607,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // query balance for user1
     let msg = QueryMsg::reward_info {
         staker_addr: USER1.to_string(),
-        height: 0u64,
     };
     let res: RewardInfoResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -701,7 +698,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // query balance for user1
     let msg = QueryMsg::reward_info {
         staker_addr: USER1.to_string(),
-        height: 0u64,
     };
     let res: RewardInfoResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -730,7 +726,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // query balance for user2
     let msg = QueryMsg::reward_info {
         staker_addr: USER2.to_string(),
-        height: 0u64,
     };
     let res: RewardInfoResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(
@@ -891,7 +886,6 @@ fn test_compound_mine(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
     // query balance for user1
     let msg = QueryMsg::reward_info {
         staker_addr: USER1.to_string(),
-        height: 0u64,
     };
     let res: RewardInfoResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -920,7 +914,6 @@ fn test_compound_mine(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
     // query balance for user2
     let msg = QueryMsg::reward_info {
         staker_addr: USER2.to_string(),
-        height: 0u64,
     };
     let res: RewardInfoResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(

@@ -27,7 +27,6 @@ use std::collections::HashMap;
 
 pub fn bond(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     sender_addr: String,
     asset_token: String,
@@ -56,7 +55,7 @@ pub fn bond(
 
     // update reward index; before changing share
     if !pool_info.total_auto_bond_share.is_zero() || !pool_info.total_stake_bond_share.is_zero() {
-        deposit_spec_reward(deps.as_ref(), &mut state, &config, env.block.height, false)?;
+        deposit_spec_reward(deps.as_ref(), &mut state, &config, false)?;
         spec_reward_to_pool(&state, &mut pool_info, lp_balance)?;
     }
 
@@ -141,7 +140,6 @@ pub fn deposit_spec_reward(
     deps: Deps,
     state: &mut State,
     config: &Config,
-    height: u64,
     query: bool,
 ) -> StdResult<SpecBalanceResponse> {
     if state.total_weight == 0 {
@@ -157,7 +155,6 @@ pub fn deposit_spec_reward(
             contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
             msg: to_binary(&SpecQueryMsg::balance {
                 address: deps.api.addr_humanize(&state.contract_addr)?.to_string(),
-                height: Some(height),
             })?,
         }))?;
 
@@ -300,7 +297,6 @@ fn stake_token(
 
 pub fn unbond(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     asset_token: String,
     amount: Uint128,
@@ -331,7 +327,7 @@ pub fn unbond(
 
     // distribute reward to pending reward; before changing share
     let config = read_config(deps.storage)?;
-    deposit_spec_reward(deps.as_ref(), &mut state, &config, env.block.height, false)?;
+    deposit_spec_reward(deps.as_ref(), &mut state, &config, false)?;
     spec_reward_to_pool(&state, &mut pool_info, lp_balance)?;
     before_share_change(&pool_info, &mut reward_info)?;
 
@@ -415,7 +411,7 @@ pub fn withdraw(
     // update pending reward; before withdraw
     let config = read_config(deps.storage)?;
     let spec_staked =
-        deposit_spec_reward(deps.as_ref(), &mut state, &config, env.block.height, false)?;
+        deposit_spec_reward(deps.as_ref(), &mut state, &config, false)?;
 
     let (spec_amount, spec_share, farm_amount, farm_share) = withdraw_reward(
         deps.branch(),
@@ -601,7 +597,7 @@ pub fn query_reward_info(
     let mut state = read_state(deps.storage)?;
 
     let config = read_config(deps.storage)?;
-    let spec_staked = deposit_spec_reward(deps, &mut state, &config, height, true)?;
+    let spec_staked = deposit_spec_reward(deps, &mut state, &config, true)?;
     let reward_infos = read_reward_infos(
         deps,
         &config,
@@ -690,7 +686,7 @@ fn read_reward_infos(
             let stake_bond_amount = pool_info.calc_user_stake_balance(reward_info.stake_bond_share);
             let locked_spec_share = config.calc_locked_reward(reward_info.accum_spec_share, height);
             Ok(RewardInfoResponseItem {
-                asset_token: asset_token,
+                asset_token,
                 farm_share_index,
                 auto_spec_share_index: auto_spec_index,
                 stake_spec_share_index: stake_spec_index,

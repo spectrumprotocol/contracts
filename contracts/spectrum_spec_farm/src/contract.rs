@@ -49,17 +49,17 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
-        ExecuteMsg::receive(msg) => receive_cw20(deps, env, info, msg),
+        ExecuteMsg::receive(msg) => receive_cw20(deps, info, msg),
         ExecuteMsg::register_asset {
             asset_token,
             staking_token,
             weight,
-        } => register_asset(deps, env, info, asset_token, staking_token, weight),
+        } => register_asset(deps, info, asset_token, staking_token, weight),
         ExecuteMsg::withdraw { asset_token } => withdraw(deps, env, info, asset_token),
         ExecuteMsg::unbond {
             asset_token,
             amount,
-        } => unbond(deps, env, info, asset_token, amount),
+        } => unbond(deps, info, asset_token, amount),
         ExecuteMsg::update_config {
             owner,
         } => update_config(deps, info, owner),
@@ -68,7 +68,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
 
 fn receive_cw20(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> StdResult<Response> {
@@ -78,7 +77,6 @@ fn receive_cw20(
             asset_token,
         }) => bond(
             deps,
-            env,
             info,
             staker_addr.unwrap_or(cw20_msg.sender),
             asset_token,
@@ -90,7 +88,6 @@ fn receive_cw20(
 
 fn register_asset(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     asset_token: String,
     staking_token: String,
@@ -104,7 +101,7 @@ fn register_asset(
     }
 
     let mut state = read_state(deps.storage)?;
-    deposit_reward(deps.as_ref(), &mut state, &config, env.block.height, false)?;
+    deposit_reward(deps.as_ref(), &mut state, &config, false)?;
 
     let mut pool_info = pool_info_read(deps.storage)
         .may_load(asset_token_raw.as_slice())?
@@ -150,15 +147,14 @@ fn update_config(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::config {} => to_binary(&query_config(deps)?),
         QueryMsg::pools {} => to_binary(&query_pools(deps)?),
         QueryMsg::reward_info {
             staker_addr,
             asset_token,
-            height,
-        } => to_binary(&query_reward_info(deps, staker_addr, asset_token, height)?),
+        } => to_binary(&query_reward_info(deps, staker_addr, asset_token, env.block.height)?),
         QueryMsg::state {} => to_binary(&query_state(deps)?),
     }
 }

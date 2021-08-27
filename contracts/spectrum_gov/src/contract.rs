@@ -243,9 +243,9 @@ fn update_config(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::balance { address, height } => to_binary(&query_balances(deps, address, height)?),
+        QueryMsg::balance { address } => to_binary(&query_balances(deps, address, env.block.height)?),
         QueryMsg::config {} => to_binary(&query_config(deps)?),
         QueryMsg::poll { poll_id } => to_binary(&query_poll(deps, poll_id)?),
         QueryMsg::polls {
@@ -254,7 +254,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             limit,
             order_by,
         } => to_binary(&query_polls(deps, filter, start_after, limit, order_by)?),
-        QueryMsg::state { height } => to_binary(&query_state(deps, height)?),
+        QueryMsg::state { } => to_binary(&query_state(deps, env.block.height)?),
         QueryMsg::vaults {} => to_binary(&query_vaults(deps)?),
         QueryMsg::voters {
             poll_id,

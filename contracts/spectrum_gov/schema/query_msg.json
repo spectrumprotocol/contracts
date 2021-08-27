@@ -16,14 +16,6 @@
           "properties": {
             "address": {
               "type": "string"
-            },
-            "height": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint64",
-              "minimum": 0.0
             }
           }
         }
@@ -121,17 +113,7 @@
       ],
       "properties": {
         "state": {
-          "type": "object",
-          "required": [
-            "height"
-          ],
-          "properties": {
-            "height": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
-            }
-          }
+          "type": "object"
         }
       },
       "additionalProperties": false

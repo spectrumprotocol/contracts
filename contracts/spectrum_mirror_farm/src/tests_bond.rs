@@ -238,7 +238,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let msg = QueryMsg::reward_info {
         staker_addr: USER1.to_string(),
         asset_token: None,
-        height: 0u64,
     };
     let res: RewardInfoResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -385,7 +384,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let msg = QueryMsg::reward_info {
         staker_addr: USER1.to_string(),
         asset_token: None,
-        height: 0u64,
     };
     let res: RewardInfoResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -495,7 +493,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let msg = QueryMsg::reward_info {
         staker_addr: USER1.to_string(),
         asset_token: None,
-        height: 0u64,
     };
     let res: RewardInfoResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -527,7 +524,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let msg = QueryMsg::reward_info {
         staker_addr: USER2.to_string(),
         asset_token: None,
-        height: 0u64,
     };
     let res: RewardInfoResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(
@@ -621,7 +617,6 @@ fn test_deposit_fee(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
     let msg = QueryMsg::reward_info {
         staker_addr: USER1.to_string(),
         asset_token: None,
-        height: 0u64,
     };
     let res: RewardInfoResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -653,7 +648,6 @@ fn test_deposit_fee(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
     let msg = QueryMsg::reward_info {
         staker_addr: USER2.to_string(),
         asset_token: None,
-        height: 0u64,
     };
     let res: RewardInfoResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -685,7 +679,6 @@ fn test_deposit_fee(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
     let msg = QueryMsg::reward_info {
         staker_addr: USER3.to_string(),
         asset_token: None,
-        height: 0u64,
     };
     let res: RewardInfoResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(
@@ -825,7 +818,6 @@ fn test_staked_reward(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
     let msg = QueryMsg::reward_info {
         staker_addr: USER1.to_string(),
         asset_token: None,
-        height: 0u64,
     };
     let res: RewardInfoResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -857,7 +849,6 @@ fn test_staked_reward(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
     let msg = QueryMsg::reward_info {
         staker_addr: USER2.to_string(),
         asset_token: None,
-        height: 0u64,
     };
     let res: RewardInfoResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -889,7 +880,6 @@ fn test_staked_reward(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
     let msg = QueryMsg::reward_info {
         staker_addr: USER3.to_string(),
         asset_token: None,
-        height: 0u64,
     };
     let res: RewardInfoResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(

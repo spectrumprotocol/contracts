@@ -276,7 +276,7 @@ pub fn upsert_vault(
 pub fn query_balances(
     deps: Deps,
     address: String,
-    height: Option<u64>,
+    height: u64,
 ) -> StdResult<BalanceResponse> {
     let addr_raw = deps.api.addr_canonicalize(&address).unwrap();
     let config = read_config(deps.storage)?;
@@ -305,20 +305,19 @@ pub fn query_balances(
 
     let mut balance = account.calc_balance(total_balance, state.total_share);
     let mut share = account.share;
-    if let Some(height) = height {
-        if addr_raw == config.warchest_address {
-            let mintable = calc_mintable(&state, &config, height);
-            let to_warchest = mintable * config.warchest_ratio;
-            share += state.calc_share(to_warchest, total_balance);
-            balance += to_warchest;
-        } else if let Some(vault) = read_vault(deps.storage, addr_raw.as_slice())? {
-            let mintable = calc_mintable(&state, &config, height);
-            let to_warchest = mintable * config.warchest_ratio;
-            let mintable = mintable.checked_sub(to_warchest)?;
-            let vaults_share = state.calc_share(mintable, total_balance);
-            share += vaults_share.multiply_ratio(vault.weight, state.total_weight);
-            balance += mintable.multiply_ratio(vault.weight, state.total_weight);
-        }
+
+    if addr_raw == config.warchest_address {
+        let mintable = calc_mintable(&state, &config, height);
+        let to_warchest = mintable * config.warchest_ratio;
+        share += state.calc_share(to_warchest, total_balance);
+        balance += to_warchest;
+    } else if let Some(vault) = read_vault(deps.storage, addr_raw.as_slice())? {
+        let mintable = calc_mintable(&state, &config, height);
+        let to_warchest = mintable * config.warchest_ratio;
+        let mintable = mintable.checked_sub(to_warchest)?;
+        let vaults_share = state.calc_share(mintable, total_balance);
+        share += vaults_share.multiply_ratio(vault.weight, state.total_weight);
+        balance += mintable.multiply_ratio(vault.weight, state.total_weight);
     }
 
     Ok(BalanceResponse {
