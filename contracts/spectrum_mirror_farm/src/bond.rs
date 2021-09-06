@@ -326,7 +326,6 @@ pub fn unbond(
     }
 
     // distribute reward to pending reward; before changing share
-    let config = read_config(deps.storage)?;
     deposit_spec_reward(deps.as_ref(), &mut state, &config, false)?;
     spec_reward_to_pool(&state, &mut pool_info, lp_balance)?;
     before_share_change(&pool_info, &mut reward_info)?;
