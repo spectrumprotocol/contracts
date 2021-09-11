@@ -60,6 +60,42 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             prev_staking_token_amount,
             compound_rate,
         ),
+        ExecuteMsg::zap_to_bond {
+            contract,
+            provide_asset,
+            pair_asset,
+            belief_price,
+            max_spread,
+            compound_rate,
+        } => zap_to_bond(
+            deps,
+            env,
+            info,
+            contract,
+            provide_asset,
+            pair_asset,
+            belief_price,
+            max_spread,
+            compound_rate,
+        ),
+        ExecuteMsg::zap_to_bond_hook {
+            contract,
+            bond_asset,
+            asset_token,
+            prev_asset_token_amount,
+            slippage_tolerance,
+            compound_rate,
+        } => zap_to_bond_hook(
+            deps,
+            env,
+            info,
+            contract,
+            bond_asset,
+            asset_token,
+            prev_asset_token_amount,
+            slippage_tolerance,
+            compound_rate,
+        ),
     }
 }
 
@@ -214,6 +250,136 @@ fn bond_hook(
                     staker_addr: Some(staker_addr),
                     compound_rate,
                 })?,
+            })?,
+            funds: vec![],
+        })]),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn zap_to_bond(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    contract: String,
+    provide_asset: Asset,
+    pair_asset: AssetInfo,
+    belief_price: Option<Decimal>,
+    max_spread: Option<Decimal>,
+    compound_rate: Option<Decimal>,
+) -> StdResult<Response> {
+    let denom = match provide_asset.info.clone() {
+        AssetInfo::NativeToken { denom } => denom,
+        _ => return Err(StdError::generic_err("unauthorized")),
+    };
+    let asset_token = match pair_asset.clone() {
+        AssetInfo::Token { contract_addr } => contract_addr,
+        _ => return Err(StdError::generic_err("unauthorized")),
+    };
+
+    provide_asset.assert_sent_native_token_balance(&info)?;
+
+    let asset_infos = [provide_asset.info.clone(), pair_asset];
+
+    let buy_amount = provide_asset.amount.multiply_ratio(1u128, 2u128);
+    let bond_amount = provide_asset.amount.checked_sub(buy_amount)?;
+
+    let bond_asset = Asset {
+        info: provide_asset.info.clone(),
+        amount: bond_amount,
+    };
+    let tax_amount = bond_asset.compute_tax(&deps.querier)?;
+    let bond_asset = Asset {
+        info: provide_asset.info,
+        amount: bond_amount.checked_sub(tax_amount)?,
+    };
+
+    let prev_asset_token_amount = query_token_balance(
+        &deps.querier,
+        deps.api.addr_validate(&asset_token)?,
+        env.contract.address.clone(),
+    )?;
+
+    let config = read_config(deps.storage)?;
+    let terraswap_factory = deps.api.addr_humanize(&config.terraswap_factory)?;
+    let terraswap_pair = query_pair_info(&deps.querier, terraswap_factory, &asset_infos)?;
+
+    Ok(Response::new()
+        .add_messages(vec![
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: terraswap_pair.contract_addr,
+                msg: to_binary(&PairExecuteMsg::Swap {
+                    offer_asset: bond_asset.clone(),
+                    max_spread,
+                    belief_price,
+                    to: None,
+                })?,
+                funds: vec![Coin {
+                    denom,
+                    amount: buy_amount,
+                }],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: env.contract.address.to_string(),
+                msg: to_binary(&ExecuteMsg::zap_to_bond_hook {
+                    contract,
+                    bond_asset,
+                    asset_token: asset_token.clone(),
+                    prev_asset_token_amount,
+                    slippage_tolerance: max_spread,
+                    compound_rate,
+                })?,
+                funds: vec![],
+            }),
+        ])
+        .add_attributes(vec![
+            attr("action", "zap_to_bond"),
+            attr("asset_token", asset_token),
+            attr("provide_amount", provide_asset.amount),
+        ]))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn zap_to_bond_hook(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    contract: String,
+    bond_asset: Asset,
+    asset_token: String,
+    prev_asset_token_amount: Uint128,
+    slippage_tolerance: Option<Decimal>,
+    compound_rate: Option<Decimal>,
+) -> StdResult<Response> {
+    // only can be called by itself
+    if info.sender != env.contract.address {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    // stake all lp tokens received, compare with staking token amount before liquidity provision was executed
+    let current_asset_token_amount = query_token_balance(
+        &deps.querier,
+        deps.api.addr_validate(&asset_token)?,
+        env.contract.address.clone(),
+    )?;
+    let amount_to_bond = current_asset_token_amount.checked_sub(prev_asset_token_amount)?;
+
+    Ok(
+        Response::new().add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: env.contract.address.to_string(),
+            msg: to_binary(&ExecuteMsg::bond {
+                contract,
+                assets: [
+                    bond_asset,
+                    Asset {
+                        info: AssetInfo::Token {
+                            contract_addr: asset_token,
+                        },
+                        amount: amount_to_bond,
+                    },
+                ],
+                slippage_tolerance,
+                compound_rate,
             })?,
             funds: vec![],
         })]),
