@@ -17,7 +17,7 @@ use spectrum_protocol::mirror_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
 
-use crate::bond::{deposit_spec_reward, query_reward_info, spec_reward_to_pool, unbond, withdraw};
+use crate::bond::{deposit_spec_reward, query_reward_info, spec_reward_to_pool, unbond, withdraw, update_bond};
 use crate::querier::query_mirror_pool_balance;
 use crate::state::{pool_info_read, pool_info_store, read_state};
 
@@ -84,7 +84,7 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
-        ExecuteMsg::receive(msg) => receive_cw20(deps, info, msg),
+        ExecuteMsg::receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::update_config {
             owner,
             controller,
@@ -118,16 +118,18 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::unbond {
             asset_token,
             amount,
-        } => unbond(deps, info, asset_token, amount),
+        } => unbond(deps, env, info, asset_token, amount),
         ExecuteMsg::withdraw { asset_token } => withdraw(deps, env, info, asset_token),
         ExecuteMsg::harvest_all {} => harvest_all(deps, env, info),
         ExecuteMsg::re_invest { asset_token } => re_invest(deps, env, info, asset_token),
         ExecuteMsg::stake { asset_token } => stake(deps, env, info, asset_token),
+        ExecuteMsg::update_bond { asset_token, amount_to_auto, amount_to_stake } => update_bond(deps, env, info, asset_token, amount_to_auto, amount_to_stake),
     }
 }
 
 fn receive_cw20(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> StdResult<Response> {
@@ -138,6 +140,7 @@ fn receive_cw20(
             compound_rate,
         }) => bond(
             deps,
+            env,
             info,
             staker_addr.unwrap_or(cw20_msg.sender),
             asset_token,
