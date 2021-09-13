@@ -33,6 +33,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             assets,
             slippage_tolerance,
             compound_rate,
+            staker_addr,
         } => bond(
             deps,
             env,
@@ -41,6 +42,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             assets,
             slippage_tolerance,
             compound_rate,
+            staker_addr,
         ),
         ExecuteMsg::bond_hook {
             contract,
@@ -82,6 +84,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             contract,
             bond_asset,
             asset_token,
+            staker_addr,
             prev_asset_token_amount,
             slippage_tolerance,
             compound_rate,
@@ -92,6 +95,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             contract,
             bond_asset,
             asset_token,
+            staker_addr,
             prev_asset_token_amount,
             slippage_tolerance,
             compound_rate,
@@ -107,6 +111,7 @@ fn bond(
     assets: [Asset; 2],
     slippage_tolerance: Option<Decimal>,
     compound_rate: Option<Decimal>,
+    staker_addr: Option<String>,
 ) -> StdResult<Response> {
     let config = read_config(deps.storage)?;
     let terraswap_factory = deps.api.addr_humanize(&config.terraswap_factory)?;
@@ -158,55 +163,58 @@ fn bond(
     // 3. Provide liquidity
     // 4. Execute staking hook, will stake in the name of the sender
 
+    let mut messages: Vec<CosmosMsg> = vec![];
+    if info.sender != env.contract.address {
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: token_addr.clone(),
+            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                owner: staker_addr.unwrap_or(info.sender.to_string()),
+                recipient: env.contract.address.to_string(),
+                amount: token_amount,
+            })?,
+            funds: vec![],
+        }));
+    }
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: token_addr.clone(),
+        msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+            spender: terraswap_pair.contract_addr.clone(),
+            amount: token_amount,
+            expires: None,
+        })?,
+        funds: vec![],
+    }));
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: terraswap_pair.contract_addr,
+        msg: to_binary(&PairExecuteMsg::ProvideLiquidity {
+            assets: if let AssetInfo::NativeToken { .. } = assets[0].info.clone() {
+                [native_asset.clone(), assets[1].clone()]
+            } else {
+                [assets[0].clone(), native_asset.clone()]
+            },
+            slippage_tolerance,
+            receiver: None,
+        })?,
+        funds: vec![Coin {
+            denom: native_asset.info.to_string(),
+            amount: native_asset.amount,
+        }],
+    }));
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: env.contract.address.to_string(),
+        msg: to_binary(&ExecuteMsg::bond_hook {
+            contract,
+            asset_token: token_addr.clone(),
+            staking_token: terraswap_pair.liquidity_token,
+            staker_addr: staker_addr.unwrap_or(info.sender.to_string()),
+            prev_staking_token_amount,
+            compound_rate,
+        })?,
+        funds: vec![],
+    }));
+
     Ok(Response::new()
-        .add_messages(vec![
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: token_addr.clone(),
-                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                    owner: info.sender.to_string(),
-                    recipient: env.contract.address.to_string(),
-                    amount: token_amount,
-                })?,
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: token_addr.clone(),
-                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-                    spender: terraswap_pair.contract_addr.clone(),
-                    amount: token_amount,
-                    expires: None,
-                })?,
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: terraswap_pair.contract_addr,
-                msg: to_binary(&PairExecuteMsg::ProvideLiquidity {
-                    assets: if let AssetInfo::NativeToken { .. } = assets[0].info.clone() {
-                        [native_asset.clone(), assets[1].clone()]
-                    } else {
-                        [assets[0].clone(), native_asset.clone()]
-                    },
-                    slippage_tolerance,
-                    receiver: None,
-                })?,
-                funds: vec![Coin {
-                    denom: native_asset.info.to_string(),
-                    amount: native_asset.amount,
-                }],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: env.contract.address.to_string(),
-                msg: to_binary(&ExecuteMsg::bond_hook {
-                    contract,
-                    asset_token: token_addr.clone(),
-                    staking_token: terraswap_pair.liquidity_token,
-                    staker_addr: info.sender.to_string(),
-                    prev_staking_token_amount,
-                    compound_rate,
-                })?,
-                funds: vec![],
-            }),
-        ])
+        .add_messages(messages)
         .add_attributes(vec![
             attr("action", "bond"),
             attr("asset_token", token_addr),
@@ -325,6 +333,7 @@ fn zap_to_bond(
                     contract,
                     bond_asset,
                     asset_token: asset_token.clone(),
+                    staker_addr: info.sender.to_string(),
                     prev_asset_token_amount,
                     slippage_tolerance: max_spread,
                     compound_rate,
@@ -347,6 +356,7 @@ fn zap_to_bond_hook(
     contract: String,
     bond_asset: Asset,
     asset_token: String,
+    staker_addr: String,
     prev_asset_token_amount: Uint128,
     slippage_tolerance: Option<Decimal>,
     compound_rate: Option<Decimal>,
@@ -380,6 +390,7 @@ fn zap_to_bond_hook(
                 ],
                 slippage_tolerance,
                 compound_rate,
+                staker_addr: Some(staker_addr),
             })?,
             funds: vec![],
         })]),
