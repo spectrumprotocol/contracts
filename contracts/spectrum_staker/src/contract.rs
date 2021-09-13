@@ -163,12 +163,14 @@ fn bond(
     // 3. Provide liquidity
     // 4. Execute staking hook, will stake in the name of the sender
 
+    let staker = staker_addr.unwrap_or(info.sender.to_string());
+
     let mut messages: Vec<CosmosMsg> = vec![];
     if info.sender != env.contract.address {
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: token_addr.clone(),
             msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                owner: staker_addr.unwrap_or(info.sender.to_string()),
+                owner: staker.clone(),
                 recipient: env.contract.address.to_string(),
                 amount: token_amount,
             })?,
@@ -206,7 +208,7 @@ fn bond(
             contract,
             asset_token: token_addr.clone(),
             staking_token: terraswap_pair.liquidity_token,
-            staker_addr: staker_addr.unwrap_or(info.sender.to_string()),
+            staker_addr: staker,
             prev_staking_token_amount,
             compound_rate,
         })?,
