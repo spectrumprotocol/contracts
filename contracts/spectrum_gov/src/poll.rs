@@ -7,7 +7,7 @@ use spectrum_protocol::gov::{
     PollExecuteMsg, PollInfo, PollStatus, PollsResponse, VoteOption, VoterInfo, VotersResponse,
 };
 
-use crate::stake::validate_minted;
+use crate::stake::{reconcile_balance, validate_minted};
 use crate::state::{
     account_store, poll_indexer_store, poll_store, poll_voter_store, read_config, read_poll,
     read_poll_voter, read_poll_voters, read_polls, read_state, state_store, Poll,
@@ -130,7 +130,7 @@ pub fn poll_vote(
 ) -> StdResult<Response> {
     let sender_address_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
     let config = read_config(deps.storage)?;
-    let state = read_state(deps.storage)?;
+    let mut state = read_state(deps.storage)?;
     if poll_id == 0 || state.poll_count < poll_id {
         return Err(StdError::generic_err("Poll does not exist"));
     }
@@ -145,21 +145,22 @@ pub fn poll_vote(
         return Err(StdError::generic_err("User has already voted."));
     }
 
-    let key = sender_address_raw.as_slice();
-    let mut account = account_store(deps.storage)
-        .may_load(key)?
-        .unwrap_or_default();
-
-    // convert share to amount
-    let total_share = state.total_share;
+    // reconcile
     let total_balance = query_token_balance(
         &deps.querier,
         deps.api.addr_humanize(&config.spec_token)?,
         deps.api.addr_humanize(&state.contract_addr)?,
     )?
     .checked_sub(state.poll_deposit)?;
+    reconcile_balance(&mut state, total_balance)?;
 
-    if account.calc_balance(total_balance, total_share) < amount {
+    let key = sender_address_raw.as_slice();
+    let mut account = account_store(deps.storage)
+        .may_load(key)?
+        .unwrap_or_default();
+
+    // convert share to amount
+    if account.calc_total_balance(&state) < amount {
         return Err(StdError::generic_err(
             "User does not have enough staked tokens.",
         ));
@@ -182,6 +183,7 @@ pub fn poll_vote(
     // store poll voter && and update poll data
     poll_voter_store(deps.storage, poll_id).save(sender_address_raw.as_slice(), &vote_info)?;
     poll_store(deps.storage).save(&poll_id.to_be_bytes(), &a_poll)?;
+    state_store(deps.storage).save(&state)?;
 
     Ok(Response::new().add_attributes(vec![
         attr("action", "cast_vote"),
@@ -211,16 +213,12 @@ pub fn poll_end(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
     let config = read_config(deps.storage)?;
     let mut state = state_store(deps.storage).load()?;
 
-    let staked = if state.total_share.is_zero() {
-        Uint128::zero()
-    } else {
-        query_token_balance(
-            &deps.querier,
-            deps.api.addr_humanize(&config.spec_token)?,
-            deps.api.addr_humanize(&state.contract_addr)?,
-        )?
-        .checked_sub(state.poll_deposit)?
-    };
+    let staked = query_token_balance(
+        &deps.querier,
+        deps.api.addr_humanize(&config.spec_token)?,
+        deps.api.addr_humanize(&state.contract_addr)?,
+    )?
+    .checked_sub(state.poll_deposit)?;
 
     let quorum = if staked.is_zero() {
         Decimal::zero()

@@ -7,8 +7,92 @@ use cosmwasm_std::{
     StdError, StdResult, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
-use spectrum_protocol::gov::{BalanceResponse, PollStatus, VaultInfo, VaultsResponse};
+use spectrum_protocol::gov::{BalanceResponse, GovPool, PollStatus, VaultInfo, VaultsResponse};
 use terraswap::querier::query_token_balance;
+
+pub fn reconcile_balance(state: &mut State, balance: Uint128) -> StdResult<()> {
+    let diff = if balance >= state.prev_balance {
+        balance.checked_sub(state.prev_balance)?
+    } else {
+        state.prev_balance.checked_sub(balance)?
+    };
+    if diff.is_zero() {
+        return Ok(());
+    }
+
+    let mut denom = state.total_balance_4m.u128() * 5u128;
+    let mut diff_4m = if denom == 0u128 {
+        Uint128::zero()
+    } else {
+        diff.multiply_ratio(state.total_balance_4m, denom)
+    };
+
+    denom += state.total_balance_3m.u128() * 5u128;
+    if denom > 0u128 {
+        diff_4m += diff.multiply_ratio(state.total_balance_4m, denom);
+    }
+    let mut diff_3m = if denom == 0u128 {
+        Uint128::zero()
+    } else {
+        diff.multiply_ratio(state.total_balance_3m, denom)
+    };
+
+    denom += state.total_balance_2m.u128() * 5u128;
+    if denom > 0u128 {
+        diff_4m += diff.multiply_ratio(state.total_balance_4m, denom);
+        diff_3m += diff.multiply_ratio(state.total_balance_3m, denom);
+    }
+    let mut diff_2m = if denom == 0u128 {
+        Uint128::zero()
+    } else {
+        diff.multiply_ratio(state.total_balance_2m, denom)
+    };
+
+    denom += state.total_balance_1m.u128() * 5u128;
+    if denom > 0u128 {
+        diff_4m += diff.multiply_ratio(state.total_balance_4m, denom);
+        diff_3m += diff.multiply_ratio(state.total_balance_3m, denom);
+        diff_2m += diff.multiply_ratio(state.total_balance_2m, denom);
+    }
+    let mut diff_1m = if denom == 0u128 {
+        Uint128::zero()
+    } else {
+        diff.multiply_ratio(state.total_balance_1m, denom)
+    };
+
+    denom += state.total_balance_0m.u128() * 5u128;
+    if denom > 0u128 {
+        diff_4m += diff.multiply_ratio(state.total_balance_4m, denom);
+        diff_3m += diff.multiply_ratio(state.total_balance_3m, denom);
+        diff_2m += diff.multiply_ratio(state.total_balance_2m, denom);
+        diff_1m += diff.multiply_ratio(state.total_balance_1m, denom);
+    }
+    let diff_0m = if denom == 0u128 {
+        Uint128::zero()
+    } else {
+        diff.multiply_ratio(state.total_balance_0m, denom)
+    };
+
+    if balance >= state.prev_balance {
+        state.total_balance_0m += diff_0m;
+        state.total_balance_1m += diff_1m;
+        state.total_balance_2m += diff_2m;
+        state.total_balance_3m += diff_3m;
+        state.total_balance_4m +=
+            diff_4m + diff.checked_sub(diff_0m + diff_1m + diff_2m + diff_3m + diff_4m)?;
+    } else {
+        state.total_balance_0m -= diff_0m;
+        state.total_balance_1m -= diff_1m;
+        state.total_balance_2m -= diff_2m;
+        state.total_balance_3m -= diff_3m;
+        state.total_balance_4m -=
+            diff_4m + diff.checked_sub(diff_0m + diff_1m + diff_2m + diff_3m + diff_4m)?;
+    }
+
+    state.prev_balance = balance;
+
+    Ok(())
+}
 
 /// mint should be done before
 /// - deposit_reward
@@ -30,46 +114,45 @@ pub fn mint(deps: DepsMut, env: Env) -> StdResult<Response> {
     }
 
     // mint to warchest
-    let total_balance = if state.total_share.is_zero() {
-        Uint128::zero()
-    } else {
-        query_token_balance(
-            &deps.querier,
-            deps.api.addr_humanize(&config.spec_token)?,
-            deps.api.addr_humanize(&state.contract_addr)?,
-        )?
-        .checked_sub(state.poll_deposit)?
-    };
+    let total_balance = query_token_balance(
+        &deps.querier,
+        deps.api.addr_humanize(&config.spec_token)?,
+        deps.api.addr_humanize(&state.contract_addr)?,
+    )?
+    .checked_sub(state.poll_deposit)?;
+    reconcile_balance(&mut state, total_balance)?;
+
     let mut mint_share = Uint128::zero();
     let mut to_warchest = Uint128::zero();
     if config.warchest_address != CanonicalAddr::from(vec![])
         && config.warchest_ratio != Decimal::zero()
     {
         to_warchest = mintable * config.warchest_ratio;
-        let share = state.calc_share(to_warchest, total_balance);
+        let share = state.calc_share(to_warchest, GovPool::no_lock);
         let key = config.warchest_address.as_slice();
         let mut account = account_store(deps.storage)
             .may_load(key)?
             .unwrap_or_default();
-        account.share += share;
+        account.share_0m += share;
         mint_share += share;
         account_store(deps.storage).save(key, &account)?;
     }
 
     // mint to vault
     let vaults = read_vaults(deps.storage)?;
-    let share = state.calc_share(mintable.checked_sub(to_warchest)?, total_balance);
+    let share = state.calc_share(mintable.checked_sub(to_warchest)?, GovPool::no_lock);
     for (addr, vault) in vaults.into_iter() {
         let key = addr.as_slice();
         let mut account = account_store(deps.storage)
             .may_load(key)?
             .unwrap_or_default();
         let vault_share = share.multiply_ratio(vault.weight, state.total_weight as u128);
-        account.share += vault_share;
+        account.share_0m += vault_share;
         mint_share += vault_share;
         account_store(deps.storage).save(key, &account)?;
     }
-    state.total_share += mint_share;
+    state.total_share_0m += mint_share;
+    state.total_balance_0m += mintable;
     state.last_mint = env.block.height;
     state_store(deps.storage).save(&state)?;
 
@@ -85,7 +168,13 @@ pub fn mint(deps: DepsMut, env: Env) -> StdResult<Response> {
         .add_attributes(vec![attr("action", "mint"), attr("amount", mintable)]))
 }
 
-pub fn stake_tokens(deps: DepsMut, sender: String, amount: Uint128) -> StdResult<Response> {
+pub fn stake_tokens(
+    deps: DepsMut,
+    env: Env,
+    sender: String,
+    amount: Uint128,
+    pool: GovPool,
+) -> StdResult<Response> {
     if amount.is_zero() {
         return Err(StdError::generic_err("Insufficient funds sent"));
     }
@@ -106,10 +195,10 @@ pub fn stake_tokens(deps: DepsMut, sender: String, amount: Uint128) -> StdResult
         deps.api.addr_humanize(&state.contract_addr)?,
     )?;
     let total_balance = current_balance.checked_sub(state.poll_deposit + amount)?;
+    reconcile_balance(&mut state, total_balance)?;
 
-    let share = state.calc_share(amount, total_balance);
-    account.share += share;
-    state.total_share += share;
+    let share = state.calc_share(amount, pool.clone());
+    account.add_share(share, env.block.time.seconds(), pool.clone(), &mut state)?;
 
     state_store(deps.storage).save(&state)?;
     account_store(deps.storage).save(key, &account)?;
@@ -119,14 +208,17 @@ pub fn stake_tokens(deps: DepsMut, sender: String, amount: Uint128) -> StdResult
         attr("sender", sender),
         attr("share", share),
         attr("amount", amount),
+        attr("pool", pool),
     ]))
 }
 
 // Withdraw amount if not staked. By default all funds will be withdrawn.
 pub fn withdraw(
     mut deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     amount: Option<Uint128>,
+    pool: GovPool,
 ) -> StdResult<Response> {
     let sender_address_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
     let key = sender_address_raw.as_slice();
@@ -273,11 +365,7 @@ pub fn upsert_vault(
     )]))
 }
 
-pub fn query_balances(
-    deps: Deps,
-    address: String,
-    height: u64,
-) -> StdResult<BalanceResponse> {
+pub fn query_balances(deps: Deps, address: String, height: u64) -> StdResult<BalanceResponse> {
     let addr_raw = deps.api.addr_canonicalize(&address).unwrap();
     let config = read_config(deps.storage)?;
     let state = read_state(deps.storage)?;
@@ -292,16 +380,12 @@ pub fn query_balances(
         poll.status == PollStatus::in_progress
     });
 
-    let total_balance = if state.total_share.is_zero() {
-        Uint128::zero()
-    } else {
-        query_token_balance(
-            &deps.querier,
-            deps.api.addr_humanize(&config.spec_token)?,
-            deps.api.addr_humanize(&state.contract_addr)?,
-        )?
-        .checked_sub(state.poll_deposit)?
-    };
+    let total_balance = query_token_balance(
+        &deps.querier,
+        deps.api.addr_humanize(&config.spec_token)?,
+        deps.api.addr_humanize(&state.contract_addr)?,
+    )?
+    .checked_sub(state.poll_deposit)?;
 
     let mut balance = account.calc_balance(total_balance, state.total_share);
     let mut share = account.share;

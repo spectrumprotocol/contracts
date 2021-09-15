@@ -4,15 +4,13 @@ use cosmwasm_std::{
     from_binary, to_binary, Binary, CanonicalAddr, Decimal, Deps, DepsMut, Env, MessageInfo,
     Response, StdError, StdResult, Uint128,
 };
-use spectrum_protocol::gov::{
-    ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, QueryMsg, StateInfo,
-};
+use spectrum_protocol::gov::{ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, QueryMsg, StateInfo, GovPool, StatePoolInfo};
 
 use crate::poll::{
     poll_end, poll_execute, poll_expire, poll_start, poll_vote, query_poll, query_polls,
     query_voters,
 };
-use crate::stake::{calc_mintable, mint, query_balances, query_vaults, stake_tokens, upsert_vault, withdraw, validate_minted};
+use crate::stake::{calc_mintable, mint, query_balances, query_vaults, stake_tokens, upsert_vault, withdraw, validate_minted, reconcile_balance};
 use crate::state::{config_store, read_config, read_state, state_store, Config, State};
 use cw20::Cw20ReceiveMsg;
 use terraswap::querier::query_token_balance;
@@ -59,7 +57,7 @@ pub fn instantiate(
     let state = State {
         contract_addr: deps.api.addr_canonicalize(env.contract.address.as_str())?,
         poll_count: 0,
-        total_share: Uint128::zero(),
+        total_share_0m: Uint128::zero(),
         poll_deposit: Uint128::zero(),
         last_mint: if msg.mint_end == 0 {
             0
@@ -67,6 +65,16 @@ pub fn instantiate(
             env.block.height
         },
         total_weight: 0,
+        total_share_1m: Uint128::zero(),
+        total_share_2m: Uint128::zero(),
+        total_share_3m: Uint128::zero(),
+        total_share_4m: Uint128::zero(),
+        prev_balance: Uint128::zero(),
+        total_balance_0m: Uint128::zero(),
+        total_balance_1m: Uint128::zero(),
+        total_balance_2m: Uint128::zero(),
+        total_balance_3m: Uint128::zero(),
+        total_balance_4m: Uint128::zero(),
     };
 
     config_store(deps.storage).save(&config)?;
@@ -126,7 +134,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             vault_address,
             weight,
         } => upsert_vault(deps, env, info, vault_address, weight),
-        ExecuteMsg::withdraw { amount } => withdraw(deps, info, amount),
+        ExecuteMsg::withdraw { amount, pool } => withdraw(deps, env, info, amount, pool.unwrap_or(GovPool::no_lock)),
     }
 }
 
@@ -158,10 +166,12 @@ fn receive_cw20(
             link,
             execute_msgs,
         ),
-        Ok(Cw20HookMsg::stake_tokens { staker_addr }) => stake_tokens(
+        Ok(Cw20HookMsg::stake_tokens { staker_addr, pool }) => stake_tokens(
             deps,
+            env,
             staker_addr.unwrap_or(cw20_msg.sender),
             cw20_msg.amount,
+            pool.unwrap_or(GovPool::no_lock),
         ),
         Err(_) => Err(StdError::generic_err("data should be given")),
     }
@@ -297,21 +307,29 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
 }
 
 fn query_state(deps: Deps, height: u64) -> StdResult<StateInfo> {
-    let state = read_state(deps.storage)?;
+    let mut state = read_state(deps.storage)?;
     let config = read_config(deps.storage)?;
     let balance = query_token_balance(
         &deps.querier,
         deps.api.addr_humanize(&config.spec_token)?,
         deps.api.addr_humanize(&state.contract_addr)?,
     )?;
+    reconcile_balance(&mut state, balance.checked_sub(state.poll_deposit)?)?;
     let mintable = calc_mintable(&state, &config, height);
     Ok(StateInfo {
         poll_count: state.poll_count,
-        total_share: state.total_share,
         poll_deposit: state.poll_deposit,
         last_mint: state.last_mint,
         total_weight: state.total_weight,
         total_staked: (balance + mintable).checked_sub(state.poll_deposit)?,
+        prev_balance: state.prev_balance,
+        pools: vec![
+            (GovPool::no_lock, StatePoolInfo { total_share: state.total_share_0m, total_balance: state.total_balance_0m }),
+            (GovPool::lock_1m, StatePoolInfo { total_share: state.total_share_1m, total_balance: state.total_balance_1m }),
+            (GovPool::lock_2m, StatePoolInfo { total_share: state.total_share_2m, total_balance: state.total_balance_2m }),
+            (GovPool::lock_3m, StatePoolInfo { total_share: state.total_share_3m, total_balance: state.total_balance_3m }),
+            (GovPool::lock_4m, StatePoolInfo { total_share: state.total_share_4m, total_balance: state.total_balance_4m }),
+        ],
     })
 }
 
