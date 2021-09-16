@@ -12,6 +12,12 @@ impl UDec128 {
     pub fn is_zero(&self) -> bool {
         self.0 == 0
     }
+
+    pub fn multiply_ratio<A: Into<u128>, B: Into<u128>>(&self, num: A, denom: B) -> UDec128 {
+        let value = Uint128::from(self.0);
+        let result = value.multiply_ratio(num, denom);
+        UDec128(result.u128())
+    }
 }
 
 impl From<Decimal> for UDec128 {
@@ -108,5 +114,14 @@ mod tests {
         let udec: UDec128 = dec.into();
         let dec2:Decimal = udec.into();
         assert_eq!(dec, dec2);
+    }
+
+    #[test]
+    fn test_overflow() {
+        let value: UDec128 = Decimal::percent(10000u64).into();
+        assert_eq!(
+            value.multiply_ratio(value.0, value.0),
+            value
+        );
     }
 }

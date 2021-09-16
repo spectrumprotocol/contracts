@@ -169,7 +169,7 @@ fn spec_reward_to_pool(
 
     let share = (UDec128::from(state.spec_share_index) - pool_info.state_spec_share_index.into())
         * Uint128::from(pool_info.weight as u128);
-    let stake_share = share * pool_info.total_stake_bond_amount / lp_balance;
+    let stake_share = share.multiply_ratio(pool_info.total_stake_bond_amount, lp_balance);
 
     // spec reward to staker is per stake bond share & auto bond share
     if !stake_share.is_zero() {
