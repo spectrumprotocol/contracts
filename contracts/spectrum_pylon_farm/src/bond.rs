@@ -204,7 +204,7 @@ fn spec_reward_to_pool(
 
     // pool_info.total_stake_bond_amount / lp_balance = ratio for auto-stake
     // now stake_share is additional SPEC rewards for auto-stake
-    let stake_share = share * pool_info.total_stake_bond_amount / lp_balance;
+    let stake_share = share.multiply_ratio(pool_info.total_stake_bond_amount, lp_balance);
 
     // spec reward to staker is per stake bond share & auto bond share
     if !stake_share.is_zero() {
