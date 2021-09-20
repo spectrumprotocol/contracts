@@ -21,9 +21,9 @@ pub fn query_pylon_reward_info(
 
 pub fn query_pylon_pool_balance(
     deps: Deps,
-    anchor_staking: &CanonicalAddr,
+    pylon_staking: &CanonicalAddr,
     staker: &CanonicalAddr,
 ) -> StdResult<Uint128> {
-    let res = query_pylon_reward_info(deps, anchor_staking, staker, None)?;
+    let res = query_pylon_reward_info(deps, pylon_staking, staker, None)?;
     Ok(res.bond_amount)
 }
