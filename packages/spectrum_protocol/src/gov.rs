@@ -59,7 +59,7 @@ pub enum ExecuteMsg {
     },
     withdraw {
         amount: Option<Uint128>,
-        pool: Option<GovPool>,
+        days: Option<u64>,
     },
 }
 
@@ -80,15 +80,6 @@ impl fmt::Display for VoteOption {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub enum GovPool {
-    no_lock,
-    lock_1m,
-    lock_2m,
-    lock_3m,
-    lock_4m,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum Cw20HookMsg {
     poll_start {
         title: String,
@@ -98,7 +89,7 @@ pub enum Cw20HookMsg {
     },
     stake_tokens {
         staker_addr: Option<String>,
-        pool: Option<GovPool>,
+        days: Option<u64>,
     },
 }
 
@@ -155,6 +146,7 @@ pub struct VoterInfo {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct BalancePoolInfo {
+    pub days: u64,
     pub share: Uint128,
     pub balance: Uint128,
     pub unlock: u64,
@@ -162,9 +154,8 @@ pub struct BalancePoolInfo {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct BalanceResponse {
-    pub balance: Uint128,
     pub locked_balance: Vec<(u64, VoterInfo)>,
-    pub pools: Vec<(GovPool, BalancePoolInfo)>,
+    pub pools: Vec<BalancePoolInfo>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -190,8 +181,10 @@ pub struct PollsResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StatePoolInfo {
+    pub days: u64,
     pub total_share: Uint128,
     pub total_balance: Uint128,
+    pub active: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -202,7 +195,7 @@ pub struct StateInfo {
     pub total_weight: u32,
     pub total_staked: Uint128,
     pub prev_balance: Uint128,
-    pub pools: Vec<(GovPool, StatePoolInfo)>,
+    pub pools: Vec<StatePoolInfo>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]

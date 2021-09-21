@@ -9,8 +9,7 @@ use cosmwasm_storage::{
 use spectrum_protocol::common::{
     calc_range_end, calc_range_end_addr, calc_range_start, calc_range_start_addr, OrderBy,
 };
-use spectrum_protocol::gov::{PollExecuteMsg, PollStatus, VoterInfo, GovPool};
-use std::convert::TryInto;
+use spectrum_protocol::gov::{PollExecuteMsg, PollStatus, VoterInfo};
 
 static KEY_CONFIG: &[u8] = b"config";
 
@@ -41,6 +40,14 @@ pub fn read_config(storage: &dyn Storage) -> StdResult<Config> {
 
 static KEY_STATE: &[u8] = b"state";
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct StatePool {
+    pub days: u64,
+    pub total_share: Uint128,
+    pub total_balance: Uint128,
+    pub active: bool,
+}
+
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
 pub struct State {
     pub contract_addr: CanonicalAddr,
@@ -48,35 +55,41 @@ pub struct State {
     pub poll_deposit: Uint128,
     pub last_mint: u64,
     pub total_weight: u32,
-    pub total_share_0m: Uint128,
-    #[serde(default)] pub total_share_1m: Uint128,
-    #[serde(default)] pub total_share_2m: Uint128,
-    #[serde(default)] pub total_share_3m: Uint128,
-    #[serde(default)] pub total_share_4m: Uint128,
+    pub total_share: Uint128,
     #[serde(default)] pub prev_balance: Uint128,
-    #[serde(default)] pub total_balance_0m: Uint128,
-    #[serde(default)] pub total_balance_1m: Uint128,
-    #[serde(default)] pub total_balance_2m: Uint128,
-    #[serde(default)] pub total_balance_3m: Uint128,
-    #[serde(default)] pub total_balance_4m: Uint128,
+    #[serde(default)] pub total_balance: Uint128,
+    #[serde(default)] pub pools: Vec<StatePool>,
 }
 
-impl State {
-    const fn safe_multiply_ratio(value: Uint128, num: Uint128, denom: Uint128) -> Uint128 {
-        if num.is_zero() || denom.is_zero() {
-            value
+impl StatePool {
+    pub fn calc_share(&self, amount: Uint128) -> Uint128 {
+        if self.total_share.is_zero() || self.total_balance.is_zero() {
+            amount
         } else {
-            value.multiply_ratio(num, denom)
+            amount.multiply_ratio(self.total_share, self.total_balance)
         }
     }
 
-    pub fn calc_share(&self, amount: Uint128, pool: GovPool) -> Uint128 {
-        match pool {
-            GovPool::no_lock => State::safe_multiply_ratio(amount, self.total_share_0m, self.total_balance_0m),
-            GovPool::lock_1m => State::safe_multiply_ratio(amount, self.total_share_1m, self.total_balance_1m),
-            GovPool::lock_2m => State::safe_multiply_ratio(amount, self.total_share_2m, self.total_balance_2m),
-            GovPool::lock_3m => State::safe_multiply_ratio(amount, self.total_share_3m, self.total_balance_3m),
-            GovPool::lock_4m => State::safe_multiply_ratio(amount, self.total_share_4m, self.total_balance_4m),
+    pub fn calc_balance(&self, share: Uint128) -> Uint128 {
+        if self.total_share.is_zero() {
+            Uint128::zero()
+        } else {
+            share.multiply_ratio(self.total_balance, self.total_share)
+        }
+    }
+}
+
+impl State {
+    pub fn get_pool(&self, days: u64) -> StatePool {
+        if days == 0u64 {
+            StatePool {
+                days,
+                total_balance: self.total_balance,
+                total_share: self.total_share,
+                active: true,
+            }
+        } else {
+            self.pools.into_iter().find(|it| it.days == days).unwrap()
         }
     }
 }
@@ -117,89 +130,40 @@ pub fn read_poll(storage: &dyn Storage, key: &[u8]) -> StdResult<Option<Poll>> {
 
 static PREFIX_ACCOUNT: &[u8] = b"account";
 
-#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Account {
-    pub share_0m: Uint128,                        // total staked balance
-    pub locked_balance: Vec<(u64, VoterInfo)>, // maps poll_id to weight voted
-    #[serde(default)] pub share_1m: Uint128,
-    #[serde(default)] pub share_2m: Uint128,
-    #[serde(default)] pub share_3m: Uint128,
-    #[serde(default)] pub share_4m: Uint128,
-    #[serde(default)] pub unlock_1m: u64,
-    #[serde(default)] pub unlock_2m: u64,
-    #[serde(default)] pub unlock_3m: u64,
-    #[serde(default)] pub unlock_4m: u64,
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct BalancePool {
+    pub days: u64,
+    pub share: Uint128,
+    pub unlock: u64,
 }
 
-const SEC_IN_MONTH: u64 = 30u64 * 24u64 * 60u64 * 60u64;
+#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Account {
+    pub share: Uint128,                        // total staked balance
+    pub locked_balance: Vec<(u64, VoterInfo)>, // maps poll_id to weight voted
+    #[serde(default)] pub pools: Vec<BalancePool>,
+}
 
 impl Account {
-    const fn safe_multiply_ratio(value: Uint128, num: Uint128, denom: Uint128) -> Uint128 {
-        if denom.is_zero() {
-            Uint128::zero()
+    pub fn get_pool(&self, days: u64) -> BalancePool {
+        if days == 0u64 {
+            BalancePool {
+                days,
+                share: self.share,
+                unlock: 0u64,
+            }
         } else {
-            value.multiply_ratio(num, denom)
-        }
-    }
-
-    pub fn calc_balance(&self, state: &State, pool: GovPool) -> Uint128 {
-        match pool {
-            GovPool::no_lock => Account::safe_multiply_ratio(self.share_0m, state.total_balance_0m, state.total_share_0m),
-            GovPool::lock_1m => Account::safe_multiply_ratio(self.share_1m, state.total_balance_1m, state.total_share_1m),
-            GovPool::lock_2m => Account::safe_multiply_ratio(self.share_2m, state.total_balance_2m, state.total_share_2m),
-            GovPool::lock_3m => Account::safe_multiply_ratio(self.share_3m, state.total_balance_3m, state.total_share_3m),
-            GovPool::lock_4m => Account::safe_multiply_ratio(self.share_4m, state.total_balance_4m, state.total_share_4m),
+            self.pools.into_iter().find(|it| it.days == days).unwrap_or(BalancePool {
+                days,
+                share: Uint128::zero(),
+                unlock: 0u64,
+            })
         }
     }
 
     pub fn calc_total_balance(&self, state: &State) -> Uint128 {
-        self.calc_balance(state, GovPool::no_lock) +
-            self.calc_balance(state, GovPool::lock_1m) +
-            self.calc_balance(state, GovPool::lock_2m) +
-            self.calc_balance(state, GovPool::lock_3m) +
-            self.calc_balance(state, GovPool::lock_4m)
-    }
-
-    pub fn add_share(&mut self, share: Uint128, time: u64, pool: GovPool, state: &mut State) -> StdResult<()> {
-        match pool {
-            GovPool::no_lock => {
-                self.share_0m += share;
-                state.total_share_0m += share;
-            },
-            GovPool::lock_1m => {
-                let new_share = self.share_1m + share;
-                let remaining = if self.unlock_1m < time { Uint128::zero() } else { Uint128::from(self.unlock_1m - time).multiply_ratio(self.share_1m, new_share) };
-                let additional = Uint128::from(SEC_IN_MONTH).multiply_ratio(share, new_share);
-                self.unlock_1m = time + (remaining + additional).u128().try_into()?;
-                self.share_1m = new_share;
-                state.total_share_1m += share;
-            },
-            GovPool::lock_2m => {
-                let new_share = self.share_2m + share;
-                let remaining = if self.unlock_2m < time { Uint128::zero() } else { Uint128::from(self.unlock_2m - time).multiply_ratio(self.share_2m, new_share) };
-                let additional = Uint128::from(SEC_IN_MONTH * 2u64).multiply_ratio(share, new_share);
-                self.unlock_2m = time + (remaining + additional).u128().try_into()?;
-                self.share_2m = new_share;
-                state.total_share_2m += share;
-            },
-            GovPool::lock_3m => {
-                let new_share = self.share_3m + share;
-                let remaining = if self.unlock_3m < time { Uint128::zero() } else { Uint128::from(self.unlock_3m - time).multiply_ratio(self.share_3m, new_share) };
-                let additional = Uint128::from(SEC_IN_MONTH * 3u64).multiply_ratio(share, new_share);
-                self.unlock_3m = time + (remaining + additional).u128().try_into()?;
-                self.share_3m = new_share;
-                state.total_share_3m += share;
-            },
-            GovPool::lock_4m => {
-                let new_share = self.share_4m + share;
-                let remaining = if self.unlock_4m < time { Uint128::zero() } else { Uint128::from(self.unlock_4m - time).multiply_ratio(self.share_4m, new_share) };
-                let additional = Uint128::from(SEC_IN_MONTH * 4u64).multiply_ratio(share, new_share);
-                self.unlock_4m = time + (remaining + additional).u128().try_into()?;
-                self.share_4m = new_share;
-                state.total_share_4m += share;
-            },
-        };
-        Ok(())
+        state.get_pool(0u64).calc_balance(self.share) +
+            self.pools.into_iter().fold(Uint128::zero(), |acc, it| acc + state.get_pool(it.days).calc_balance(it.share))
     }
 }
 
