@@ -64,6 +64,10 @@ pub enum ExecuteMsg {
         amount_to_stake: Uint128,
         amount_to_auto: Uint128,
     },
+    update_staking_token {
+        asset_token: String,
+        staking_token: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

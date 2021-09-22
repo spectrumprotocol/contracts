@@ -17,7 +17,9 @@ use spectrum_protocol::mirror_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
 
-use crate::bond::{deposit_spec_reward, query_reward_info, spec_reward_to_pool, unbond, withdraw, update_bond};
+use crate::bond::{
+    deposit_spec_reward, query_reward_info, spec_reward_to_pool, unbond, update_bond, withdraw,
+};
 use crate::querier::query_mirror_pool_balance;
 use crate::state::{pool_info_read, pool_info_store, read_state};
 
@@ -123,7 +125,22 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::harvest_all {} => harvest_all(deps, env, info),
         ExecuteMsg::re_invest { asset_token } => re_invest(deps, env, info, asset_token),
         ExecuteMsg::stake { asset_token } => stake(deps, env, info, asset_token),
-        ExecuteMsg::update_bond { asset_token, amount_to_auto, amount_to_stake } => update_bond(deps, env, info, asset_token, amount_to_auto, amount_to_stake),
+        ExecuteMsg::update_bond {
+            asset_token,
+            amount_to_auto,
+            amount_to_stake,
+        } => update_bond(
+            deps,
+            env,
+            info,
+            asset_token,
+            amount_to_auto,
+            amount_to_stake,
+        ),
+        ExecuteMsg::update_staking_token {
+            asset_token,
+            staking_token,
+        } => update_staking_token(deps, info, asset_token, staking_token),
     }
 }
 
@@ -261,6 +278,39 @@ pub fn register_asset(
     ]))
 }
 
+pub fn update_staking_token(
+    deps: DepsMut,
+    info: MessageInfo,
+    asset_token: String,
+    staking_token: String,
+) -> StdResult<Response> {
+    let config: Config = read_config(deps.storage)?;
+    let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
+
+    if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    let mut pool_info = pool_info_read(deps.storage).load(asset_token_raw.as_slice())?;
+
+    if pool_info.total_stake_bond_amount.is_zero()
+        && pool_info.total_stake_bond_share.is_zero()
+        && pool_info.total_auto_bond_share.is_zero()
+    {
+        pool_info.staking_token = deps.api.addr_canonicalize(&staking_token)?;
+    } else {
+        return Err(StdError::generic_err("pool is not empty"));
+    }
+
+    pool_info_store(deps.storage).save(&asset_token_raw.as_slice(), &pool_info)?;
+
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "update_staking_token"),
+        attr("asset_token", asset_token),
+        attr("asset_token", staking_token),
+    ]))
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -269,7 +319,12 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::reward_info {
             asset_token,
             staker_addr,
-        } => to_binary(&query_reward_info(deps, staker_addr, asset_token, env.block.height)?),
+        } => to_binary(&query_reward_info(
+            deps,
+            staker_addr,
+            asset_token,
+            env.block.height,
+        )?),
         QueryMsg::state {} => to_binary(&query_state(deps)?),
     }
 }

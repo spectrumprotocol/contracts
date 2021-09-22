@@ -209,6 +209,58 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "update_bond"
+      ],
+      "properties": {
+        "update_bond": {
+          "type": "object",
+          "required": [
+            "amount_to_auto",
+            "amount_to_stake",
+            "asset_token"
+          ],
+          "properties": {
+            "amount_to_auto": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "amount_to_stake": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "asset_token": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "update_staking_token"
+      ],
+      "properties": {
+        "update_staking_token": {
+          "type": "object",
+          "required": [
+            "asset_token",
+            "staking_token"
+          ],
+          "properties": {
+            "asset_token": {
+              "type": "string"
+            },
+            "staking_token": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
