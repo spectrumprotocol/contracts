@@ -4,8 +4,11 @@ use serde::{Deserialize, Serialize};
 use terraswap::asset::{Asset, AssetInfo};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InstantiateMsg {
+pub struct ConfigInfo {
+    pub owner: String,
+    pub spectrum_gov: String,
     pub terraswap_factory: String,
+    pub allowlist: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -42,10 +45,21 @@ pub enum ExecuteMsg {
         slippage_tolerance: Decimal,
         compound_rate: Option<Decimal>,
     },
+    update_config {
+        owner: Option<String>,
+        allowlist: Option<Vec<String>>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct QueryMsg {}
+pub enum QueryMsg {
+    config {},
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub owner: String,
+    pub spectrum_gov: String,
+    pub terraswap_factory: String,
+    pub allowlist: Vec<String>,
+}

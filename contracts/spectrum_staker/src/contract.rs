@@ -1,15 +1,17 @@
+use std::collections::HashSet;
+use std::iter::FromIterator;
 use std::str::FromStr;
 
 use crate::state::{config_store, read_config, Config};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_binary, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
-    StdError, StdResult, Uint128, WasmMsg,
+    attr, to_binary, Binary, CanonicalAddr, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env,
+    MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 use spectrum_protocol::mirror_farm::Cw20HookMsg;
-use spectrum_protocol::staker::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use spectrum_protocol::staker::{ConfigInfo, ExecuteMsg, MigrateMsg, QueryMsg};
 use terraswap::asset::{Asset, AssetInfo};
 use terraswap::pair::ExecuteMsg as PairExecuteMsg;
 use terraswap::querier::{query_pair_info, query_token_balance};
@@ -23,15 +25,33 @@ fn validate_slippage(slippage_tolerance: Decimal) -> StdResult<()> {
     }
 }
 
+// validate contract with allowlist
+fn validate_contract(contract: CanonicalAddr, allowlist: HashSet<CanonicalAddr>) -> StdResult<()> {
+    if !allowlist.contains(&contract) {
+        return Err(StdError::generic_err("not allowed"));
+    } else {
+        Ok(())
+    }
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    msg: InstantiateMsg,
+    msg: ConfigInfo,
 ) -> StdResult<Response> {
+    let allowlist = msg
+        .allowlist
+        .into_iter()
+        .map(|w| deps.api.addr_canonicalize(&w))
+        .collect::<StdResult<Vec<CanonicalAddr>>>()?;
+
     config_store(deps.storage).save(&Config {
+        owner: deps.api.addr_canonicalize(&msg.owner)?,
+        spectrum_gov: deps.api.addr_canonicalize(&msg.spectrum_gov)?,
         terraswap_factory: deps.api.addr_canonicalize(&msg.terraswap_factory)?,
+        allowlist: HashSet::from_iter(allowlist),
     })?;
     Ok(Response::default())
 }
@@ -111,6 +131,9 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             slippage_tolerance,
             compound_rate,
         ),
+        ExecuteMsg::update_config { owner, allowlist } => {
+            update_config(deps, info, owner, allowlist)
+        }
     }
 }
 
@@ -124,11 +147,13 @@ fn bond(
     compound_rate: Option<Decimal>,
     staker_addr: Option<String>,
 ) -> StdResult<Response> {
-
     validate_slippage(slippage_tolerance)?;
 
     let config = read_config(deps.storage)?;
     let terraswap_factory = deps.api.addr_humanize(&config.terraswap_factory)?;
+    let contract_raw = deps.api.addr_canonicalize(contract.as_str())?;
+
+    validate_contract(contract_raw, config.allowlist)?;
 
     let mut native_asset_op: Option<Asset> = None;
     let mut token_info_op: Option<(String, Uint128)> = None;
@@ -229,13 +254,11 @@ fn bond(
         funds: vec![],
     }));
 
-    Ok(Response::new()
-        .add_messages(messages)
-        .add_attributes(vec![
-            attr("action", "bond"),
-            attr("asset_token", token_addr),
-            attr("tax_amount", tax_amount),
-        ]))
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
+        attr("action", "bond"),
+        attr("asset_token", token_addr),
+        attr("tax_amount", tax_amount),
+    ]))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -292,8 +315,12 @@ fn zap_to_bond(
     max_spread: Decimal,
     compound_rate: Option<Decimal>,
 ) -> StdResult<Response> {
-
     validate_slippage(max_spread)?;
+
+    let config = read_config(deps.storage)?;
+    let contract_raw = deps.api.addr_canonicalize(contract.as_str())?;
+
+    validate_contract(contract_raw, config.allowlist)?;
 
     let denom = match provide_asset.info.clone() {
         AssetInfo::NativeToken { denom } => denom,
@@ -327,7 +354,6 @@ fn zap_to_bond(
         env.contract.address.clone(),
     )?;
 
-    let config = read_config(deps.storage)?;
     let terraswap_factory = deps.api.addr_humanize(&config.terraswap_factory)?;
     let terraswap_pair = query_pair_info(&deps.querier, terraswap_factory, &asset_infos)?;
 
@@ -416,12 +442,82 @@ fn zap_to_bond_hook(
     )
 }
 
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(_deps: Deps, _env: Env, _msg: QueryMsg) -> StdResult<Binary> {
-    Err(StdError::generic_err("query not support"))
+fn update_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    owner: Option<String>,
+    allowlist: Option<Vec<String>>,
+) -> StdResult<Response> {
+    let mut config = read_config(deps.storage)?;
+
+    if deps.api.addr_canonicalize(info.sender.as_str())? != config.owner {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    if let Some(owner) = owner {
+        if config.owner == config.spectrum_gov {
+            return Err(StdError::generic_err("cannot update owner"));
+        }
+        config.owner = deps.api.addr_canonicalize(&owner)?;
+    }
+
+    if let Some(allowlist) = allowlist {
+        config.allowlist = HashSet::from_iter(
+            allowlist
+                .into_iter()
+                .map(|w| deps.api.addr_canonicalize(&w))
+                .collect::<StdResult<Vec<CanonicalAddr>>>()
+                .unwrap(),
+        );
+    }
+
+    config_store(deps.storage).save(&config)?;
+
+    Ok(Response::new().add_attributes(vec![attr("action", "update_config")]))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    match msg {
+        QueryMsg::config {} => to_binary(&query_config(deps)?),
+    }
+}
+
+pub fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
+    let config = read_config(deps.storage)?;
+    let resp = ConfigInfo {
+        owner: deps.api.addr_humanize(&config.owner)?.to_string(),
+        spectrum_gov: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
+        terraswap_factory: deps
+            .api
+            .addr_humanize(&config.terraswap_factory)?
+            .to_string(),
+        allowlist: config
+            .allowlist
+            .into_iter()
+            .map(|w| match deps.api.addr_humanize(&w) {
+                Ok(addr) => Ok(addr.to_string()),
+                Err(e) => Err(e),
+            })
+            .collect::<StdResult<Vec<String>>>()?,
+    };
+
+    Ok(resp)
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
+    let allowlist = msg
+        .allowlist
+        .into_iter()
+        .map(|w| deps.api.addr_canonicalize(&w))
+        .collect::<StdResult<Vec<CanonicalAddr>>>()?;
+
+    config_store(deps.storage).save(&Config {
+        owner: deps.api.addr_canonicalize(&msg.owner)?,
+        spectrum_gov: deps.api.addr_canonicalize(&msg.spectrum_gov)?,
+        terraswap_factory: deps.api.addr_canonicalize(&msg.terraswap_factory)?,
+        allowlist: HashSet::from_iter(allowlist),
+    })?;
     Ok(Response::default())
 }
