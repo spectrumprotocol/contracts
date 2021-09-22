@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crate::state::{config_store, read_config, Config};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -11,6 +13,15 @@ use spectrum_protocol::staker::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg
 use terraswap::asset::{Asset, AssetInfo};
 use terraswap::pair::ExecuteMsg as PairExecuteMsg;
 use terraswap::querier::{query_pair_info, query_token_balance};
+
+// max slippage tolerance is 0.5
+fn validate_slippage(slippage_tolerance: Decimal) -> StdResult<()> {
+    if slippage_tolerance > Decimal::from_str("0.5")? {
+        Err(StdError::generic_err("Slippage tolerance must be 0 to 0.5"))
+    } else {
+        Ok(())
+    }
+}
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -109,10 +120,13 @@ fn bond(
     info: MessageInfo,
     contract: String,
     assets: [Asset; 2],
-    slippage_tolerance: Option<Decimal>,
+    slippage_tolerance: Decimal,
     compound_rate: Option<Decimal>,
     staker_addr: Option<String>,
 ) -> StdResult<Response> {
+
+    validate_slippage(slippage_tolerance)?;
+
     let config = read_config(deps.storage)?;
     let terraswap_factory = deps.api.addr_humanize(&config.terraswap_factory)?;
 
@@ -194,7 +208,7 @@ fn bond(
             } else {
                 [assets[0].clone(), native_asset.clone()]
             },
-            slippage_tolerance,
+            slippage_tolerance: Some(slippage_tolerance),
             receiver: None,
         })?,
         funds: vec![Coin {
@@ -275,9 +289,12 @@ fn zap_to_bond(
     provide_asset: Asset,
     pair_asset: AssetInfo,
     belief_price: Option<Decimal>,
-    max_spread: Option<Decimal>,
+    max_spread: Decimal,
     compound_rate: Option<Decimal>,
 ) -> StdResult<Response> {
+
+    validate_slippage(max_spread)?;
+
     let denom = match provide_asset.info.clone() {
         AssetInfo::NativeToken { denom } => denom,
         _ => return Err(StdError::generic_err("unauthorized")),
@@ -320,7 +337,7 @@ fn zap_to_bond(
                 contract_addr: terraswap_pair.contract_addr,
                 msg: to_binary(&PairExecuteMsg::Swap {
                     offer_asset: bond_asset.clone(),
-                    max_spread,
+                    max_spread: Some(max_spread),
                     belief_price,
                     to: None,
                 })?,
@@ -360,7 +377,7 @@ fn zap_to_bond_hook(
     asset_token: String,
     staker_addr: String,
     prev_asset_token_amount: Uint128,
-    slippage_tolerance: Option<Decimal>,
+    slippage_tolerance: Decimal,
     compound_rate: Option<Decimal>,
 ) -> StdResult<Response> {
     // only can be called by itself

@@ -74,6 +74,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
     assert_eq!(res, Err(StdError::generic_err("unauthorized")));
 
+    // slippage too high
     let msg = ExecuteMsg::bond {
         contract: FARM.to_string(),
         assets: [
@@ -90,7 +91,30 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 amount: Uint128::from(50_000_000u128),
             },
         ],
-        slippage_tolerance: Some(Decimal::percent(1u64)),
+        slippage_tolerance: Decimal::percent(51u64),
+        compound_rate: Some(Decimal::percent(100u64)),
+        staker_addr: None,
+    };
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    assert_eq!(res, Err(StdError::generic_err("Slippage tolerance must be 0 to 0.5")));
+
+    let msg = ExecuteMsg::bond {
+        contract: FARM.to_string(),
+        assets: [
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: "uusd".to_string(),
+                },
+                amount: Uint128::from(50_000_000u128),
+            },
+            Asset {
+                info: AssetInfo::Token {
+                    contract_addr: TOKEN.to_string(),
+                },
+                amount: Uint128::from(50_000_000u128),
+            },
+        ],
+        slippage_tolerance: Decimal::percent(1u64),
         compound_rate: Some(Decimal::percent(100u64)),
         staker_addr: None,
     };
@@ -188,7 +212,7 @@ fn test_zap(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             amount: Uint128::from(1_000_000u128),
         },
         prev_asset_token_amount: Uint128::zero(),
-        slippage_tolerance: None,
+        slippage_tolerance: Decimal::percent(1u64),
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
     assert_eq!(res, Err(StdError::generic_err("unauthorized")));
@@ -206,7 +230,25 @@ fn test_zap(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             contract_addr: TOKEN.to_string(),
         },
         belief_price: Some(Decimal::from_ratio(1u128, 1u128)),
-        max_spread: Some(Decimal::percent(1u64)),
+        max_spread: Decimal::percent(51u64),
+    };
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    assert_eq!(res, Err(StdError::generic_err("Slippage tolerance must be 0 to 0.5")));
+
+    let msg = ExecuteMsg::zap_to_bond {
+        contract: FARM.to_string(),
+        compound_rate: Some(Decimal::percent(55u64)),
+        provide_asset: Asset {
+            info: AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            amount: Uint128::from(100_000_000u128),
+        },
+        pair_asset: AssetInfo::Token {
+            contract_addr: TOKEN.to_string(),
+        },
+        belief_price: Some(Decimal::from_ratio(1u128, 1u128)),
+        max_spread: Decimal::percent(1u64),
     };
 
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
@@ -248,7 +290,7 @@ fn test_zap(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                     asset_token: TOKEN.to_string(),
                     staker_addr: USER1.to_string(),
                     prev_asset_token_amount: Uint128::zero(),
-                    slippage_tolerance: Some(Decimal::percent(1u64)),
+                    slippage_tolerance: Decimal::percent(1u64),
                     compound_rate: Some(Decimal::percent(55u64)),
                 })
                 .unwrap(),

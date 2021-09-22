@@ -45,6 +45,7 @@ pub struct TokenQuerier {
 }
 
 impl TokenQuerier {
+    #![allow(dead_code)]
     pub fn new(balances: &[(&String, &[(&String, &Uint128)])], balance_percent: u128) -> Self {
         TokenQuerier {
             balances: balances_to_map(balances),
@@ -76,6 +77,7 @@ pub struct TaxQuerier {
 }
 
 impl TaxQuerier {
+    #![allow(dead_code)]
     pub fn new(rate: Decimal, caps: &[(&String, &Uint128)]) -> Self {
         TaxQuerier {
             rate,
@@ -214,6 +216,7 @@ impl WasmMockQuerier {
 }
 
 impl WasmMockQuerier {
+    #![allow(dead_code)]
     pub fn new(base: MockQuerier<TerraQueryWrapper>) -> Self {
         WasmMockQuerier {
             base,
