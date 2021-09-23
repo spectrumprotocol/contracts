@@ -252,6 +252,14 @@ pub fn register_asset(
     pool_info.weight = weight;
     pool_info.auto_compound = auto_compound;
 
+    if pool_info.total_stake_bond_share.is_zero()
+        && pool_info.total_auto_bond_share.is_zero()
+    {
+        pool_info.staking_token = deps.api.addr_canonicalize(&staking_token)?;
+    } else {
+        return Err(StdError::generic_err("pool is not empty"));
+    }
+
     pool_info_store(deps.storage).save(&asset_token_raw.as_slice(), &pool_info)?;
     state_store(deps.storage).save(&state)?;
 
@@ -269,7 +277,12 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::reward_info {
             asset_token,
             staker_addr,
-        } => to_binary(&query_reward_info(deps, staker_addr, asset_token, env.block.height)?),
+        } => to_binary(&query_reward_info(
+            deps,
+            staker_addr,
+            asset_token,
+            env.block.height,
+        )?),
         QueryMsg::state {} => to_binary(&query_state(deps)?),
     }
 }

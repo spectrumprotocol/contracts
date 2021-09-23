@@ -4,8 +4,10 @@ use serde::{Deserialize, Serialize};
 use terraswap::asset::{Asset, AssetInfo};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InstantiateMsg {
+pub struct ConfigInfo {
+    pub owner: String,
     pub terraswap_factory: String,
+    pub allowlist: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -13,7 +15,7 @@ pub enum ExecuteMsg {
     bond {
         contract: String,
         assets: [Asset; 2],
-        slippage_tolerance: Option<Decimal>,
+        slippage_tolerance: Decimal,
         compound_rate: Option<Decimal>,
         staker_addr: Option<String>,
     },
@@ -30,7 +32,7 @@ pub enum ExecuteMsg {
         provide_asset: Asset,
         pair_asset: AssetInfo,
         belief_price: Option<Decimal>,
-        max_spread: Option<Decimal>,
+        max_spread: Decimal,
         compound_rate: Option<Decimal>,
     },
     zap_to_bond_hook {
@@ -39,13 +41,23 @@ pub enum ExecuteMsg {
         asset_token: String,
         staker_addr: String,
         prev_asset_token_amount: Uint128,
-        slippage_tolerance: Option<Decimal>,
+        slippage_tolerance: Decimal,
         compound_rate: Option<Decimal>,
+    },
+    update_config {
+        insert_allowlist: Option<Vec<String>>,
+        remove_allowlist: Option<Vec<String>>,
     },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct QueryMsg {}
+pub enum QueryMsg {
+    config {},
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub owner: String,
+    pub terraswap_factory: String,
+    pub allowlist: Vec<String>,
+}
