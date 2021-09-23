@@ -3,10 +3,7 @@ use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
 use crate::stake::calc_mintable;
 use crate::state::{Config, State};
 use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{
-    from_binary, to_binary, to_vec, Binary, CanonicalAddr, CosmosMsg, Decimal, OwnedDeps, SubMsg,
-    Uint128, WasmMsg,
-};
+use cosmwasm_std::{Binary, CanonicalAddr, CosmosMsg, Decimal, OwnedDeps, StdError, SubMsg, Uint128, WasmMsg, from_binary, to_binary, to_vec};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use spectrum_protocol::common::OrderBy;
 use spectrum_protocol::gov::{
@@ -25,7 +22,7 @@ const WARCHEST: &str = "warchest";
 const DEFAULT_QUORUM: u64 = 30u64;
 const DEFAULT_THRESHOLD: u64 = 50u64;
 const DEFAULT_VOTING_PERIOD: u64 = 10000u64;
-const DEFAULT_EFFECTIVE_DELAY: u64 = 10000u64;
+const DEFAULT_EFFECTIVE_DELAY: u64 = 12342u64;
 const DEFAULT_EXPIRATION_PERIOD: u64 = 20000u64;
 const DEFAULT_PROPOSAL_DEPOSIT: u128 = 100u128;
 const DEFAULT_MINT_PER_BLOCK: u128 = 50u128;
@@ -56,7 +53,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         quorum: Decimal::percent(120u64),
         threshold: Decimal::percent(DEFAULT_THRESHOLD),
         voting_period: 0,
-        effective_delay: 0,
+        effective_delay: DEFAULT_EFFECTIVE_DELAY,
         expiration_period: 0,
         proposal_deposit: Uint128::zero(),
         mint_per_block: Uint128::from(DEFAULT_MINT_PER_BLOCK),
@@ -68,16 +65,22 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
 
     // validate quorum
     let res = instantiate(deps.as_mut(), env.clone(), info.clone(), config.clone());
-    assert!(res.is_err());
+    assert_eq!(res, Err(StdError::generic_err("quorum must be 0 to 1")));
 
     // validate threshold
     config.quorum = Decimal::percent(DEFAULT_QUORUM);
     config.threshold = Decimal::percent(120u64);
     let res = instantiate(deps.as_mut(), env.clone(), info.clone(), config.clone());
-    assert!(res.is_err());
+    assert_eq!(res, Err(StdError::generic_err("threshold must be 0 to 1")));
+
+    // validate threshold
+    config.threshold = Decimal::percent(DEFAULT_THRESHOLD);
+    config.effective_delay = 12341u64;
+    let res = instantiate(deps.as_mut(), env.clone(), info.clone(), config.clone());
+    assert_eq!(res, Err(StdError::generic_err("minimum effective_delay is 12342")));
 
     // success instantiate
-    config.threshold = Decimal::percent(DEFAULT_THRESHOLD);
+    config.effective_delay = DEFAULT_EFFECTIVE_DELAY;
     let res = instantiate(deps.as_mut(), env.clone(), info.clone(), config.clone());
     assert!(res.is_ok());
 
@@ -141,8 +144,23 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         proposal_deposit: None,
         warchest_address: None,
     };
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    assert_eq!(res, Err(StdError::generic_err("threshold must be 0 to 1")));
+
+    // alter config, validate value
+    let msg = ExecuteMsg::update_config {
+        owner: None,
+        spec_token: None,
+        quorum: None,
+        threshold: None,
+        voting_period: None,
+        effective_delay: Some(0u64),
+        expiration_period: None,
+        proposal_deposit: None,
+        warchest_address: None,
+    };
     let res = execute(deps.as_mut(), env, info, msg);
-    assert!(res.is_err());
+    assert_eq!(res, Err(StdError::generic_err("minimum effective_delay is 12342")));
 
     config
 }
