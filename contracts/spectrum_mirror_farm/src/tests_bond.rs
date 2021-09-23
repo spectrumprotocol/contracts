@@ -3,7 +3,9 @@ use crate::contract::{execute, instantiate, query};
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
 use crate::state::read_config;
 use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{from_binary, to_binary, CosmosMsg, Decimal, OwnedDeps, Uint128, WasmMsg};
+use cosmwasm_std::{
+    from_binary, to_binary, CosmosMsg, Decimal, OwnedDeps, StdError, Uint128, WasmMsg,
+};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use mirror_protocol::gov::ExecuteMsg as MirrorGovExecuteMsg;
 use schemars::JsonSchema;
@@ -28,6 +30,7 @@ const USER3: &str = "user3";
 const MIR_LP: &str = "mir_lp";
 const SPY_TOKEN: &str = "spy_token";
 const SPY_LP: &str = "spy_lp";
+const INVALID_LP: &str = "invalid_lp";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfoResponse {
@@ -136,7 +139,7 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
     let info = mock_info(TEST_CREATOR, &[]);
     let msg = ExecuteMsg::register_asset {
         asset_token: MIR_TOKEN.to_string(),
-        staking_token: MIR_LP.to_string(),
+        staking_token: INVALID_LP.to_string(),
         weight: 1u32,
         auto_compound: true,
     };
@@ -145,6 +148,40 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
 
     // success
     let info = mock_info(SPEC_GOV, &[]);
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    assert!(res.is_ok());
+
+    // query pool info
+    let msg = QueryMsg::pools {};
+    let res: PoolsResponse = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+    assert_eq!(
+        res,
+        PoolsResponse {
+            pools: vec![PoolItem {
+                asset_token: MIR_TOKEN.to_string(),
+                staking_token: INVALID_LP.to_string(),
+                weight: 1u32,
+                auto_compound: true,
+                farm_share: Uint128::zero(),
+                state_spec_share_index: Decimal::zero(),
+                stake_spec_share_index: Decimal::zero(),
+                auto_spec_share_index: Decimal::zero(),
+                farm_share_index: Decimal::zero(),
+                total_stake_bond_amount: Uint128::zero(),
+                total_stake_bond_share: Uint128::zero(),
+                total_auto_bond_share: Uint128::zero(),
+                reinvest_allowance: Uint128::zero(),
+            }]
+        }
+    );
+
+    // update staking token
+    let msg = ExecuteMsg::register_asset {
+        asset_token: MIR_TOKEN.to_string(),
+        staking_token: MIR_LP.to_string(),
+        weight: 1u32,
+        auto_compound: true,
+    };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
 
@@ -254,6 +291,17 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             accum_spec_share: Uint128::from(900u128),
         },]
     );
+
+    // update staking token
+    let msg = ExecuteMsg::register_asset {
+        asset_token: MIR_TOKEN.to_string(),
+        staking_token: INVALID_LP.to_string(),
+        weight: 1u32,
+        auto_compound: true,
+    };
+    let info = mock_info(SPEC_GOV, &[]);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
+    assert_eq!(res, Err(StdError::generic_err("pool is not empty")));
 
     // bond SPY
     let info = mock_info(SPY_LP, &[]);
