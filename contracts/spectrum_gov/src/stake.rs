@@ -6,7 +6,7 @@ use cosmwasm_std::{
 use cw20::Cw20ExecuteMsg;
 use spectrum_protocol::gov::{BalanceResponse, PollStatus, VaultInfo, VaultsResponse, BalancePoolInfo};
 use terraswap::querier::query_token_balance;
-use std::convert::TryInto;
+use std::borrow::Borrow;
 
 pub fn reconcile_balance(state: &mut State, balance: Uint128) -> StdResult<()> {
     let diff = if balance >= state.prev_balance {
@@ -18,10 +18,14 @@ pub fn reconcile_balance(state: &mut State, balance: Uint128) -> StdResult<()> {
         return Ok(());
     }
 
-    let pools: Vec<StatePool> = vec![
-        state.pools.into_iter().filter(|it| it.active).rev().collect(),
-        vec![ state.get_pool(0u64) ],
-    ].concat();
+    let mut pools: Vec<&StatePool> = state.pools.iter().filter(|it| it.active).rev().collect();
+    let pool_0 = StatePool {
+        days: 0u64,
+        total_balance: state.total_balance,
+        total_share: state.total_share,
+        active: true,
+    };
+    pools.push(&pool_0);
 
     let len: u128 = (pools.len() as u64).into();
     let count = 1u128 + len;
@@ -95,12 +99,11 @@ pub fn mint(deps: DepsMut, env: Env) -> StdResult<Response> {
 
     let mut mint_share = Uint128::zero();
     let mut to_warchest = Uint128::zero();
-    let state_pool_0 = state.get_pool(0u64);
     if config.warchest_address != CanonicalAddr::from(vec![])
         && config.warchest_ratio != Decimal::zero()
     {
         to_warchest = mintable * config.warchest_ratio;
-        let share = state_pool_0.calc_share(to_warchest);
+        let share = state.calc_share(0u64, to_warchest);
         let key = config.warchest_address.as_slice();
         let mut account = account_store(deps.storage)
             .may_load(key)?
@@ -112,7 +115,7 @@ pub fn mint(deps: DepsMut, env: Env) -> StdResult<Response> {
 
     // mint to vault
     let vaults = read_vaults(deps.storage)?;
-    let share = state_pool_0.calc_share(mintable.checked_sub(to_warchest)?);
+    let share = state.calc_share(0u64, mintable.checked_sub(to_warchest)?);
     for (addr, vault) in vaults.into_iter() {
         let key = addr.as_slice();
         let mut account = account_store(deps.storage)
@@ -139,8 +142,6 @@ pub fn mint(deps: DepsMut, env: Env) -> StdResult<Response> {
         })])
         .add_attributes(vec![attr("action", "mint"), attr("amount", mintable)]))
 }
-
-const SEC_IN_DAY: u64 = 24u64 * 60u64 * 60u64;
 
 pub fn stake_tokens(
     deps: DepsMut,
@@ -171,29 +172,9 @@ pub fn stake_tokens(
     let total_balance = current_balance.checked_sub(state.poll_deposit + amount)?;
     reconcile_balance(&mut state, total_balance)?;
 
-    let mut state_pool = state.get_pool(days);
-    let share = state_pool.calc_share(amount);
-    if days == 0u64 {
-        account.share += share;
-        state.total_share += share;
-        state.total_balance += amount;
-    } else {
-        let mut acc_pool = account.get_pool(days);
-        let time = env.block.time.seconds();
-        let new_share = acc_pool.share + share;
-        let remaining = if acc_pool.unlock < time {
-            Uint128::zero()
-        } else {
-            Uint128::from(acc_pool.unlock - time).multiply_ratio(acc_pool.share, new_share)
-        };
-        let additional = Uint128::from(SEC_IN_DAY * acc_pool.days).multiply_ratio(share, new_share);
-        let add_time: u64 = (remaining + additional).u128().try_into().unwrap();
-        acc_pool.unlock = time + add_time;
-        acc_pool.share = new_share;
-
-        state_pool.total_share += share;
-        state_pool.total_balance += amount;
-    }
+    let share = state.calc_share(days, amount);
+    account.add_share(days, env.block.time.seconds(), share, 0u64);
+    state.add_share(days, share, amount);
 
     state_store(deps.storage).save(&state)?;
     account_store(deps.storage).save(key, &account)?;
@@ -207,6 +188,57 @@ pub fn stake_tokens(
     ]))
 }
 
+pub fn update_stake(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    amount: Uint128,
+    from_days: u64,
+    to_days: u64
+) -> StdResult<Response> {
+    if from_days >= to_days {
+        return Err(StdError::generic_err("cannot move to lower lock pool"));
+    }
+
+    let sender_address_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let key = sender_address_raw.as_slice();
+
+    let mut account = account_store(deps.storage).load(key)?;
+    let config = read_config(deps.storage)?;
+    let mut state = state_store(deps.storage).load()?;
+
+    // Load total share & total balance except proposal deposit amount
+    let total_balance = query_token_balance(
+        &deps.querier,
+        deps.api.addr_humanize(&config.spec_token)?,
+        deps.api.addr_humanize(&state.contract_addr)?,
+    )?.checked_sub(state.poll_deposit)?;
+    reconcile_balance(&mut state, total_balance)?;
+
+    let mut from_share = state.calc_share(from_days, amount);
+    if state.calc_balance(from_days, from_share) < amount {
+        from_share += Uint128::from(1u128);
+    }
+
+    account.deduct_share(from_days, from_share, None)?;
+    state.deduct_share(from_days, from_share, amount);
+
+    let to_share = state.calc_share(to_days, amount);
+    account.add_share(to_days, env.block.time.seconds(), to_share, from_days);
+    state.add_share(to_days, to_share, amount);
+
+    account_store(deps.storage).save(key, &account)?;
+    state_store(deps.storage).save(&state)?;
+
+    Ok(Response::new()
+        .add_attributes(vec![
+            attr("action", "update_stake"),
+            attr("amount", amount),
+            attr("from_days", from_days.to_string()),
+            attr("to_days", to_days.to_string()),
+        ]))
+}
+
 // Withdraw amount if not staked. By default all funds will be withdrawn.
 pub fn withdraw(
     mut deps: DepsMut,
@@ -218,62 +250,46 @@ pub fn withdraw(
     let sender_address_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
     let key = sender_address_raw.as_slice();
 
-    if let Some(mut account) = account_store(deps.storage).may_load(key)? {
-        let config = read_config(deps.storage)?;
-        let mut state = state_store(deps.storage).load()?;
+    let mut account = account_store(deps.storage).load(key)?;
+    let config = read_config(deps.storage)?;
+    let mut state = state_store(deps.storage).load()?;
 
-        // Load total share & total balance except proposal deposit amount
-        let total_balance = query_token_balance(
-            &deps.querier,
-            deps.api.addr_humanize(&config.spec_token)?,
-            deps.api.addr_humanize(&state.contract_addr)?,
-        )?
-        .checked_sub(state.poll_deposit)?;
-        reconcile_balance(&mut state, total_balance)?;
+    // Load total share & total balance except proposal deposit amount
+    let total_balance = query_token_balance(
+        &deps.querier,
+        deps.api.addr_humanize(&config.spec_token)?,
+        deps.api.addr_humanize(&state.contract_addr)?,
+    )?
+    .checked_sub(state.poll_deposit)?;
+    reconcile_balance(&mut state, total_balance)?;
 
-        let locked_balance = compute_locked_balance(deps.branch(), &mut account, &sender_address_raw)?;
-        let user_balance = account.calc_total_balance(&state);
-        let amount = amount.unwrap_or_else(|| user_balance.checked_sub(locked_balance).unwrap());
-        if locked_balance + amount > user_balance {
-            return Err(StdError::generic_err(
-                "User is trying to withdraw too many tokens.",
-            ));
-        }
-
-        let mut acc_pool = account.get_pool(days);
-        if acc_pool.unlock > env.block.time.seconds() {
-            return Err(StdError::generic_err("Pool is locked"));
-        }
-
-        let mut state_pool = state.get_pool(days);
-        let mut withdraw_share = state_pool.calc_share(amount);
-        if state_pool.calc_balance(withdraw_share) < amount {
-            withdraw_share += Uint128::from(1u128);
-        }
-
-        if days == 0u64 {
-            account.share -= withdraw_share;
-            state.total_share -= withdraw_share;
-            state.total_balance -= amount;
-        } else {
-            acc_pool.share -= withdraw_share;
-            state_pool.total_share -= withdraw_share;
-            state_pool.total_balance -= amount;
-        }
-
-        account_store(deps.storage).save(key, &account)?;
-        state_store(deps.storage).save(&state)?;
-
-        send_tokens(
-            deps,
-            &config.spec_token,
-            &sender_address_raw,
-            amount,
-            "withdraw",
-        )
-    } else {
-        Err(StdError::generic_err("Nothing staked"))
+    let locked_balance = compute_locked_balance(deps.branch(), &mut account, &sender_address_raw)?;
+    let user_balance = account.calc_total_balance(&state);
+    let amount = amount.unwrap_or_else(|| user_balance.checked_sub(locked_balance).unwrap());
+    if locked_balance + amount > user_balance {
+        return Err(StdError::generic_err(
+            "User is trying to withdraw too many tokens.",
+        ));
     }
+
+    let mut withdraw_share = state.calc_share(days, amount);
+    if state.calc_balance(days, withdraw_share) < amount {
+        withdraw_share += Uint128::from(1u128);
+    }
+
+    account.deduct_share(days, withdraw_share, Some(env.block.time.seconds()))?;
+    state.deduct_share(days, withdraw_share, amount);
+
+    account_store(deps.storage).save(key, &account)?;
+    state_store(deps.storage).save(&state)?;
+
+    send_tokens(
+        deps,
+        &config.spec_token,
+        &sender_address_raw,
+        amount,
+        "withdraw",
+    )
 }
 
 fn send_tokens(
@@ -389,20 +405,19 @@ pub fn query_balances(deps: Deps, address: String, height: u64) -> StdResult<Bal
     .checked_sub(state.poll_deposit)?;
     reconcile_balance(&mut state, total_balance)?;
 
-    let state_pool_0 = state.get_pool(0u64);
-    let mut balance = state_pool_0.calc_balance(account.share);
+    let mut balance = state.calc_balance(0u64, account.share);
     let mut share = account.share;
 
     if addr_raw == config.warchest_address {
         let mintable = calc_mintable(&state, &config, height);
         let to_warchest = mintable * config.warchest_ratio;
-        share += state_pool_0.calc_share(to_warchest);
+        share += state.calc_share(0u64, to_warchest);
         balance += to_warchest;
     } else if let Some(vault) = read_vault(deps.storage, addr_raw.as_slice())? {
         let mintable = calc_mintable(&state, &config, height);
         let to_warchest = mintable * config.warchest_ratio;
         let mintable = mintable.checked_sub(to_warchest)?;
-        let vaults_share = state_pool_0.calc_share(mintable);
+        let vaults_share = state.calc_share(0u64, mintable);
         share += vaults_share.multiply_ratio(vault.weight, state.total_weight);
         balance += mintable.multiply_ratio(vault.weight, state.total_weight);
     }
@@ -422,7 +437,7 @@ pub fn query_balances(deps: Deps, address: String, height: u64) -> StdResult<Bal
                 days: it.days,
                 share: it.share,
                 unlock: it.unlock,
-                balance: state.get_pool(it.days).calc_balance(it.share),
+                balance: state.calc_balance(it.days, it.share),
             }).collect()
         ].concat()
     })

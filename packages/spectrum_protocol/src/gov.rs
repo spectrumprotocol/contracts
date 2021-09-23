@@ -53,6 +53,11 @@ pub enum ExecuteMsg {
         proposal_deposit: Option<Uint128>,
         warchest_address: Option<String>,
     },
+    update_stake {
+        amount: Uint128,
+        from_days: u64,
+        to_days: u64,
+    },
     upsert_vault {
         vault_address: String,
         weight: u32,

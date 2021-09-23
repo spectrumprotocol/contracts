@@ -9,11 +9,7 @@ use cosmwasm_std::{
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use spectrum_protocol::common::OrderBy;
-use spectrum_protocol::gov::{
-    BalanceResponse, ConfigInfo, Cw20HookMsg, ExecuteMsg, PollExecuteMsg, PollInfo, PollStatus,
-    PollsResponse, QueryMsg, StateInfo, VaultInfo, VaultsResponse, VoteOption, VoterInfo,
-    VotersResponse,
-};
+use spectrum_protocol::gov::{BalanceResponse, ConfigInfo, Cw20HookMsg, ExecuteMsg, PollExecuteMsg, PollInfo, PollStatus, PollsResponse, QueryMsg, StateInfo, VaultInfo, VaultsResponse, VoteOption, VoterInfo, VotersResponse, StatePoolInfo};
 
 const VOTING_TOKEN: &str = "voting_token";
 const TEST_CREATOR: &str = "creator";
@@ -94,10 +90,16 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         StateInfo {
             poll_count: 0,
             poll_deposit: Uint128::zero(),
-            total_share: Uint128::zero(),
             last_mint: env.block.height,
             total_weight: 0,
             total_staked: Uint128::zero(),
+            prev_balance: Uint128::zero(),
+            pools: vec![StatePoolInfo {
+                days: 0u64,
+                total_balance: Uint128::zero(),
+                total_share: Uint128::zero(),
+                active: true,
+            }]
         }
     );
 
@@ -163,7 +165,7 @@ fn test_stake(
     let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: stake_amount,
-        msg: to_binary(&Cw20HookMsg::stake_tokens { staker_addr: None }).unwrap(),
+        msg: to_binary(&Cw20HookMsg::stake_tokens { staker_addr: None, days: None }).unwrap(),
     });
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
@@ -175,7 +177,7 @@ fn test_stake(
     // read state
     let msg = QueryMsg::state { };
     let res: StateInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
-    assert_eq!(res.total_share, total_amount);
+    assert_eq!(res.pools[0].total_share, total_amount);
 
     // query account
     let msg = QueryMsg::balance {
@@ -183,8 +185,8 @@ fn test_stake(
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
-    assert_eq!(res.balance, stake_amount);
-    assert_eq!(res.share, stake_amount);
+    assert_eq!(res.pools[0].balance, stake_amount);
+    assert_eq!(res.pools[0].share, stake_amount);
 
     // query account not found
     let msg = QueryMsg::balance {
@@ -192,8 +194,8 @@ fn test_stake(
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
-    assert_eq!(res.balance, Uint128::zero());
-    assert_eq!(res.share, Uint128::zero());
+    assert_eq!(res.pools[0].balance, Uint128::zero());
+    assert_eq!(res.pools[0].share, Uint128::zero());
 
     // stake voter2, error (0)
     let stake_amount_2 = Uint128::from(75u128);
@@ -205,7 +207,7 @@ fn test_stake(
     let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
         sender: TEST_VOTER_2.to_string(),
         amount: Uint128::zero(),
-        msg: to_binary(&Cw20HookMsg::stake_tokens { staker_addr: None }).unwrap(),
+        msg: to_binary(&Cw20HookMsg::stake_tokens { staker_addr: None, days: None }).unwrap(),
     });
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_err());
@@ -214,6 +216,7 @@ fn test_stake(
     let info = mock_info(TEST_VOTER_2, &[]);
     let msg = ExecuteMsg::withdraw {
         amount: Some(stake_amount_2),
+        days: None
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_err());
@@ -223,7 +226,7 @@ fn test_stake(
     let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
         sender: TEST_VOTER_2.to_string(),
         amount: stake_amount_2,
-        msg: to_binary(&Cw20HookMsg::stake_tokens { staker_addr: None }).unwrap(),
+        msg: to_binary(&Cw20HookMsg::stake_tokens { staker_addr: None, days: None }).unwrap(),
     });
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
@@ -231,7 +234,7 @@ fn test_stake(
     // read state
     let msg = QueryMsg::state {  };
     let res: StateInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
-    assert_eq!(res.total_share, total_amount);
+    assert_eq!(res.pools[0].total_share, total_amount);
 
     // query account
     let msg = QueryMsg::balance {
@@ -239,16 +242,16 @@ fn test_stake(
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
-    assert_eq!(res.balance, stake_amount);
-    assert_eq!(res.share, stake_amount);
+    assert_eq!(res.pools[0].balance, stake_amount);
+    assert_eq!(res.pools[0].share, stake_amount);
 
     // query account 2
     let msg = QueryMsg::balance {
         address: TEST_VOTER_2.to_string(),
     };
     let res: BalanceResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
-    assert_eq!(res.balance, stake_amount_2);
-    assert_eq!(res.share, stake_amount_2);
+    assert_eq!(res.pools[0].balance, stake_amount_2);
+    assert_eq!(res.pools[0].share, stake_amount_2);
 
     (stake_amount, stake_amount_2, total_amount)
 }
@@ -409,6 +412,7 @@ fn test_poll_executed(
     // withdraw all failed
     let msg = ExecuteMsg::withdraw {
         amount: Some(stake_amount_2),
+        days: None
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_err());
@@ -417,6 +421,7 @@ fn test_poll_executed(
     let withdraw_amount = stake_amount_2.checked_sub(stake_amount).unwrap();
     let msg = ExecuteMsg::withdraw {
         amount: Some(withdraw_amount),
+        days: None
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
@@ -432,8 +437,8 @@ fn test_poll_executed(
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
-    assert_eq!(res.balance, stake_amount);
-    assert_eq!(res.share, stake_amount);
+    assert_eq!(res.pools[0].balance, stake_amount);
+    assert_eq!(res.pools[0].share, stake_amount);
 
     // query voters
     let msg = QueryMsg::voters {
@@ -502,7 +507,7 @@ fn test_poll_executed(
     )]);
 
     // withdraw all success after end poll
-    let msg = ExecuteMsg::withdraw { amount: None };
+    let msg = ExecuteMsg::withdraw { amount: None, days: None };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
     let total_amount = total_amount.checked_sub(stake_amount).unwrap();
@@ -517,8 +522,8 @@ fn test_poll_executed(
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
-    assert_eq!(res.balance, Uint128::zero());
-    assert_eq!(res.share, Uint128::zero());
+    assert_eq!(res.pools[0].balance, Uint128::zero());
+    assert_eq!(res.pools[0].share, Uint128::zero());
 
     // stake voter2
     let total_amount = total_amount + stake_amount_2;
@@ -530,7 +535,7 @@ fn test_poll_executed(
     let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
         sender: TEST_VOTER_2.to_string(),
         amount: stake_amount_2,
-        msg: to_binary(&Cw20HookMsg::stake_tokens { staker_addr: None }).unwrap(),
+        msg: to_binary(&Cw20HookMsg::stake_tokens { staker_addr: None, days: None }).unwrap(),
     });
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
@@ -541,8 +546,8 @@ fn test_poll_executed(
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
-    assert_eq!(res.balance, stake_amount_2);
-    assert_eq!(res.share, stake_amount_2);
+    assert_eq!(res.pools[0].balance, stake_amount_2);
+    assert_eq!(res.pools[0].share, stake_amount_2);
 
     // end poll failed (not in progress)
     let msg = ExecuteMsg::poll_end { poll_id: 1 };
@@ -663,7 +668,7 @@ fn test_poll_low_quorum(
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
-    assert_eq!(res.balance, stake_amount);
+    assert_eq!(res.pools[0].balance, stake_amount);
 
     // query account 2
     let stake_amount_2 = stake_amount_2.multiply_ratio(total_amount, total_shares);
@@ -671,7 +676,7 @@ fn test_poll_low_quorum(
         address: TEST_VOTER_2.to_string(),
     };
     let res: BalanceResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
-    assert_eq!(res.balance, stake_amount_2);
+    assert_eq!(res.pools[0].balance, stake_amount_2);
 
     (stake_amount, stake_amount_2, total_amount)
 }
@@ -752,7 +757,7 @@ fn test_poll_low_threshold(
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
-    assert_eq!(res.balance, stake_amount);
+    assert_eq!(res.pools[0].balance, stake_amount);
 
     // query account 2
     let stake_amount_2 = stake_amount_2.multiply_ratio(total_amount, total_shares);
@@ -760,7 +765,7 @@ fn test_poll_low_threshold(
         address: TEST_VOTER_2.to_string(),
     };
     let res: BalanceResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
-    assert_eq!(res.balance, stake_amount_2);
+    assert_eq!(res.pools[0].balance, stake_amount_2);
 
     (stake_amount, stake_amount_2, total_amount)
 }
@@ -984,35 +989,35 @@ fn test_reward(
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
-    assert_eq!(res.balance, stake_amount);
+    assert_eq!(res.pools[0].balance, stake_amount);
 
     let msg = QueryMsg::balance {
         address: TEST_VOTER_2.to_string(),
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
-    assert_eq!(res.balance, stake_amount_2);
+    assert_eq!(res.pools[0].balance, stake_amount_2);
 
     let msg = QueryMsg::balance {
         address: TEST_VAULT.to_string(),
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
-    assert_eq!(res.balance, vault_amount);
+    assert_eq!(res.pools[0].balance, vault_amount);
 
     let msg = QueryMsg::balance {
         address: TEST_VAULT_2.to_string(),
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
-    assert_eq!(res.balance, vault_amount_2);
+    assert_eq!(res.pools[0].balance, vault_amount_2);
 
     let msg = QueryMsg::balance {
         address: WARCHEST.to_string(),
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
-    assert_eq!(res.balance, warchest_amount);
+    assert_eq!(res.pools[0].balance, warchest_amount);
 
     let new_amount = total_amount + reward;
     deps.querier.with_token_balances(&[(
@@ -1026,7 +1031,7 @@ fn test_reward(
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
-    assert_eq!(res.balance, vault_amount);
+    assert_eq!(res.pools[0].balance, vault_amount);
 
     let total_amount = new_amount;
     deps.querier.with_token_balances(&[(
@@ -1045,7 +1050,7 @@ fn test_reward(
     };
     let res: BalanceResponse =
         from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
-    assert_eq!(res.balance, vault_amount);
+    assert_eq!(res.pools[0].balance, vault_amount);
 
     // mint again
     let msg = ExecuteMsg::mint {};
@@ -1060,7 +1065,7 @@ fn test_reward(
 
     // withdraw all
     let info = mock_info(TEST_VAULT, &[]);
-    let msg = ExecuteMsg::withdraw { amount: None };
+    let msg = ExecuteMsg::withdraw { amount: None, days: None };
     let res = execute(deps.as_mut(), env, info, msg);
     assert!(res.is_ok());
     assert_eq!(
@@ -1084,9 +1089,12 @@ fn test_mintable() {
         contract_addr: CanonicalAddr::from(vec![]),
         poll_count: 0,
         total_share: Uint128::zero(),
+        prev_balance: Default::default(),
+        total_balance: Default::default(),
         poll_deposit: Uint128::zero(),
         last_mint: 0,
         total_weight: 0,
+        pools: vec![]
     };
     let config = Config {
         owner: CanonicalAddr::from(vec![]),

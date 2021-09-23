@@ -10,7 +10,7 @@ use crate::poll::{
     poll_end, poll_execute, poll_expire, poll_start, poll_vote, query_poll, query_polls,
     query_voters,
 };
-use crate::stake::{calc_mintable, mint, query_balances, query_vaults, stake_tokens, upsert_vault, withdraw, validate_minted, reconcile_balance};
+use crate::stake::{calc_mintable, mint, query_balances, query_vaults, stake_tokens, upsert_vault, withdraw, validate_minted, reconcile_balance, update_stake};
 use crate::state::{config_store, read_config, read_state, state_store, Config, State};
 use cw20::Cw20ReceiveMsg;
 use terraswap::querier::query_token_balance;
@@ -123,6 +123,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             proposal_deposit,
             warchest_address,
         ),
+        ExecuteMsg::update_stake { amount, from_days, to_days } => update_stake(deps, env, info, amount, from_days, to_days),
         ExecuteMsg::upsert_vault {
             vault_address,
             weight,
