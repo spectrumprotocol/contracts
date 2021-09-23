@@ -6,7 +6,6 @@ use terraswap::asset::{Asset, AssetInfo};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigInfo {
     pub owner: String,
-    pub spectrum_gov: String,
     pub terraswap_factory: String,
     pub allowlist: Vec<String>,
 }
@@ -46,8 +45,8 @@ pub enum ExecuteMsg {
         compound_rate: Option<Decimal>,
     },
     update_config {
-        owner: Option<String>,
-        allowlist: Option<Vec<String>>,
+        insert_allowlist: Option<Vec<String>>,
+        remove_allowlist: Option<Vec<String>>,
     },
 }
 
@@ -59,7 +58,6 @@ pub enum QueryMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {
     pub owner: String,
-    pub spectrum_gov: String,
     pub terraswap_factory: String,
     pub allowlist: Vec<String>,
 }

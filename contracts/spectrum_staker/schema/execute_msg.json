@@ -208,7 +208,7 @@
         "update_config": {
           "type": "object",
           "properties": {
-            "allowlist": {
+            "insert_allowlist": {
               "type": [
                 "array",
                 "null"
@@ -217,11 +217,14 @@
                 "type": "string"
               }
             },
-            "owner": {
+            "remove_allowlist": {
               "type": [
-                "string",
+                "array",
                 "null"
-              ]
+              ],
+              "items": {
+                "type": "string"
+              }
             }
           }
         }

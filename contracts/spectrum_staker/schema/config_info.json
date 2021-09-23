@@ -5,7 +5,6 @@
   "required": [
     "allowlist",
     "owner",
-    "spectrum_gov",
     "terraswap_factory"
   ],
   "properties": {
@@ -16,9 +15,6 @@
       }
     },
     "owner": {
-      "type": "string"
-    },
-    "spectrum_gov": {
       "type": "string"
     },
     "terraswap_factory": {

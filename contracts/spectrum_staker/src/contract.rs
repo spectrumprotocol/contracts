@@ -49,7 +49,6 @@ pub fn instantiate(
 
     config_store(deps.storage).save(&Config {
         owner: deps.api.addr_canonicalize(&msg.owner)?,
-        spectrum_gov: deps.api.addr_canonicalize(&msg.spectrum_gov)?,
         terraswap_factory: deps.api.addr_canonicalize(&msg.terraswap_factory)?,
         allowlist: HashSet::from_iter(allowlist),
     })?;
@@ -131,9 +130,10 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             slippage_tolerance,
             compound_rate,
         ),
-        ExecuteMsg::update_config { owner, allowlist } => {
-            update_config(deps, info, owner, allowlist)
-        }
+        ExecuteMsg::update_config {
+            insert_allowlist,
+            remove_allowlist,
+        } => update_config(deps, info,  insert_allowlist, remove_allowlist),
     }
 }
 
@@ -445,8 +445,8 @@ fn zap_to_bond_hook(
 fn update_config(
     deps: DepsMut,
     info: MessageInfo,
-    owner: Option<String>,
-    allowlist: Option<Vec<String>>,
+    insert_allowlist: Option<Vec<String>>,
+    remove_allowlist: Option<Vec<String>>,
 ) -> StdResult<Response> {
     let mut config = read_config(deps.storage)?;
 
@@ -454,21 +454,16 @@ fn update_config(
         return Err(StdError::generic_err("unauthorized"));
     }
 
-    if let Some(owner) = owner {
-        if config.owner == config.spectrum_gov {
-            return Err(StdError::generic_err("cannot update owner"));
+    if let Some(add_allowlist) = insert_allowlist {
+        for contract in add_allowlist.iter() {
+            config.allowlist.insert(deps.api.addr_canonicalize(contract)?);
         }
-        config.owner = deps.api.addr_canonicalize(&owner)?;
     }
 
-    if let Some(allowlist) = allowlist {
-        config.allowlist = HashSet::from_iter(
-            allowlist
-                .into_iter()
-                .map(|w| deps.api.addr_canonicalize(&w))
-                .collect::<StdResult<Vec<CanonicalAddr>>>()
-                .unwrap(),
-        );
+    if let Some(remove_allowlist) = remove_allowlist {
+        for contract in remove_allowlist.iter() {
+            config.allowlist.remove(&deps.api.addr_canonicalize(contract)?);
+        }
     }
 
     config_store(deps.storage).save(&config)?;
@@ -487,7 +482,6 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
     let config = read_config(deps.storage)?;
     let resp = ConfigInfo {
         owner: deps.api.addr_humanize(&config.owner)?.to_string(),
-        spectrum_gov: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
         terraswap_factory: deps
             .api
             .addr_humanize(&config.terraswap_factory)?
@@ -515,7 +509,6 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
 
     config_store(deps.storage).save(&Config {
         owner: deps.api.addr_canonicalize(&msg.owner)?,
-        spectrum_gov: deps.api.addr_canonicalize(&msg.spectrum_gov)?,
         terraswap_factory: deps.api.addr_canonicalize(&msg.terraswap_factory)?,
         allowlist: HashSet::from_iter(allowlist),
     })?;

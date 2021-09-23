@@ -19,8 +19,8 @@ const LP: &str = "lp_token";
 const FARM1: &str = "farm1";
 const FARM2: &str = "farm2";
 const FARM3: &str = "farm3";
+const FARM4: &str = "farm4";
 const TERRA_SWAP: &str = "terra_swap";
-const GOV: &str = "gov";
 
 #[test]
 fn test() {
@@ -54,8 +54,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let mut config = ConfigInfo {
         owner: TEST_CREATOR.to_string(),
         terraswap_factory: TERRA_SWAP.to_string(),
-        spectrum_gov: GOV.to_string(),
-        allowlist: vec![FARM1.to_string()],
+        allowlist: vec![FARM3.to_string()],
     };
 
     // success instantiate
@@ -68,10 +67,10 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(res, config);
 
     // alter config, validate owner
-    let info = mock_info(GOV, &[]);
+    let info = mock_info(USER1, &[]);
     let msg = ExecuteMsg::update_config {
-        owner: Some(GOV.to_string()),
-        allowlist: None,
+        insert_allowlist: Some(vec![FARM1.to_string()]),
+        remove_allowlist: Some(vec![FARM3.to_string()]),
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert_eq!(res, Err(StdError::generic_err("unauthorized")));
@@ -83,23 +82,21 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
 
     let msg = QueryMsg::config {};
     let res: ConfigInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
-    config.owner = GOV.to_string();
-    assert_eq!(res, config);
-
-    // alter config, owner is gov
-    let info = mock_info(GOV, &[]);
-    let msg = ExecuteMsg::update_config {
-        owner: Some(TEST_CREATOR.to_string()),
-        allowlist: None,
-    };
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
-    assert_eq!(res, Err(StdError::generic_err("cannot update owner")));
+    config.owner = TEST_CREATOR.to_string();
+    assert_eq!(
+        res,
+        ConfigInfo {
+            owner: TEST_CREATOR.to_string(),
+            terraswap_factory: TERRA_SWAP.to_string(),
+            allowlist: vec![FARM1.to_string()],
+        }
+    );
 
     // alter config, allowlist
-    let info = mock_info(GOV, &[]);
+    let info = mock_info(TEST_CREATOR, &[]);
     let msg = ExecuteMsg::update_config {
-        owner: None,
-        allowlist: Some(vec![FARM1.to_string(), FARM2.to_string()]),
+        insert_allowlist: Some(vec![FARM1.to_string(), FARM2.to_string()]),
+        remove_allowlist: Some(vec![FARM4.to_string()]),
     };
 
     // success
