@@ -12,7 +12,8 @@
           "type": "object",
           "required": [
             "assets",
-            "contract"
+            "contract",
+            "slippage_tolerance"
           ],
           "properties": {
             "assets": {
@@ -37,14 +38,7 @@
               "type": "string"
             },
             "slippage_tolerance": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/Decimal"
-                },
-                {
-                  "type": "null"
-                }
-              ]
+              "$ref": "#/definitions/Decimal"
             },
             "staker_addr": {
               "type": [
@@ -113,6 +107,7 @@
           "type": "object",
           "required": [
             "contract",
+            "max_spread",
             "pair_asset",
             "provide_asset"
           ],
@@ -141,14 +136,7 @@
               "type": "string"
             },
             "max_spread": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/Decimal"
-                },
-                {
-                  "type": "null"
-                }
-              ]
+              "$ref": "#/definitions/Decimal"
             },
             "pair_asset": {
               "$ref": "#/definitions/AssetInfo"
@@ -174,6 +162,7 @@
             "bond_asset",
             "contract",
             "prev_asset_token_amount",
+            "slippage_tolerance",
             "staker_addr"
           ],
           "properties": {
@@ -200,17 +189,42 @@
               "$ref": "#/definitions/Uint128"
             },
             "slippage_tolerance": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/Decimal"
-                },
-                {
-                  "type": "null"
-                }
-              ]
+              "$ref": "#/definitions/Decimal"
             },
             "staker_addr": {
               "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "update_config"
+      ],
+      "properties": {
+        "update_config": {
+          "type": "object",
+          "properties": {
+            "insert_allowlist": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "remove_allowlist": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
             }
           }
         }
