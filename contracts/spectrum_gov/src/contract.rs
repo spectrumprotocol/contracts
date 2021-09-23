@@ -17,6 +17,17 @@ use crate::state::{config_store, read_config, read_state, state_store, Config, S
 use cw20::Cw20ReceiveMsg;
 use terraswap::querier::query_token_balance;
 
+// minimum effective delay around 1 day at 7 second per block
+const MINIMUM_EFFECTIVE_DELAY: u64 = 12342u64;
+
+fn validate_effective_delay(value: u64) -> StdResult<()> {
+    if value < MINIMUM_EFFECTIVE_DELAY {
+        Err(StdError::generic_err("minimum effective_delay is ".to_string() + &MINIMUM_EFFECTIVE_DELAY.to_string()))
+    } else {
+        Ok(())
+    }
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -27,6 +38,7 @@ pub fn instantiate(
     validate_percentage(msg.quorum, "quorum")?;
     validate_percentage(msg.threshold, "threshold")?;
     validate_percentage(msg.warchest_ratio, "warchest_ratio")?;
+    validate_effective_delay(msg.effective_delay)?;
 
     if msg.mint_end < msg.mint_start {
         return Err(StdError::generic_err("invalid mint parameters"));
@@ -217,6 +229,7 @@ fn update_config(
     }
 
     if let Some(effective_delay) = effective_delay {
+        validate_effective_delay(effective_delay)?;
         config.effective_delay = effective_delay;
     }
 
