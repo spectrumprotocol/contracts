@@ -237,30 +237,6 @@
         }
       },
       "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "update_staking_token"
-      ],
-      "properties": {
-        "update_staking_token": {
-          "type": "object",
-          "required": [
-            "asset_token",
-            "staking_token"
-          ],
-          "properties": {
-            "asset_token": {
-              "type": "string"
-            },
-            "staking_token": {
-              "type": "string"
-            }
-          }
-        }
-      },
-      "additionalProperties": false
     }
   ],
   "definitions": {

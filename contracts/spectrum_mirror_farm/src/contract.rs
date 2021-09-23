@@ -137,10 +137,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             amount_to_auto,
             amount_to_stake,
         ),
-        ExecuteMsg::update_staking_token {
-            asset_token,
-            staking_token,
-        } => update_staking_token(deps, info, asset_token, staking_token),
     }
 }
 
@@ -265,6 +261,15 @@ pub fn register_asset(
         spec_reward_to_pool(&state, &mut pool_info, lp_balance)?;
     }
 
+    if pool_info.total_stake_bond_amount.is_zero()
+        && pool_info.total_stake_bond_share.is_zero()
+        && pool_info.total_auto_bond_share.is_zero()
+    {
+        pool_info.staking_token = deps.api.addr_canonicalize(&staking_token)?;
+    } else {
+        return Err(StdError::generic_err("pool is not empty"));
+    }
+
     state.total_weight = state.total_weight + weight - pool_info.weight;
     pool_info.weight = weight;
     pool_info.auto_compound = auto_compound;
@@ -275,39 +280,6 @@ pub fn register_asset(
     Ok(Response::new().add_attributes(vec![
         attr("action", "register_asset"),
         attr("asset_token", asset_token),
-    ]))
-}
-
-pub fn update_staking_token(
-    deps: DepsMut,
-    info: MessageInfo,
-    asset_token: String,
-    staking_token: String,
-) -> StdResult<Response> {
-    let config: Config = read_config(deps.storage)?;
-    let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
-
-    if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
-        return Err(StdError::generic_err("unauthorized"));
-    }
-
-    let mut pool_info = pool_info_read(deps.storage).load(asset_token_raw.as_slice())?;
-
-    if pool_info.total_stake_bond_amount.is_zero()
-        && pool_info.total_stake_bond_share.is_zero()
-        && pool_info.total_auto_bond_share.is_zero()
-    {
-        pool_info.staking_token = deps.api.addr_canonicalize(&staking_token)?;
-    } else {
-        return Err(StdError::generic_err("pool is not empty"));
-    }
-
-    pool_info_store(deps.storage).save(&asset_token_raw.as_slice(), &pool_info)?;
-
-    Ok(Response::new().add_attributes(vec![
-        attr("action", "update_staking_token"),
-        attr("asset_token", asset_token),
-        attr("asset_token", staking_token),
     ]))
 }
 

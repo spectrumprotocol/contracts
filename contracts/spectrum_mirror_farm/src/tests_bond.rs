@@ -176,9 +176,11 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
     );
 
     // update staking token
-    let msg = ExecuteMsg::update_staking_token {
+    let msg = ExecuteMsg::register_asset {
         asset_token: MIR_TOKEN.to_string(),
         staking_token: MIR_LP.to_string(),
+        weight: 1u32,
+        auto_compound: true,
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
@@ -291,9 +293,11 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     );
 
     // update staking token
-    let msg = ExecuteMsg::update_staking_token {
+    let msg = ExecuteMsg::register_asset {
         asset_token: MIR_TOKEN.to_string(),
-        staking_token: MIR_LP.to_string(),
+        staking_token: INVALID_LP.to_string(),
+        weight: 1u32,
+        auto_compound: true,
     };
     let info = mock_info(SPEC_GOV, &[]);
     let res = execute(deps.as_mut(), env.clone(), info, msg);
