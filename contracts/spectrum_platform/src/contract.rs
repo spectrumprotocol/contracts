@@ -24,8 +24,12 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: ConfigInfo,
 ) -> StdResult<Response> {
-    validate_quorum(msg.quorum)?;
-    validate_threshold(msg.threshold)?;
+    if msg.quorum < Decimal::percent(50u64) ||  msg.quorum > Decimal::one() {
+        return Err(StdError::generic_err("initial quorum must be 0.5 to 1"))
+    }
+    if msg.threshold < Decimal::percent(50u64) ||  msg.threshold > Decimal::one() {
+        return Err(StdError::generic_err("initial threshold must be 0.5 to 1"))
+    }
 
     let config = Config {
         owner: deps.api.addr_canonicalize(&msg.owner)?,
