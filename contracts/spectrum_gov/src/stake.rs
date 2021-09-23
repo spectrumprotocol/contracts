@@ -6,8 +6,8 @@ use cosmwasm_std::{
 use cw20::Cw20ExecuteMsg;
 use spectrum_protocol::gov::{BalanceResponse, PollStatus, VaultInfo, VaultsResponse, BalancePoolInfo};
 use terraswap::querier::query_token_balance;
-use std::borrow::Borrow;
 
+#[allow(clippy::needless_range_loop)]
 pub fn reconcile_balance(state: &mut State, balance: Uint128) -> StdResult<()> {
     let diff = if balance >= state.prev_balance {
         balance.checked_sub(state.prev_balance)?
@@ -126,8 +126,7 @@ pub fn mint(deps: DepsMut, env: Env) -> StdResult<Response> {
         mint_share += vault_share;
         account_store(deps.storage).save(key, &account)?;
     }
-    state.total_share += mint_share;
-    state.total_balance += mintable;
+    state.add_share(0u64, mint_share, mintable);
     state.last_mint = env.block.height;
     state_store(deps.storage).save(&state)?;
 
@@ -345,6 +344,40 @@ fn compute_locked_balance(
         .map(|(_, v)| v.balance)
         .max()
         .unwrap_or_default())
+}
+
+pub fn upsert_pool(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    days: u64,
+    active: bool,
+) -> StdResult<Response> {
+    let config = read_config(deps.storage)?;
+    if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+    let mut state = state_store(deps.storage).load()?;
+    validate_minted(&state, &config, env.block.height)?;
+
+    let pool = state.pools.iter_mut().find(|it| it.days == days);
+    if let Some(pool) = pool {
+        pool.active = active;
+    } else if active {
+        state.pools.push(StatePool {
+            days,
+            active,
+            total_balance: Uint128::zero(),
+            total_share: Uint128::zero(),
+        });
+    }
+
+    state_store(deps.storage).save(&state)?;
+
+    Ok(Response::new().add_attributes(vec![
+        attr("days", days.to_string()),
+        attr("active", active.to_string()),
+    ]))
 }
 
 pub fn upsert_vault(

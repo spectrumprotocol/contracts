@@ -58,6 +58,10 @@ pub enum ExecuteMsg {
         from_days: u64,
         to_days: u64,
     },
+    upsert_pool {
+        days: u64,
+        active: bool,
+    },
     upsert_vault {
         vault_address: String,
         weight: u32,

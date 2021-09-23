@@ -90,6 +90,7 @@ impl State {
             pool.total_share += share;
             pool.total_balance += amount;
         }
+        self.prev_balance += amount;
     }
 
     pub fn deduct_share(&mut self, days: u64, share: Uint128, amount: Uint128) {
@@ -101,6 +102,7 @@ impl State {
             pool.total_share -= share;
             pool.total_balance -= amount;
         }
+        self.prev_balance -= amount;
     }
 
     pub fn calc_share(&self, days: u64, amount: Uint128) -> Uint128 {
