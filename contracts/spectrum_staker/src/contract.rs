@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 use std::iter::FromIterator;
-use std::str::FromStr;
 
 use crate::state::{config_store, read_config, Config};
 #[cfg(not(feature = "library"))]
@@ -18,7 +17,7 @@ use terraswap::querier::{query_pair_info, query_token_balance};
 
 // max slippage tolerance is 0.5
 fn validate_slippage(slippage_tolerance: Decimal) -> StdResult<()> {
-    if slippage_tolerance > Decimal::from_str("0.5")? {
+    if slippage_tolerance > Decimal::percent(50) {
         Err(StdError::generic_err("Slippage tolerance must be 0 to 0.5"))
     } else {
         Ok(())
@@ -28,7 +27,7 @@ fn validate_slippage(slippage_tolerance: Decimal) -> StdResult<()> {
 // validate contract with allowlist
 fn validate_contract(contract: CanonicalAddr, allowlist: HashSet<CanonicalAddr>) -> StdResult<()> {
     if !allowlist.contains(&contract) {
-        return Err(StdError::generic_err("not allowed"));
+        Err(StdError::generic_err("not allowed"))
     } else {
         Ok(())
     }
@@ -137,6 +136,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn bond(
     deps: DepsMut,
     env: Env,
@@ -202,7 +202,7 @@ fn bond(
     // 3. Provide liquidity
     // 4. Execute staking hook, will stake in the name of the sender
 
-    let staker = staker_addr.unwrap_or(info.sender.to_string());
+    let staker = staker_addr.unwrap_or_else(|| info.sender.to_string());
 
     let mut messages: Vec<CosmosMsg> = vec![];
     if info.sender != env.contract.address {
@@ -489,10 +489,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         allowlist: config
             .allowlist
             .into_iter()
-            .map(|w| match deps.api.addr_humanize(&w) {
-                Ok(addr) => Ok(addr.to_string()),
-                Err(e) => Err(e),
-            })
+            .map(|w| deps.api.addr_humanize(&w).map(|addr| addr.to_string()))
             .collect::<StdResult<Vec<String>>>()?,
     };
 
