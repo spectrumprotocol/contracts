@@ -1,8 +1,6 @@
 use crate::contract::{execute, instantiate, query};
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{
-    from_binary, to_vec, Binary, CosmosMsg, Decimal, DepsMut, SubMsg, Uint128, WasmMsg,
-};
+use cosmwasm_std::{Binary, CosmosMsg, Decimal, DepsMut, StdError, SubMsg, Uint128, WasmMsg, from_binary, to_vec};
 use cw20::Cw20ExecuteMsg;
 use spectrum_protocol::common::OrderBy;
 use spectrum_protocol::platform::{
@@ -14,7 +12,7 @@ const VOTING_TOKEN: &str = "voting_token";
 const TEST_CREATOR: &str = "creator";
 const TEST_VOTER: &str = "voter1";
 const TEST_VOTER_2: &str = "voter2";
-const DEFAULT_QUORUM: u64 = 30u64;
+const DEFAULT_QUORUM: u64 = 50u64;
 const DEFAULT_THRESHOLD: u64 = 50u64;
 const DEFAULT_VOTING_PERIOD: u64 = 10000u64;
 const DEFAULT_EFFECTIVE_DELAY: u64 = 10000u64;
@@ -46,13 +44,24 @@ fn test_config(mut deps: DepsMut) -> ConfigInfo {
         expiration_period: 0,
     };
 
-    // validate quorum
+    // validate quorum > 1
     let res = instantiate(deps.branch(), env.clone(), info.clone(), config.clone());
-    assert!(res.is_err());
+    assert_eq!(res, Err(StdError::generic_err("initial quorum must be 0.5 to 1")));
 
-    // validate threshold
+    // validate quorum < 0.5
+    config.quorum = Decimal::percent(49u64);
+    let res = instantiate(deps.branch(), env.clone(), info.clone(), config.clone());
+    assert_eq!(res, Err(StdError::generic_err("initial quorum must be 0.5 to 1")));
+
+    // validate threshold > 1
     config.quorum = Decimal::percent(DEFAULT_QUORUM);
     config.threshold = Decimal::percent(120u64);
+    let res = instantiate(deps.branch(), env.clone(), info.clone(), config.clone());
+    assert_eq!(res, Err(StdError::generic_err("initial threshold must be 0.5 to 1")));
+
+    // validate threshold < 0.5
+    config.quorum = Decimal::percent(DEFAULT_QUORUM);
+    config.threshold = Decimal::percent(49u64);
     let res = instantiate(deps.branch(), env.clone(), info.clone(), config.clone());
     assert!(res.is_err());
 
