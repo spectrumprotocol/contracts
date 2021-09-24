@@ -160,7 +160,7 @@ pub fn poll_vote(
         .unwrap_or_default();
 
     // convert share to amount
-    if account.calc_total_balance(&state) < amount {
+    if account.calc_total_balance(&state)? < amount {
         return Err(StdError::generic_err(
             "User does not have enough staked tokens.",
         ));

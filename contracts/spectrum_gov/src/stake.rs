@@ -1,4 +1,4 @@
-use crate::state::{account_store, poll_voter_store, read_account, read_config, read_poll, read_state, read_vault, read_vaults, state_store, vault_store, Account, Config, State, StatePool};
+use crate::state::{account_store, poll_voter_store, read_account, read_config, read_poll, read_state, read_vault, read_vaults, state_store, vault_store, Account, Config, State, StatePool, SEC_IN_DAY};
 use cosmwasm_std::{
     attr, to_binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
     StdError, StdResult, Uint128, WasmMsg,
@@ -9,44 +9,43 @@ use terraswap::querier::query_token_balance;
 
 #[allow(clippy::needless_range_loop)]
 pub fn reconcile_balance(state: &mut State, balance: Uint128) -> StdResult<()> {
-    let diff = if balance >= state.prev_balance {
-        balance.checked_sub(state.prev_balance)?
-    } else {
-        state.prev_balance.checked_sub(balance)?
-    };
-    if diff.is_zero() {
-        return Ok(());
-    }
+    if balance >= state.prev_balance {
+        let diff = balance.checked_sub(state.prev_balance)?;
+        if diff.is_zero() {
+            return Ok(());
+        }
 
-    let mut pools: Vec<&StatePool> = state.pools.iter().filter(|it| it.active).rev().collect();
-    let pool_0 = StatePool {
-        days: 0u64,
-        total_balance: state.total_balance,
-        total_share: state.total_share,
-        active: true,
-    };
-    pools.push(&pool_0);
+        // if amount grow, distribute reward to each pool equally
+        // however higher lock pool also earn from lower lock pool
 
-    let len: u128 = (pools.len() as u64).into();
-    let count = 1u128 + len;
-    let mut denom = 0u128;
-    let mut changes = vec![Uint128::zero(); pools.len()];
-    let mut total = Uint128::zero();
-    for i in 0..pools.len() {
-        let pool = pools.get(i).unwrap();
-        denom += pool.total_balance.u128() * count;
-        if denom == 0u128 {
-            for j in 0..i {
-                let inner_pool = pools.get(j).unwrap();
-                let change = diff.multiply_ratio(inner_pool.total_balance, denom);
-                total += change;
-                changes[j] += change;
+        let mut pools: Vec<&StatePool> = state.pools.iter().filter(|it| it.active).rev().collect();
+        let pool_0 = StatePool {
+            days: 0u64,
+            total_balance: state.total_balance,
+            total_share: state.total_share,
+            active: true,
+        };
+        pools.push(&pool_0);
+
+        let len: u128 = (pools.len() as u64).into();
+        let mut denom = 0u128;
+        let mut changes = vec![Uint128::zero(); pools.len()];
+        let mut total = Uint128::zero();
+        for i in 0..pools.len() {
+            let pool = pools.get(i).unwrap();
+            denom += pool.total_balance.u128() * len;
+            if denom != 0u128 {
+                for j in 0..=i {
+                    let inner_pool = pools.get(j).unwrap();
+                    let change = diff.multiply_ratio(inner_pool.total_balance, denom);
+                    total += change;
+                    changes[j] += change;
+                }
             }
         }
-    }
 
-    changes[0] += diff.checked_sub(total)?;
-    if balance >= state.prev_balance {
+        changes[0] += diff.checked_sub(total)?;
+
         state.total_balance += changes.pop().unwrap();
         for pool in state.pools.iter_mut() {
             if !pool.active {
@@ -55,12 +54,31 @@ pub fn reconcile_balance(state: &mut State, balance: Uint128) -> StdResult<()> {
             pool.total_balance += changes.pop().unwrap();
         }
     } else {
-        state.total_balance -= changes.pop().unwrap();
+        // if amount is reduced, decrease balance proportionally
+
+        let diff = state.prev_balance.checked_sub(balance)?;
+        let total_balance = state.total_balance + state.pools.iter().fold(Uint128::zero(), |a, b| a + b.total_balance);
+        let mut remain = diff;
+        let deduct_0 = diff.multiply_ratio(state.total_balance, total_balance);
+        state.total_balance -= deduct_0;
+        remain -= deduct_0;
         for pool in state.pools.iter_mut() {
-            if !pool.active {
-                continue;
+            let deduct = diff.multiply_ratio(pool.total_balance, total_balance);
+            pool.total_balance -= deduct;
+            remain -= deduct;
+        }
+        if !remain.is_zero() {
+            let deduct_0 = if remain > state.total_balance { state.total_balance } else { remain };
+            state.total_balance -= deduct_0;
+            remain -= deduct_0;
+            for pool in state.pools.iter_mut() {
+                if remain.is_zero() {
+                    break;
+                }
+                let deduct = if remain > pool.total_balance { pool.total_balance } else { remain };
+                pool.total_balance -= deduct;
+                remain -= deduct;
             }
-            pool.total_balance -= changes.pop().unwrap();
         }
     }
 
@@ -103,7 +121,7 @@ pub fn mint(deps: DepsMut, env: Env) -> StdResult<Response> {
         && config.warchest_ratio != Decimal::zero()
     {
         to_warchest = mintable * config.warchest_ratio;
-        let share = state.calc_share(0u64, to_warchest);
+        let share = state.calc_share(0u64, to_warchest)?;
         let key = config.warchest_address.as_slice();
         let mut account = account_store(deps.storage)
             .may_load(key)?
@@ -115,7 +133,7 @@ pub fn mint(deps: DepsMut, env: Env) -> StdResult<Response> {
 
     // mint to vault
     let vaults = read_vaults(deps.storage)?;
-    let share = state.calc_share(0u64, mintable.checked_sub(to_warchest)?);
+    let share = state.calc_share(0u64, mintable.checked_sub(to_warchest)?)?;
     for (addr, vault) in vaults.into_iter() {
         let key = addr.as_slice();
         let mut account = account_store(deps.storage)
@@ -126,7 +144,7 @@ pub fn mint(deps: DepsMut, env: Env) -> StdResult<Response> {
         mint_share += vault_share;
         account_store(deps.storage).save(key, &account)?;
     }
-    state.add_share(0u64, mint_share, mintable);
+    state.add_share(0u64, mint_share, mintable)?;
     state.last_mint = env.block.height;
     state_store(deps.storage).save(&state)?;
 
@@ -171,9 +189,9 @@ pub fn stake_tokens(
     let total_balance = current_balance.checked_sub(state.poll_deposit + amount)?;
     reconcile_balance(&mut state, total_balance)?;
 
-    let share = state.calc_share(days, amount);
-    account.add_share(days, env.block.time.seconds(), share, 0u64);
-    state.add_share(days, share, amount);
+    let share = state.calc_share(days, amount)?;
+    account.add_share(days, env.block.time.seconds(), share, 0u64)?;
+    state.add_share(days, share, amount)?;
 
     state_store(deps.storage).save(&state)?;
     account_store(deps.storage).save(key, &account)?;
@@ -196,7 +214,7 @@ pub fn update_stake(
     to_days: u64
 ) -> StdResult<Response> {
     if from_days >= to_days {
-        return Err(StdError::generic_err("cannot move to lower lock pool"));
+        return Err(StdError::generic_err("must move to higher lock"));
     }
 
     let sender_address_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
@@ -214,17 +232,19 @@ pub fn update_stake(
     )?.checked_sub(state.poll_deposit)?;
     reconcile_balance(&mut state, total_balance)?;
 
-    let mut from_share = state.calc_share(from_days, amount);
-    if state.calc_balance(from_days, from_share) < amount {
+    let mut from_share = state.calc_share(from_days, amount)?;
+    if state.calc_balance(from_days, from_share)? < amount {
         from_share += Uint128::from(1u128);
     }
 
-    account.deduct_share(from_days, from_share, None)?;
-    state.deduct_share(from_days, from_share, amount);
+    let unlock = account.deduct_share(from_days, from_share, None)?;
+    state.deduct_share(from_days, from_share, amount)?;
 
-    let to_share = state.calc_share(to_days, amount);
-    account.add_share(to_days, env.block.time.seconds(), to_share, from_days);
-    state.add_share(to_days, to_share, amount);
+    let to_share = state.calc_share(to_days, amount)?;
+    let time = env.block.time.seconds();
+    let time_remain = if unlock < time { 0u64 } else { unlock - time };
+    account.add_share(to_days, time, to_share, from_days * SEC_IN_DAY - time_remain)?;
+    state.add_share(to_days, to_share, amount)?;
 
     account_store(deps.storage).save(key, &account)?;
     state_store(deps.storage).save(&state)?;
@@ -263,21 +283,25 @@ pub fn withdraw(
     reconcile_balance(&mut state, total_balance)?;
 
     let locked_balance = compute_locked_balance(deps.branch(), &mut account, &sender_address_raw)?;
-    let user_balance = account.calc_total_balance(&state);
-    let amount = amount.unwrap_or_else(|| user_balance.checked_sub(locked_balance).unwrap());
+    let user_balance = account.calc_total_balance(&state)?;
+    let amount = amount.unwrap_or_else(|| {
+        let max_withdraw = user_balance.checked_sub(locked_balance).unwrap();
+        let pool_balance = account.calc_balance(days, &state).unwrap();
+        if max_withdraw < pool_balance { max_withdraw } else { pool_balance }
+    });
     if locked_balance + amount > user_balance {
         return Err(StdError::generic_err(
             "User is trying to withdraw too many tokens.",
         ));
     }
 
-    let mut withdraw_share = state.calc_share(days, amount);
-    if state.calc_balance(days, withdraw_share) < amount {
+    let mut withdraw_share = state.calc_share(days, amount)?;
+    if state.calc_balance(days, withdraw_share)? < amount {
         withdraw_share += Uint128::from(1u128);
     }
 
     account.deduct_share(days, withdraw_share, Some(env.block.time.seconds()))?;
-    state.deduct_share(days, withdraw_share, amount);
+    state.deduct_share(days, withdraw_share, amount)?;
 
     account_store(deps.storage).save(key, &account)?;
     state_store(deps.storage).save(&state)?;
@@ -370,6 +394,7 @@ pub fn upsert_pool(
             total_balance: Uint128::zero(),
             total_share: Uint128::zero(),
         });
+        state.pools.sort_by(|a, b| a.days.partial_cmp(&b.days).unwrap());
     }
 
     state_store(deps.storage).save(&state)?;
@@ -438,19 +463,19 @@ pub fn query_balances(deps: Deps, address: String, height: u64) -> StdResult<Bal
     .checked_sub(state.poll_deposit)?;
     reconcile_balance(&mut state, total_balance)?;
 
-    let mut balance = state.calc_balance(0u64, account.share);
+    let mut balance = state.calc_balance(0u64, account.share)?;
     let mut share = account.share;
 
     if addr_raw == config.warchest_address {
         let mintable = calc_mintable(&state, &config, height);
         let to_warchest = mintable * config.warchest_ratio;
-        share += state.calc_share(0u64, to_warchest);
+        share += state.calc_share(0u64, to_warchest)?;
         balance += to_warchest;
     } else if let Some(vault) = read_vault(deps.storage, addr_raw.as_slice())? {
         let mintable = calc_mintable(&state, &config, height);
         let to_warchest = mintable * config.warchest_ratio;
         let mintable = mintable.checked_sub(to_warchest)?;
-        let vaults_share = state.calc_share(0u64, mintable);
+        let vaults_share = state.calc_share(0u64, mintable)?;
         share += vaults_share.multiply_ratio(vault.weight, state.total_weight);
         balance += mintable.multiply_ratio(vault.weight, state.total_weight);
     }
@@ -470,7 +495,7 @@ pub fn query_balances(deps: Deps, address: String, height: u64) -> StdResult<Bal
                 days: it.days,
                 share: it.share,
                 unlock: it.unlock,
-                balance: state.calc_balance(it.days, it.share),
+                balance: state.calc_balance(it.days, it.share).unwrap(),
             }).collect()
         ].concat()
     })

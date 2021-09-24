@@ -81,51 +81,60 @@ impl StatePool {
 }
 
 impl State {
-    pub fn add_share(&mut self, days: u64, share: Uint128, amount: Uint128) {
+    pub fn add_share(&mut self, days: u64, share: Uint128, amount: Uint128) -> StdResult<()> {
         if days == 0 {
             self.total_share += share;
             self.total_balance += amount;
         } else {
-            let pool = self.pools.iter_mut().find(|it| it.days == days).unwrap();
+            let pool = self.pools.iter_mut().find(|it| it.days == days).ok_or_else(|| StdError::not_found("pool"))?;
+            if !pool.active {
+                return Err(StdError::generic_err("pool is not active"));
+            }
             pool.total_share += share;
             pool.total_balance += amount;
         }
         self.prev_balance += amount;
+
+        Ok(())
     }
 
-    pub fn deduct_share(&mut self, days: u64, share: Uint128, amount: Uint128) {
+    pub fn deduct_share(&mut self, days: u64, share: Uint128, amount: Uint128) -> StdResult<()> {
         if days == 0 {
             self.total_share -= share;
             self.total_balance -= amount;
         } else {
-            let pool = self.pools.iter_mut().find(|it| it.days == days).unwrap();
+            let pool = self.pools.iter_mut().find(|it| it.days == days).ok_or_else(|| StdError::not_found("pool"))?;
             pool.total_share -= share;
             pool.total_balance -= amount;
         }
         self.prev_balance -= amount;
+
+        Ok(())
     }
 
-    pub fn calc_share(&self, days: u64, amount: Uint128) -> Uint128 {
+    pub fn calc_share(&self, days: u64, amount: Uint128) -> StdResult<Uint128> {
         if days == 0 {
             if self.total_share.is_zero() || self.total_balance.is_zero() {
-                amount
+                Ok(amount)
             } else {
-                amount.multiply_ratio(self.total_share, self.total_balance)
+                Ok(amount.multiply_ratio(self.total_share, self.total_balance))
             }
         } else {
-            self.pools.iter().find(|it| it.days == days).unwrap().calc_share(amount)
+            let pool = self.pools.iter().find(|it| it.days == days).ok_or_else(|| StdError::not_found("pool"))?;
+            Ok(pool.calc_share(amount))
         }
     }
 
-    pub fn calc_balance(&self, days: u64, share: Uint128) -> Uint128 {
+    pub fn calc_balance(&self, days: u64, share: Uint128) -> StdResult<Uint128> {
         if days == 0u64 {
             if self.total_share.is_zero() {
-                Uint128::zero()
+                Ok(Uint128::zero())
             } else {
-                share.multiply_ratio(self.total_balance, self.total_share)
+                Ok(share.multiply_ratio(self.total_balance, self.total_share))
             }
         } else {
-            self.pools.iter().find(|it| it.days == days).unwrap().calc_balance(share)
+            let pool = self.pools.iter().find(|it| it.days == days).ok_or_else(|| StdError::not_found("pool"))?;
+            Ok(pool.calc_balance(share))
         }
     }
 }
@@ -180,16 +189,16 @@ pub struct Account {
     #[serde(default)] pub pools: Vec<BalancePool>,
 }
 
-const SEC_IN_DAY: u64 = 24u64 * 60u64 * 60u64;
+pub const SEC_IN_DAY: u64 = 24u64 * 60u64 * 60u64;
 impl BalancePool {
-    pub fn add_share(&mut self, time: u64, share: Uint128, from_days: u64) {
+    pub fn add_share(&mut self, time: u64, share: Uint128, time_burned: u64) {
         let new_share = self.share + share;
         let remaining = if self.unlock < time {
             Uint128::zero()
         } else {
             Uint128::from(self.unlock - time).multiply_ratio(self.share, new_share)
         };
-        let additional = Uint128::from(SEC_IN_DAY * (self.days - from_days)).multiply_ratio(share, new_share);
+        let additional = Uint128::from(SEC_IN_DAY * self.days - time_burned).multiply_ratio(share, new_share);
         let add_time: u64 = (remaining + additional).u128().try_into().unwrap();
         self.unlock = time + add_time;
         self.share = new_share;
@@ -197,7 +206,7 @@ impl BalancePool {
 }
 
 impl Account {
-    pub fn add_share(&mut self, days: u64, time: u64, share: Uint128, from_days: u64) {
+    pub fn add_share(&mut self, days: u64, time: u64, share: Uint128, time_burned: u64) -> StdResult<()> {
         if days == 0u64 {
             self.share += share;
         } else {
@@ -210,26 +219,44 @@ impl Account {
                 });
                 pool = self.pools.iter_mut().find(|it| it.days == days);
             }
-            pool.unwrap().add_share(time, share, from_days);
+            pool.unwrap().add_share(time, share, time_burned);
         }
+
+        Ok(())
     }
 
-    pub fn deduct_share(&mut self, days: u64, share: Uint128, time: Option<u64>) -> StdResult<()> {
+    pub fn deduct_share(&mut self, days: u64, share: Uint128, time: Option<u64>) -> StdResult<u64> {
         if days == 0u64 {
             self.share -= share;
+            Ok(0u64)
         } else {
-            let pool = self.pools.iter_mut().find(|it| it.days == days).unwrap();
+            let pool = self.pools.iter_mut().find(|it| it.days == days).ok_or_else(|| StdError::not_found("pool"))?;
             if time.is_some() && pool.unlock > time.unwrap() {
                 return Err(StdError::generic_err("Pool is locked"));
             }
             pool.share -= share;
+            Ok(pool.unlock)
         }
-        Ok(())
     }
 
-    pub fn calc_total_balance(&self, state: &State) -> Uint128 {
-        state.calc_balance(0u64, self.share) +
-            self.pools.iter().fold(Uint128::zero(), |acc, it| acc + state.calc_balance(it.days, it.share))
+    pub fn calc_balance(&self, days: u64, state: &State) -> StdResult<Uint128> {
+        if days == 0u64 {
+            state.calc_balance(0u64, self.share)
+        } else {
+            let pool = self.pools.iter().find(|it| it.days == days);
+            if let Some(pool) = pool {
+                state.calc_balance(pool.days, pool.share)
+            } else {
+                Ok(Uint128::zero())
+            }
+        }
+    }
+
+    pub fn calc_total_balance(&self, state: &State) -> StdResult<Uint128> {
+        let init: StdResult<Uint128> = Ok(Uint128::zero());
+        let sum = state.calc_balance(0u64, self.share)? +
+            self.pools.iter().fold(init, |acc, it| Ok(acc? + state.calc_balance(it.days, it.share)?))?;
+        Ok(sum)
     }
 }
 
