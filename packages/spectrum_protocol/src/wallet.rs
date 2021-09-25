@@ -31,6 +31,11 @@ pub enum ExecuteMsg {
     update_config {
         owner: Option<String>,
     },
+    update_stake {
+        amount: Uint128,
+        from_days: u64,
+        to_days: u64,
+    },
     upsert_share {
         address: String,
         weight: u32,

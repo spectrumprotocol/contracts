@@ -65,6 +65,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             lock_amount,
         ),
         ExecuteMsg::update_config { owner } => update_config(deps, info, owner),
+        ExecuteMsg::update_stake { amount, from_days, to_days } => update_stake(deps, info, amount, from_days, to_days),
         ExecuteMsg::withdraw { amount } => withdraw(deps, env, info, amount),
     }
 }
@@ -139,39 +140,11 @@ fn stake(deps: DepsMut, info: MessageInfo, amount: Uint128, days: Option<u64>) -
         msg: to_binary(&GovQueryMsg::state {})?,
     }))?;
     let days_index = days.unwrap_or(0u64);
-    let pool = gov_state.pools.into_iter().find(|it| it.days == days_index).ok_or_else(|| StdError::not_found("pool"))?;
-    let new_share = amount.multiply_ratio(pool.total_share, pool.total_balance);
 
     // move from amount to staked share
     reward_info.amount = reward_info.amount.checked_sub(amount)?;
-    if days_index == 0u64 {
-        reward_info.share += new_share;
-        state.previous_share += new_share;
-    } else {
-        let mut state_pool = state.pools.iter_mut().find(|it| it.days == days_index);
-        if state_pool.is_none() {
-            state.pools.push(StatePoolInfo {
-                days: days_index,
-                previous_share: Uint128::zero(),
-                share_index: Decimal::zero(),
-            });
-            state_pool = state.pools.iter_mut().find(|it| it.days == days_index);
-        }
-        let state_pool = state_pool.unwrap();
-        state_pool.previous_share += new_share;
+    add_amount(days_index, &mut state, &mut reward_info, gov_state, amount)?;
 
-        let mut reward_pool = reward_info.pools.iter_mut().find(|it| it.days == days_index);
-        if reward_pool.is_none() {
-            reward_info.pools.push(SharePoolInfo {
-                days: days_index,
-                share: Uint128::zero(),
-                share_index: state_pool.share_index,
-            });
-            reward_pool = reward_info.pools.iter_mut().find(|it| it.days == days_index);
-        }
-        let reward_pool = reward_pool.unwrap();
-        reward_pool.share += new_share;
-    }
     reward_store(deps.storage).save(staker_addr.as_slice(), &reward_info)?;
     state_store(deps.storage).save(&state)?;
 
@@ -192,6 +165,42 @@ fn stake(deps: DepsMut, info: MessageInfo, amount: Uint128, days: Option<u64>) -
         ]))
 }
 
+fn add_amount(days: u64, state: &mut State, reward_info: &mut RewardInfo, gov_state: GovStateInfo, amount: Uint128) -> StdResult<()> {
+    let pool = gov_state.pools.into_iter().find(|it| it.days == days).ok_or_else(|| StdError::not_found("pool"))?;
+    let new_share = amount.multiply_ratio(pool.total_share, pool.total_balance);
+
+    if days == 0u64 {
+        reward_info.share += new_share;
+        state.previous_share += new_share;
+    } else {
+        let mut state_pool = state.pools.iter_mut().find(|it| it.days == days);
+        if state_pool.is_none() {
+            state.pools.push(StatePoolInfo {
+                days,
+                previous_share: Uint128::zero(),
+                share_index: Decimal::zero(),
+            });
+            state_pool = state.pools.iter_mut().find(|it| it.days == days);
+        }
+        let state_pool = state_pool.unwrap();
+        state_pool.previous_share += new_share;
+
+        let mut reward_pool = reward_info.pools.iter_mut().find(|it| it.days == days);
+        if reward_pool.is_none() {
+            reward_info.pools.push(SharePoolInfo {
+                days,
+                share: Uint128::zero(),
+                share_index: state_pool.share_index,
+            });
+            reward_pool = reward_info.pools.iter_mut().find(|it| it.days == days);
+        }
+        let reward_pool = reward_pool.unwrap();
+        reward_pool.share += new_share;
+    }
+
+    Ok(())
+}
+
 fn unstake(deps: DepsMut, info: MessageInfo, amount: Uint128, days: Option<u64>) -> StdResult<Response> {
     // record reward before any share change
     let mut state = read_state(deps.storage)?;
@@ -203,19 +212,7 @@ fn unstake(deps: DepsMut, info: MessageInfo, amount: Uint128, days: Option<u64>)
     before_share_change(&state, &mut reward_info)?;
 
     let days_index = days.unwrap_or(0u64);
-    let pool = staked.pools.into_iter().find(|it| it.days == days_index).ok_or_else(|| StdError::not_found("pool"))?;
-    let share = amount.multiply_ratio(pool.share, pool.balance);
-
-    if days_index == 0u64 {
-        reward_info.share = reward_info.share.checked_sub(share)?;
-        state.previous_share = state.previous_share.checked_sub(share)?;
-    } else {
-        let reward_pool = reward_info.pools.iter_mut().find(|it| it.days == days_index).ok_or_else(|| StdError::not_found("pool"))?;
-        reward_pool.share = reward_pool.share.checked_sub(share)?;
-
-        let state_pool = state.pools.iter_mut().find(|it| it.days == days_index).ok_or_else(|| StdError::not_found("pool"))?;
-        state_pool.previous_share = state_pool.previous_share.checked_sub(share)?;
-    }
+    deduct_amount(days_index, &mut state, &mut reward_info, staked, amount)?;
 
     reward_info.amount += amount;
     reward_store(deps.storage).save(staker_addr.as_slice(), &reward_info)?;
@@ -235,6 +232,71 @@ fn unstake(deps: DepsMut, info: MessageInfo, amount: Uint128, days: Option<u64>)
             attr("amount", amount),
             attr("days", days_index.to_string()),
         ]))
+}
+
+fn deduct_amount(days: u64, state: &mut State, reward_info: &mut RewardInfo, staked: GovBalanceResponse, amount: Uint128) -> StdResult<()> {
+    let pool = staked.pools.into_iter().find(|it| it.days == days).ok_or_else(|| StdError::not_found("pool"))?;
+    let share = amount.multiply_ratio(pool.share, pool.balance);
+
+    if days == 0u64 {
+        reward_info.share = reward_info.share.checked_sub(share)?;
+        state.previous_share = state.previous_share.checked_sub(share)?;
+    } else {
+        let reward_pool = reward_info.pools.iter_mut().find(|it| it.days == days).ok_or_else(|| StdError::not_found("pool"))?;
+        reward_pool.share = reward_pool.share.checked_sub(share)?;
+
+        let state_pool = state.pools.iter_mut().find(|it| it.days == days).ok_or_else(|| StdError::not_found("pool"))?;
+        state_pool.previous_share = state_pool.previous_share.checked_sub(share)?;
+    }
+
+    Ok(())
+}
+
+fn update_stake(
+    deps: DepsMut,
+    info: MessageInfo,
+    amount: Uint128,
+    from_days: u64,
+    to_days: u64,
+) -> StdResult<Response> {
+    // record reward before any share change
+    let mut state = read_state(deps.storage)?;
+    let config = read_config(deps.storage)?;
+    let staked = deposit_reward(deps.as_ref(), &mut state, &config, false)?;
+
+    let staker_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let mut reward_info = read_reward(deps.storage, &staker_addr)?;
+    before_share_change(&state, &mut reward_info)?;
+
+    deduct_amount(from_days, &mut state, &mut reward_info, staked, amount)?;
+
+    // calculate new stake share
+    let gov_state: GovStateInfo = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
+        msg: to_binary(&GovQueryMsg::state {})?,
+    }))?;
+    add_amount(to_days, &mut state, &mut reward_info, gov_state, amount)?;
+
+    reward_store(deps.storage).save(staker_addr.as_slice(), &reward_info)?;
+    state_store(deps.storage).save(&state)?;
+
+    Ok(Response::new()
+        .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
+            msg: to_binary(&GovExecuteMsg::update_stake {
+                amount,
+                from_days,
+                to_days
+            })?,
+            funds: vec![],
+        })])
+        .add_attributes(vec![
+            attr("action", "update_stake"),
+            attr("amount", amount),
+            attr("from_days", from_days.to_string()),
+            attr("to_days", to_days.to_string()),
+        ]))
+
 }
 
 fn withdraw(
@@ -339,7 +401,7 @@ fn deposit_reward(
         };
         let share_per_weight = Decimal::from_ratio(deposit_share, state.total_weight);
         state_pool.share_index = state_pool.share_index + share_per_weight;
-        state_pool.previous_share = staked.share;
+        state_pool.previous_share = pool.share;
     }
 
     Ok(staked)
