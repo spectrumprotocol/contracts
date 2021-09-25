@@ -126,6 +126,7 @@ fn test_stake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let info = mock_info(USER1, &[]);
     let msg = ExecuteMsg::stake {
         amount: Uint128::from(150u64),
+        days: None,
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_err());
@@ -133,6 +134,7 @@ fn test_stake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // stake
     let msg = ExecuteMsg::stake {
         amount: Uint128::from(100u64),
+        days: None,
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
@@ -160,12 +162,14 @@ fn test_stake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let info = mock_info(USER1, &[]);
     let msg = ExecuteMsg::unstake {
         amount: Uint128::from(150u64),
+        days: None,
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_err());
 
     let msg = ExecuteMsg::unstake {
         amount: Uint128::from(20u64),
+        days: None,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());

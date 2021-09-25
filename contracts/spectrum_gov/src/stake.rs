@@ -477,6 +477,7 @@ pub fn query_balances(deps: Deps, address: String, height: u64) -> StdResult<Bal
 
     Ok(BalanceResponse {
         balance: account.calc_total_balance(&state)?,
+        share: account.share,
         locked_balance: account.locked_balance,
         pools: vec![
             vec![

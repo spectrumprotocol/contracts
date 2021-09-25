@@ -164,6 +164,7 @@ pub struct BalancePoolInfo {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct BalanceResponse {
     pub balance: Uint128,
+    pub share: Uint128,
     pub locked_balance: Vec<(u64, VoterInfo)>,
     pub pools: Vec<BalancePoolInfo>,
 }

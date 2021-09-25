@@ -22,9 +22,11 @@ pub enum ExecuteMsg {
     receive(Cw20ReceiveMsg),
     stake {
         amount: Uint128,
+        days: Option<u64>,
     },
     unstake {
         amount: Uint128,
+        days: Option<u64>,
     },
     update_config {
         owner: Option<String>,
@@ -63,10 +65,25 @@ pub struct BalanceResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+pub struct StatePoolInfo {
+    pub days: u64,
+    pub previous_share: Uint128,
+    pub share_index: Decimal,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct StateInfo {
     pub total_weight: u32,
     pub previous_share: Uint128,
     pub share_index: Decimal,
+    pub pools: Vec<StatePoolInfo>,
+}
+
+#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct SharePoolInfo {
+    pub days: u64,
+    pub share_index: Decimal,
+    pub share: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -79,6 +96,7 @@ pub struct ShareInfo {
     pub lock_start: u64,
     pub lock_end: u64,
     pub lock_amount: Uint128,
+    pub pools: Vec<SharePoolInfo>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]

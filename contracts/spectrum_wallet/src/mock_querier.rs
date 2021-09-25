@@ -6,7 +6,7 @@ use cosmwasm_std::{
     from_binary, from_slice, to_binary, Coin, ContractResult, Empty, OwnedDeps, Querier,
     QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
 };
-use spectrum_protocol::gov::{BalanceResponse, StateInfo};
+use spectrum_protocol::gov::{BalanceResponse, StateInfo, StatePoolInfo, BalancePoolInfo};
 use std::collections::HashMap;
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
@@ -98,6 +98,15 @@ impl WasmMockQuerier {
                             share: balance
                                 .multiply_ratio(100u128, self.token_querier.balance_percent),
                             locked_balance: vec![],
+                            pools: vec![
+                                BalancePoolInfo {
+                                    days: 0u64,
+                                    balance,
+                                    share: balance
+                                        .multiply_ratio(100u128, self.token_querier.balance_percent),
+                                    unlock: 0u64,
+                                }
+                            ],
                         })))
                     }
                     MockQueryMsg::state { } => {
@@ -107,7 +116,15 @@ impl WasmMockQuerier {
                             poll_deposit: Uint128::zero(),
                             total_weight: 0u32,
                             total_staked: Uint128::from(100u128),
-                            total_share: Uint128::from(self.token_querier.balance_percent),
+                            prev_balance: Uint128::zero(),
+                            pools: vec![
+                                StatePoolInfo {
+                                    days: 0u64,
+                                    total_balance: Uint128::from(100u128),
+                                    total_share: Uint128::from(self.token_querier.balance_percent),
+                                    active: true,
+                                }
+                            ]
                         })))
                     }
                 }
