@@ -463,31 +463,27 @@ pub fn query_balances(deps: Deps, address: String, height: u64) -> StdResult<Bal
     .checked_sub(state.poll_deposit)?;
     reconcile_balance(&mut state, total_balance)?;
 
-    let mut balance = state.calc_balance(0u64, account.share)?;
-    let mut share = account.share;
-
     if addr_raw == config.warchest_address {
         let mintable = calc_mintable(&state, &config, height);
         let to_warchest = mintable * config.warchest_ratio;
-        share += state.calc_share(0u64, to_warchest)?;
-        balance += to_warchest;
+        account.share += state.calc_share(0u64, to_warchest)?;
     } else if let Some(vault) = read_vault(deps.storage, addr_raw.as_slice())? {
         let mintable = calc_mintable(&state, &config, height);
         let to_warchest = mintable * config.warchest_ratio;
         let mintable = mintable.checked_sub(to_warchest)?;
         let vaults_share = state.calc_share(0u64, mintable)?;
-        share += vaults_share.multiply_ratio(vault.weight, state.total_weight);
-        balance += mintable.multiply_ratio(vault.weight, state.total_weight);
+        account.share += vaults_share.multiply_ratio(vault.weight, state.total_weight);
     }
 
     Ok(BalanceResponse {
+        balance: account.calc_total_balance(&state)?,
         locked_balance: account.locked_balance,
         pools: vec![
             vec![
                 BalancePoolInfo {
                     days: 0u64,
-                    share,
-                    balance,
+                    share: account.share,
+                    balance: state.calc_balance(0u64, account.share)?,
                     unlock: 0u64,
                 },
             ],

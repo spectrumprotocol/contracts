@@ -351,6 +351,18 @@ fn query_state(deps: Deps, height: u64) -> StdResult<StateInfo> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    let config = read_config(deps.storage)?;
+    let mut state = read_state(deps.storage)?;
+    let total_balance = query_token_balance(
+        &deps.querier,
+        deps.api.addr_humanize(&config.spec_token)?,
+        deps.api.addr_humanize(&state.contract_addr)?,
+    )?.checked_sub(state.poll_deposit)?;
+
+    state.prev_balance = total_balance;
+    state.total_balance = total_balance;
+    state_store(deps.storage).save(&state)?;
+
     Ok(Response::default())
 }
