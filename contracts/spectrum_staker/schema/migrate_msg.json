@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MigrateMsg",
+  "type": "object",
+  "required": [
+    "allowlist",
+    "owner",
+    "terraswap_factory"
+  ],
+  "properties": {
+    "allowlist": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "owner": {
+      "type": "string"
+    },
+    "terraswap_factory": {
+      "type": "string"
+    }
+  }
+}

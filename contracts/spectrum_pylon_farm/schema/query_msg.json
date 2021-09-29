@@ -11,7 +11,8 @@
         "config": {
           "type": "object"
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "type": "object",
@@ -22,7 +23,8 @@
         "pools": {
           "type": "object"
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "type": "object",
@@ -33,21 +35,16 @@
         "reward_info": {
           "type": "object",
           "required": [
-            "height",
             "staker_addr"
           ],
           "properties": {
-            "height": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
-            },
             "staker_addr": {
-              "$ref": "#/definitions/HumanAddr"
+              "type": "string"
             }
           }
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "type": "object",
@@ -58,12 +55,8 @@
         "state": {
           "type": "object"
         }
-      }
+      },
+      "additionalProperties": false
     }
-  ],
-  "definitions": {
-    "HumanAddr": {
-      "type": "string"
-    }
-  }
+  ]
 }

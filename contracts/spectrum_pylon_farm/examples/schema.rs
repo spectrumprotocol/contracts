@@ -3,7 +3,7 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 use spectrum_protocol::pylon_farm::{
-    ConfigInfo, Cw20HookMsg, HandleMsg, PoolsResponse, QueryMsg, RewardInfoResponse, StateInfo,
+    ConfigInfo, Cw20HookMsg, ExecuteMsg, PoolsResponse, QueryMsg, RewardInfoResponse, StateInfo,
 };
 
 fn main() {
@@ -12,7 +12,7 @@ fn main() {
     create_dir_all(&out_dir).unwrap();
     remove_schemas(&out_dir).unwrap();
 
-    export_schema(&schema_for!(HandleMsg), &out_dir);
+    export_schema(&schema_for!(ExecuteMsg), &out_dir);
     export_schema(&schema_for!(Cw20HookMsg), &out_dir);
     export_schema(&schema_for!(QueryMsg), &out_dir);
     export_schema(&schema_for!(ConfigInfo), &out_dir);

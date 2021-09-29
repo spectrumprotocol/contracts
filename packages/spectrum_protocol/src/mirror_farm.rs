@@ -1,4 +1,4 @@
-use cosmwasm_std::{Decimal, HumanAddr, Uint128};
+use cosmwasm_std::{Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -6,15 +6,15 @@ use serde::{Deserialize, Serialize};
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigInfo {
-    pub owner: HumanAddr,
-    pub terraswap_factory: HumanAddr,
-    pub spectrum_token: HumanAddr,
-    pub spectrum_gov: HumanAddr,
-    pub mirror_token: HumanAddr,
-    pub mirror_staking: HumanAddr,
-    pub mirror_gov: HumanAddr,
-    pub platform: Option<HumanAddr>,
-    pub controller: Option<HumanAddr>,
+    pub owner: String,
+    pub terraswap_factory: String,
+    pub spectrum_token: String,
+    pub spectrum_gov: String,
+    pub mirror_token: String,
+    pub mirror_staking: String,
+    pub mirror_gov: String,
+    pub platform: String,
+    pub controller: String,
     pub base_denom: String,
     pub community_fee: Decimal,
     pub platform_fee: Decimal,
@@ -25,50 +25,52 @@ pub struct ConfigInfo {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     receive(Cw20ReceiveMsg), // Bond lp token
     // Update config
     update_config {
-        owner: Option<HumanAddr>,
-        platform: Option<HumanAddr>,
-        controller: Option<HumanAddr>,
+        owner: Option<String>,
+        controller: Option<String>,
         community_fee: Option<Decimal>,
         platform_fee: Option<Decimal>,
         controller_fee: Option<Decimal>,
         deposit_fee: Option<Decimal>,
-        lock_start: Option<u64>,
-        lock_end: Option<u64>,
     },
     // Unbond lp token
     unbond {
-        asset_token: HumanAddr,
+        asset_token: String,
         amount: Uint128,
     },
     register_asset {
-        asset_token: HumanAddr,
-        staking_token: HumanAddr,
+        asset_token: String,
+        staking_token: String,
         weight: u32,
         auto_compound: bool,
     },
     // Withdraw rewards
     withdraw {
         // If the asset token is not given, then all rewards are withdrawn
-        asset_token: Option<HumanAddr>,
+        asset_token: Option<String>,
     },
     harvest_all {},
     re_invest {
-        asset_token: HumanAddr,
+        asset_token: String,
     },
     stake {
-        asset_token: HumanAddr,
+        asset_token: String,
+    },
+    update_bond {
+        asset_token: String,
+        amount_to_stake: Uint128,
+        amount_to_auto: Uint128,
     },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum Cw20HookMsg {
     bond {
-        staker_addr: Option<HumanAddr>,
-        asset_token: HumanAddr,
+        staker_addr: Option<String>,
+        asset_token: String,
         compound_rate: Option<Decimal>,
     },
 }
@@ -80,9 +82,8 @@ pub enum QueryMsg {
     pools {},
     // get deposited balances
     reward_info {
-        staker_addr: HumanAddr,
-        asset_token: Option<HumanAddr>,
-        height: u64,
+        staker_addr: String,
+        asset_token: Option<String>,
     },
     state {},
 }
@@ -94,8 +95,8 @@ pub struct PoolsResponse {
 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolItem {
-    pub asset_token: HumanAddr,
-    pub staking_token: HumanAddr,
+    pub asset_token: String,
+    pub staking_token: String,
     pub total_auto_bond_share: Uint128, // share auto bond
     pub total_stake_bond_share: Uint128,
     pub total_stake_bond_amount: Uint128, // amount stake
@@ -112,13 +113,13 @@ pub struct PoolItem {
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfoResponse {
-    pub staker_addr: HumanAddr,
+    pub staker_addr: String,
     pub reward_infos: Vec<RewardInfoResponseItem>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfoResponseItem {
-    pub asset_token: HumanAddr,
+    pub asset_token: String,
     pub farm_share_index: Decimal,
     pub auto_spec_share_index: Decimal,
     pub stake_spec_share_index: Decimal,

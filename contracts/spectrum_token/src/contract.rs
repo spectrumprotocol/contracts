@@ -1,38 +1,34 @@
-use cosmwasm_std::{
-    Api, Binary, Env, Extern, HandleResponse, InitResponse,
-    MigrateResult, Querier, StdResult, Storage,
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
+
+use cw20_legacy::{
+    contract::{execute as cw20_execute, query as cw20_query, instantiate as cw20_instantiate},
+    msg::{ExecuteMsg, QueryMsg, InstantiateMsg},
+    ContractError,
 };
 
-use cw20_base::contract::{handle as cw20_handle, init as cw20_init, query as cw20_query, migrate as cw20_migrate};
-use cw20_base::msg::{HandleMsg, InitMsg, MigrateMsg, QueryMsg};
-
-pub fn init<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
+    deps: DepsMut,
     env: Env,
-    msg: InitMsg,
-) -> StdResult<InitResponse> {
-    cw20_init(deps, env, msg)
+    info: MessageInfo,
+    msg: InstantiateMsg,
+) -> StdResult<Response> {
+    cw20_instantiate(deps, env, info, msg)
 }
 
-pub fn handle<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
+    deps: DepsMut,
     env: Env,
-    msg: HandleMsg,
-) -> StdResult<HandleResponse> {
-    cw20_handle(deps, env, msg)
+    info: MessageInfo,
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
+    cw20_execute(deps, env, info, msg)
 }
 
-pub fn query<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    msg: QueryMsg,
-) -> StdResult<Binary> {
-    cw20_query(deps, msg)
-}
-
-pub fn migrate<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    msg: MigrateMsg,
-) -> MigrateResult {
-    cw20_migrate(deps, env, msg)
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    cw20_query(deps, env, msg)
 }

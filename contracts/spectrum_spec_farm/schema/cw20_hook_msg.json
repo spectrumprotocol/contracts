@@ -15,26 +15,18 @@
           ],
           "properties": {
             "asset_token": {
-              "$ref": "#/definitions/HumanAddr"
+              "type": "string"
             },
             "staker_addr": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/HumanAddr"
-                },
-                {
-                  "type": "null"
-                }
+              "type": [
+                "string",
+                "null"
               ]
             }
           }
         }
-      }
+      },
+      "additionalProperties": false
     }
-  ],
-  "definitions": {
-    "HumanAddr": {
-      "type": "string"
-    }
-  }
+  ]
 }

@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{CanonicalAddr, Decimal, ReadonlyStorage, StdResult, Storage, Uint128};
+use cosmwasm_std::{CanonicalAddr, Decimal, StdResult, Storage, Uint128};
 use cosmwasm_storage::{
     bucket, bucket_read, singleton, singleton_read, Bucket, ReadonlyBucket, Singleton,
 };
@@ -40,11 +40,11 @@ impl Config {
     }
 }
 
-pub fn store_config<S: Storage>(storage: &mut S, config: &Config) -> StdResult<()> {
+pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {
     singleton(storage, KEY_CONFIG).save(config)
 }
 
-pub fn read_config<S: Storage>(storage: &S) -> StdResult<Config> {
+pub fn read_config(storage: &dyn Storage) -> StdResult<Config> {
     singleton_read(storage, KEY_CONFIG).load()
 }
 
@@ -70,11 +70,11 @@ impl State {
     }
 }
 
-pub fn state_store<S: Storage>(storage: &mut S) -> Singleton<S, State> {
+pub fn state_store(storage: &mut dyn Storage) -> Singleton<State> {
     singleton(storage, KEY_STATE)
 }
 
-pub fn read_state<S: Storage>(storage: &S) -> StdResult<State> {
+pub fn read_state(storage: &dyn Storage) -> StdResult<State> {
     singleton_read(storage, KEY_STATE).load()
 }
 
@@ -98,7 +98,9 @@ pub struct PoolInfo {
 
 impl PoolInfo {
     pub fn calc_auto_bond_share(&self, auto_bond_amount: Uint128, lp_balance: Uint128) -> Uint128 {
-        let total_auto_bond_amount = (lp_balance - self.total_stake_bond_amount).unwrap();
+        let total_auto_bond_amount = lp_balance
+            .checked_sub(self.total_stake_bond_amount)
+            .unwrap();
         if self.total_auto_bond_share.is_zero() || total_auto_bond_amount.is_zero() {
             auto_bond_amount
         } else {
@@ -119,7 +121,8 @@ impl PoolInfo {
         if self.total_auto_bond_share.is_zero() {
             Uint128::zero()
         } else {
-            (lp_balance - self.total_stake_bond_amount)
+            lp_balance
+                .checked_sub(self.total_stake_bond_amount)
                 .unwrap()
                 .multiply_ratio(auto_bond_share, self.total_auto_bond_share)
         }
@@ -135,12 +138,12 @@ impl PoolInfo {
     }
 }
 
-pub fn pool_info_store<S: Storage>(storage: &mut S) -> Bucket<S, PoolInfo> {
-    bucket(PREFIX_POOL_INFO, storage)
+pub fn pool_info_store(storage: &mut dyn Storage) -> Bucket<PoolInfo> {
+    bucket(storage, PREFIX_POOL_INFO)
 }
 
-pub fn pool_info_read<S: Storage>(storage: &S) -> ReadonlyBucket<S, PoolInfo> {
-    bucket_read(PREFIX_POOL_INFO, storage)
+pub fn pool_info_read(storage: &dyn Storage) -> ReadonlyBucket<PoolInfo> {
+    bucket_read(storage, PREFIX_POOL_INFO)
 }
 
 static PREFIX_REWARD: &[u8] = b"reward";
@@ -158,18 +161,18 @@ pub struct RewardInfo {
 }
 
 /// returns a bucket with all rewards owned by this owner (query it by owner)
-pub fn rewards_store<'a, S: Storage>(
-    storage: &'a mut S,
+pub fn rewards_store<'a>(
+    storage: &'a mut dyn Storage,
     owner: &CanonicalAddr,
-) -> Bucket<'a, S, RewardInfo> {
-    Bucket::multilevel(&[PREFIX_REWARD, owner.as_slice()], storage)
+) -> Bucket<'a, RewardInfo> {
+    Bucket::multilevel(storage, &[PREFIX_REWARD, owner.as_slice()])
 }
 
 /// returns a bucket with all rewards owned by this owner (query it by owner)
 /// (read-only version for queries)
-pub fn rewards_read<'a, S: ReadonlyStorage>(
-    storage: &'a S,
+pub fn rewards_read<'a>(
+    storage: &'a dyn Storage,
     owner: &CanonicalAddr,
-) -> ReadonlyBucket<'a, S, RewardInfo> {
-    ReadonlyBucket::multilevel(&[PREFIX_REWARD, owner.as_slice()], storage)
+) -> ReadonlyBucket<'a, RewardInfo> {
+    ReadonlyBucket::multilevel(storage, &[PREFIX_REWARD, owner.as_slice()])
 }

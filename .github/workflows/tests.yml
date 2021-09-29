@@ -1,0 +1,35 @@
+on: [push, pull_request]
+
+name: Unit testing
+
+jobs:
+  clippy:
+    name: Actions - clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: wasm32-unknown-unknown
+          components: clippy
+          profile: minimal
+          override: true
+      - run: cargo fetch
+      - run: cargo clippy
+
+  unit-test:
+    name: Actions - unit test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: wasm32-unknown-unknown
+          profile: minimal
+      - run: cargo fetch
+      - run: cargo build
+      - run: cargo test --all
+        env:
+          RUST_BACKTRACE: 1

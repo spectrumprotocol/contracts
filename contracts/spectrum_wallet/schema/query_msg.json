@@ -11,21 +11,16 @@
         "balance": {
           "type": "object",
           "required": [
-            "address",
-            "height"
+            "address"
           ],
           "properties": {
             "address": {
-              "$ref": "#/definitions/HumanAddr"
-            },
-            "height": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
+              "type": "string"
             }
           }
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "type": "object",
@@ -36,7 +31,8 @@
         "config": {
           "type": "object"
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "type": "object",
@@ -47,7 +43,8 @@
         "state": {
           "type": "object"
         }
-      }
+      },
+      "additionalProperties": false
     },
     {
       "type": "object",
@@ -58,12 +55,8 @@
         "shares": {
           "type": "object"
         }
-      }
+      },
+      "additionalProperties": false
     }
-  ],
-  "definitions": {
-    "HumanAddr": {
-      "type": "string"
-    }
-  }
+  ]
 }

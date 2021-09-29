@@ -1,11 +1,12 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    from_binary, log, to_binary, Api, Binary, CanonicalAddr, Decimal, Env, Extern, HandleResponse,
-    HandleResult, HumanAddr, InitResponse, MigrateResponse, MigrateResult, Order, Querier,
-    StdError, StdResult, Storage, Uint128,
+    attr, from_binary, to_binary, Binary, CanonicalAddr, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Order, Response, StdError, StdResult, Uint128,
 };
 
 use crate::{
-    bond::try_bond,
+    bond::bond,
     harvest::harvest_all,
     reinvest::{re_invest, stake},
     state::{read_config, state_store, store_config, Config, PoolInfo, State},
@@ -13,10 +14,11 @@ use crate::{
 
 use cw20::Cw20ReceiveMsg;
 use spectrum_protocol::mirror_farm::{
-    ConfigInfo, Cw20HookMsg, HandleMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
+    ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
 
-use crate::bond::{deposit_spec_reward, query_reward_info, unbond, withdraw};
+use crate::bond::{deposit_spec_reward, query_reward_info, spec_reward_to_pool, unbond, withdraw, update_bond};
+use crate::querier::query_mirror_pool_balance;
 use crate::state::{pool_info_read, pool_info_store, read_state};
 
 /// (we require 0-1)
@@ -28,36 +30,35 @@ fn validate_percentage(value: Decimal, field: &str) -> StdResult<()> {
     }
 }
 
-pub fn init<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
+    deps: DepsMut,
     env: Env,
+    _info: MessageInfo,
     msg: ConfigInfo,
-) -> StdResult<InitResponse> {
+) -> StdResult<Response> {
     validate_percentage(msg.community_fee, "community_fee")?;
     validate_percentage(msg.platform_fee, "platform_fee")?;
     validate_percentage(msg.controller_fee, "controller_fee")?;
+    validate_percentage(msg.deposit_fee, "deposit_fee")?;
+
+    if msg.lock_end < msg.lock_start {
+        return Err(StdError::generic_err("invalid lock parameters"));
+    }
 
     let api = deps.api;
     store_config(
-        &mut deps.storage,
+        deps.storage,
         &Config {
-            owner: deps.api.canonical_address(&msg.owner)?,
-            terraswap_factory: deps.api.canonical_address(&msg.terraswap_factory)?,
-            spectrum_token: deps.api.canonical_address(&msg.spectrum_token)?,
-            spectrum_gov: deps.api.canonical_address(&msg.spectrum_gov)?,
-            mirror_token: deps.api.canonical_address(&msg.mirror_token)?,
-            mirror_staking: deps.api.canonical_address(&msg.mirror_staking)?,
-            mirror_gov: deps.api.canonical_address(&msg.mirror_gov)?,
-            platform: if let Some(platform) = msg.platform {
-                api.canonical_address(&platform)?
-            } else {
-                CanonicalAddr::default()
-            },
-            controller: if let Some(controller) = msg.controller {
-                api.canonical_address(&controller)?
-            } else {
-                CanonicalAddr::default()
-            },
+            owner: deps.api.addr_canonicalize(&msg.owner)?,
+            terraswap_factory: deps.api.addr_canonicalize(&msg.terraswap_factory)?,
+            spectrum_token: deps.api.addr_canonicalize(&msg.spectrum_token)?,
+            spectrum_gov: deps.api.addr_canonicalize(&msg.spectrum_gov)?,
+            mirror_token: deps.api.addr_canonicalize(&msg.mirror_token)?,
+            mirror_staking: deps.api.addr_canonicalize(&msg.mirror_staking)?,
+            mirror_gov: deps.api.addr_canonicalize(&msg.mirror_gov)?,
+            platform: api.addr_canonicalize(&msg.platform)?,
+            controller: api.addr_canonicalize(&msg.controller)?,
             base_denom: msg.base_denom,
             community_fee: msg.community_fee,
             platform_fee: msg.platform_fee,
@@ -68,8 +69,8 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         },
     )?;
 
-    state_store(&mut deps.storage).save(&State {
-        contract_addr: deps.api.canonical_address(&env.contract.address)?,
+    state_store(deps.storage).save(&State {
+        contract_addr: deps.api.addr_canonicalize(env.contract.address.as_str())?,
         previous_spec_share: Uint128::zero(),
         spec_share_index: Decimal::zero(),
         total_farm_share: Uint128::zero(),
@@ -77,110 +78,105 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         earning: Uint128::zero(),
     })?;
 
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
-pub fn handle<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    msg: HandleMsg,
-) -> StdResult<HandleResponse> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
-        HandleMsg::receive(msg) => receive_cw20(deps, env, msg),
-        HandleMsg::update_config {
+        ExecuteMsg::receive(msg) => receive_cw20(deps, env, info, msg),
+        ExecuteMsg::update_config {
             owner,
-            platform,
             controller,
             community_fee,
             platform_fee,
             controller_fee,
             deposit_fee,
-            lock_start,
-            lock_end,
         } => update_config(
             deps,
-            env,
+            info,
             owner,
-            platform,
             controller,
             community_fee,
             platform_fee,
             controller_fee,
             deposit_fee,
-            lock_start,
-            lock_end,
         ),
-        HandleMsg::register_asset {
+        ExecuteMsg::register_asset {
             asset_token,
             staking_token,
             weight,
             auto_compound,
-        } => register_asset(deps, env, asset_token, staking_token, weight, auto_compound),
-        HandleMsg::unbond {
+        } => register_asset(
+            deps,
+            info,
+            asset_token,
+            staking_token,
+            weight,
+            auto_compound,
+        ),
+        ExecuteMsg::unbond {
             asset_token,
             amount,
-        } => unbond(deps, env, asset_token, amount),
-        HandleMsg::withdraw { asset_token } => withdraw(deps, env, asset_token),
-        HandleMsg::harvest_all {} => harvest_all(deps, env),
-        HandleMsg::re_invest { asset_token } => re_invest(deps, env, asset_token),
-        HandleMsg::stake { asset_token } => stake(deps, env, asset_token),
+        } => unbond(deps, env, info, asset_token, amount),
+        ExecuteMsg::withdraw { asset_token } => withdraw(deps, env, info, asset_token),
+        ExecuteMsg::harvest_all {} => harvest_all(deps, env, info),
+        ExecuteMsg::re_invest { asset_token } => re_invest(deps, env, info, asset_token),
+        ExecuteMsg::stake { asset_token } => stake(deps, env, info, asset_token),
+        ExecuteMsg::update_bond { asset_token, amount_to_auto, amount_to_stake } => update_bond(deps, env, info, asset_token, amount_to_auto, amount_to_stake),
     }
 }
 
-pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+fn receive_cw20(
+    deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
-) -> HandleResult {
-    if let Some(msg) = cw20_msg.msg {
-        match from_binary(&msg)? {
-            Cw20HookMsg::bond {
-                staker_addr,
-                asset_token,
-                compound_rate,
-            } => try_bond(
-                deps,
-                env,
-                staker_addr.unwrap_or(cw20_msg.sender),
-                asset_token,
-                cw20_msg.amount,
-                compound_rate,
-            ),
-        }
-    } else {
-        Err(StdError::generic_err("data should be given"))
+) -> StdResult<Response> {
+    match from_binary(&cw20_msg.msg) {
+        Ok(Cw20HookMsg::bond {
+            staker_addr,
+            asset_token,
+            compound_rate,
+        }) => bond(
+            deps,
+            env,
+            info,
+            staker_addr.unwrap_or(cw20_msg.sender),
+            asset_token,
+            cw20_msg.amount,
+            compound_rate,
+        ),
+        Err(_) => Err(StdError::generic_err("data should be given")),
     }
 }
 
-pub fn update_config<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    owner: Option<HumanAddr>,
-    platform: Option<HumanAddr>,
-    controller: Option<HumanAddr>,
+#[allow(clippy::too_many_arguments)]
+pub fn update_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    owner: Option<String>,
+    controller: Option<String>,
     community_fee: Option<Decimal>,
     platform_fee: Option<Decimal>,
     controller_fee: Option<Decimal>,
     deposit_fee: Option<Decimal>,
-    lock_start: Option<u64>,
-    lock_end: Option<u64>,
-) -> StdResult<HandleResponse> {
-    let mut config: Config = read_config(&deps.storage)?;
+) -> StdResult<Response> {
+    let mut config: Config = read_config(deps.storage)?;
 
-    if deps.api.canonical_address(&env.message.sender)? != config.owner {
-        return Err(StdError::unauthorized());
+    if deps.api.addr_canonicalize(info.sender.as_str())? != config.owner {
+        return Err(StdError::generic_err("unauthorized"));
     }
 
     if let Some(owner) = owner {
-        config.owner = deps.api.canonical_address(&owner)?;
-    }
-
-    if let Some(platform) = platform {
-        config.platform = deps.api.canonical_address(&platform)?;
+        if config.owner == config.spectrum_gov {
+            return Err(StdError::generic_err("cannot update owner"));
+        }
+        config.owner = deps.api.addr_canonicalize(&owner)?;
     }
 
     if let Some(controller) = controller {
-        config.controller = deps.api.canonical_address(&controller)?;
+        config.controller = deps.api.addr_canonicalize(&controller)?;
     }
 
     if let Some(community_fee) = community_fee {
@@ -203,44 +199,33 @@ pub fn update_config<S: Storage, A: Api, Q: Querier>(
         config.deposit_fee = deposit_fee;
     }
 
-    if let Some(lock_start) = lock_start {
-        config.lock_start = lock_start;
-    }
+    store_config(deps.storage, &config)?;
 
-    if let Some(lock_end) = lock_end {
-        config.lock_end = lock_end;
-    }
-
-    store_config(&mut deps.storage, &config)?;
-    Ok(HandleResponse {
-        messages: vec![],
-        log: vec![log("action", "update_config")],
-        data: None,
-    })
+    Ok(Response::new().add_attributes(vec![attr("action", "update_config")]))
 }
 
-pub fn register_asset<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    asset_token: HumanAddr,
-    staking_token: HumanAddr,
+pub fn register_asset(
+    deps: DepsMut,
+    info: MessageInfo,
+    asset_token: String,
+    staking_token: String,
     weight: u32,
     auto_compound: bool,
-) -> HandleResult {
-    let config: Config = read_config(&deps.storage)?;
-    let asset_token_raw = deps.api.canonical_address(&asset_token)?;
+) -> StdResult<Response> {
+    let config: Config = read_config(deps.storage)?;
+    let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
 
-    if config.owner != deps.api.canonical_address(&env.message.sender)? {
-        return Err(StdError::unauthorized());
+    if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
+        return Err(StdError::generic_err("unauthorized"));
     }
 
-    let mut state = read_state(&deps.storage)?;
-    deposit_spec_reward(deps, &mut state, &config, env.block.height, false)?;
+    let mut state = read_state(deps.storage)?;
+    deposit_spec_reward(deps.as_ref(), &mut state, &config, false)?;
 
-    let mut pool_info = pool_info_read(&deps.storage)
+    let mut pool_info = pool_info_read(deps.storage)
         .may_load(asset_token_raw.as_slice())?
         .unwrap_or_else(|| PoolInfo {
-            staking_token: deps.api.canonical_address(&staking_token).unwrap(),
+            staking_token: deps.api.addr_canonicalize(&staking_token).unwrap(),
             total_auto_bond_share: Uint128::zero(),
             total_stake_bond_share: Uint128::zero(),
             total_stake_bond_amount: Uint128::zero(),
@@ -253,61 +238,70 @@ pub fn register_asset<S: Storage, A: Api, Q: Querier>(
             stake_spec_share_index: Decimal::zero(),
             reinvest_allowance: Uint128::zero(),
         });
+    if !pool_info.total_auto_bond_share.is_zero() || !pool_info.total_stake_bond_share.is_zero() {
+        let lp_balance = query_mirror_pool_balance(
+            deps.as_ref(),
+            &config.mirror_staking,
+            &asset_token_raw,
+            &state.contract_addr,
+        )?;
+        spec_reward_to_pool(&state, &mut pool_info, lp_balance)?;
+    }
+
     state.total_weight = state.total_weight + weight - pool_info.weight;
     pool_info.weight = weight;
     pool_info.auto_compound = auto_compound;
 
-    pool_info_store(&mut deps.storage).save(&asset_token_raw.as_slice(), &pool_info)?;
-    state_store(&mut deps.storage).save(&state)?;
+    if pool_info.total_stake_bond_share.is_zero()
+        && pool_info.total_auto_bond_share.is_zero()
+    {
+        pool_info.staking_token = deps.api.addr_canonicalize(&staking_token)?;
+    } else {
+        return Err(StdError::generic_err("pool is not empty"));
+    }
 
-    Ok(HandleResponse {
-        messages: vec![],
-        log: vec![
-            log("action", "register_asset"),
-            log("asset_token", asset_token.as_str()),
-        ],
-        data: None,
-    })
+    pool_info_store(deps.storage).save(&asset_token_raw.as_slice(), &pool_info)?;
+    state_store(deps.storage).save(&state)?;
+
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "register_asset"),
+        attr("asset_token", asset_token),
+    ]))
 }
 
-pub fn query<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    msg: QueryMsg,
-) -> StdResult<Binary> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::config {} => to_binary(&query_config(deps)?),
         QueryMsg::pools {} => to_binary(&query_pools(deps)?),
         QueryMsg::reward_info {
             asset_token,
             staker_addr,
-            height,
-        } => to_binary(&query_reward_info(deps, staker_addr, asset_token, height)?),
+        } => to_binary(&query_reward_info(
+            deps,
+            staker_addr,
+            asset_token,
+            env.block.height,
+        )?),
         QueryMsg::state {} => to_binary(&query_state(deps)?),
     }
 }
 
-pub fn query_config<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-) -> StdResult<ConfigInfo> {
-    let config = read_config(&deps.storage)?;
+pub fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
+    let config = read_config(deps.storage)?;
     let resp = ConfigInfo {
-        owner: deps.api.human_address(&config.owner)?,
-        terraswap_factory: deps.api.human_address(&config.terraswap_factory)?,
-        spectrum_token: deps.api.human_address(&config.spectrum_token)?,
-        mirror_token: deps.api.human_address(&config.mirror_token)?,
-        mirror_staking: deps.api.human_address(&config.mirror_staking)?,
-        spectrum_gov: deps.api.human_address(&config.spectrum_gov)?,
-        mirror_gov: deps.api.human_address(&config.mirror_gov)?,
-        platform: if config.platform == CanonicalAddr::default() {
-            None
-        } else {
-            Some(deps.api.human_address(&config.platform)?)
-        },
-        controller: if config.controller == CanonicalAddr::default() {
-            None
-        } else {
-            Some(deps.api.human_address(&config.controller)?)
-        },
+        owner: deps.api.addr_humanize(&config.owner)?.to_string(),
+        terraswap_factory: deps
+            .api
+            .addr_humanize(&config.terraswap_factory)?
+            .to_string(),
+        spectrum_token: deps.api.addr_humanize(&config.spectrum_token)?.to_string(),
+        mirror_token: deps.api.addr_humanize(&config.mirror_token)?.to_string(),
+        mirror_staking: deps.api.addr_humanize(&config.mirror_staking)?.to_string(),
+        spectrum_gov: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
+        mirror_gov: deps.api.addr_humanize(&config.mirror_gov)?.to_string(),
+        platform: deps.api.addr_humanize(&config.platform)?.to_string(),
+        controller: deps.api.addr_humanize(&config.controller)?.to_string(),
         base_denom: config.base_denom,
         community_fee: config.community_fee,
         platform_fee: config.platform_fee,
@@ -320,14 +314,20 @@ pub fn query_config<S: Storage, A: Api, Q: Querier>(
     Ok(resp)
 }
 
-fn query_pools<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<PoolsResponse> {
-    let pools = pool_info_read(&deps.storage)
+fn query_pools(deps: Deps) -> StdResult<PoolsResponse> {
+    let pools = pool_info_read(deps.storage)
         .range(None, None, Order::Descending)
         .map(|item| {
             let (asset_token, pool_info) = item?;
             Ok(PoolItem {
-                asset_token: deps.api.human_address(&CanonicalAddr::from(asset_token))?,
-                staking_token: deps.api.human_address(&pool_info.staking_token)?,
+                asset_token: deps
+                    .api
+                    .addr_humanize(&CanonicalAddr::from(asset_token))?
+                    .to_string(),
+                staking_token: deps
+                    .api
+                    .addr_humanize(&pool_info.staking_token)?
+                    .to_string(),
                 weight: pool_info.weight,
                 auto_compound: pool_info.auto_compound,
                 total_auto_bond_share: pool_info.total_auto_bond_share,
@@ -342,11 +342,13 @@ fn query_pools<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdRes
             })
         })
         .collect::<StdResult<Vec<PoolItem>>>()?;
+
     Ok(PoolsResponse { pools })
 }
 
-fn query_state<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<StateInfo> {
-    let state = read_state(&deps.storage)?;
+fn query_state(deps: Deps) -> StdResult<StateInfo> {
+    let state = read_state(deps.storage)?;
+
     Ok(StateInfo {
         spec_share_index: state.spec_share_index,
         previous_spec_share: state.previous_spec_share,
@@ -355,10 +357,7 @@ fn query_state<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdRes
     })
 }
 
-pub fn migrate<S: Storage, A: Api, Q: Querier>(
-    _deps: &mut Extern<S, A, Q>,
-    _env: Env,
-    _msg: MigrateMsg,
-) -> MigrateResult {
-    Ok(MigrateResponse::default())
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }

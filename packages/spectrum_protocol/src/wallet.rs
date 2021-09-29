@@ -1,4 +1,4 @@
-use cosmwasm_std::{Decimal, HumanAddr, Uint128};
+use cosmwasm_std::{Decimal, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -7,13 +7,13 @@ use cw20::Cw20ReceiveMsg;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigInfo {
-    pub owner: HumanAddr,
-    pub spectrum_token: HumanAddr,
-    pub spectrum_gov: HumanAddr,
+    pub owner: String,
+    pub spectrum_token: String,
+    pub spectrum_gov: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     poll_vote {
         poll_id: u64,
         vote: VoteOption,
@@ -27,10 +27,10 @@ pub enum HandleMsg {
         amount: Uint128,
     },
     update_config {
-        owner: Option<HumanAddr>,
+        owner: Option<String>,
     },
     upsert_share {
-        address: HumanAddr,
+        address: String,
         weight: u32,
         lock_start: Option<u64>,
         lock_end: Option<u64>,
@@ -48,7 +48,7 @@ pub enum Cw20HookMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum QueryMsg {
-    balance { address: HumanAddr, height: u64 },
+    balance { address: String },
     config {},
     state {},
     shares {},
@@ -71,7 +71,7 @@ pub struct StateInfo {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct ShareInfo {
-    pub address: HumanAddr,
+    pub address: String,
     pub weight: u32,
     pub share_index: Decimal,
     pub share: Uint128,

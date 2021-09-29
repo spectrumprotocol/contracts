@@ -1,37 +1,55 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    from_binary, to_binary, Api, Binary, CanonicalAddr, Decimal, Env, Extern, HandleResponse,
-    HandleResult, HumanAddr, InitResponse, MigrateResponse, MigrateResult, Querier, StdError,
-    StdResult, Storage, Uint128,
+    from_binary, to_binary, Binary, CanonicalAddr, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Response, StdError, StdResult, Uint128,
 };
-use spectrum_protocol::gov::{ConfigInfo, Cw20HookMsg, HandleMsg, MigrateMsg, QueryMsg, StateInfo};
+use spectrum_protocol::gov::{
+    ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, QueryMsg, StateInfo,
+};
 
 use crate::poll::{
     poll_end, poll_execute, poll_expire, poll_start, poll_vote, query_poll, query_polls,
     query_voters,
 };
-use crate::stake::{
-    calc_mintable, mint, query_balances, query_vaults, stake_tokens, upsert_vault, validate_minted,
-    withdraw,
-};
+use crate::stake::{calc_mintable, mint, query_balances, query_vaults, stake_tokens, upsert_vault, withdraw, validate_minted};
 use crate::state::{config_store, read_config, read_state, state_store, Config, State};
 use cw20::Cw20ReceiveMsg;
-use spectrum_protocol::querier::load_token_balance;
+use terraswap::querier::query_token_balance;
 
-pub fn init<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+// minimum effective delay around 1 day at 7 second per block
+const MINIMUM_EFFECTIVE_DELAY: u64 = 12342u64;
+
+fn validate_effective_delay(value: u64) -> StdResult<()> {
+    if value < MINIMUM_EFFECTIVE_DELAY {
+        Err(StdError::generic_err("minimum effective_delay is ".to_string() + &MINIMUM_EFFECTIVE_DELAY.to_string()))
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
+    deps: DepsMut,
     env: Env,
+    _info: MessageInfo,
     msg: ConfigInfo,
-) -> StdResult<InitResponse> {
+) -> StdResult<Response> {
     validate_percentage(msg.quorum, "quorum")?;
     validate_percentage(msg.threshold, "threshold")?;
     validate_percentage(msg.warchest_ratio, "warchest_ratio")?;
+    validate_effective_delay(msg.effective_delay)?;
+
+    if msg.mint_end < msg.mint_start {
+        return Err(StdError::generic_err("invalid mint parameters"));
+    }
 
     let config = Config {
-        owner: deps.api.canonical_address(&msg.owner)?,
+        owner: deps.api.addr_canonicalize(&msg.owner)?,
         spec_token: if let Some(spec_token) = msg.spec_token {
-            deps.api.canonical_address(&spec_token)?
+            deps.api.addr_canonicalize(&spec_token)?
         } else {
-            CanonicalAddr::default()
+            CanonicalAddr::from(vec![])
         },
         quorum: msg.quorum,
         threshold: msg.threshold,
@@ -43,15 +61,15 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         mint_start: msg.mint_start,
         mint_end: msg.mint_end,
         warchest_address: if let Some(warchest_address) = msg.warchest_address {
-            deps.api.canonical_address(&warchest_address)?
+            deps.api.addr_canonicalize(&warchest_address)?
         } else {
-            CanonicalAddr::default()
+            CanonicalAddr::from(vec![])
         },
         warchest_ratio: msg.warchest_ratio,
     };
 
     let state = State {
-        contract_addr: deps.api.canonical_address(&env.contract.address)?,
+        contract_addr: deps.api.addr_canonicalize(env.contract.address.as_str())?,
         poll_count: 0,
         total_share: Uint128::zero(),
         poll_deposit: Uint128::zero(),
@@ -63,10 +81,10 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         total_weight: 0,
     };
 
-    config_store(&mut deps.storage).save(&config)?;
-    state_store(&mut deps.storage).save(&state)?;
+    config_store(deps.storage).save(&config)?;
+    state_store(deps.storage).save(&state)?;
 
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
 /// validate_quorum returns an error if the quorum is invalid
@@ -79,23 +97,20 @@ fn validate_percentage(value: Decimal, field: &str) -> StdResult<()> {
     }
 }
 
-pub fn handle<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    msg: HandleMsg,
-) -> StdResult<HandleResponse> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
-        HandleMsg::mint {} => mint(deps, env),
-        HandleMsg::poll_end { poll_id } => poll_end(deps, env, poll_id),
-        HandleMsg::poll_execute { poll_id } => poll_execute(deps, env, poll_id),
-        HandleMsg::poll_expire { poll_id } => poll_expire(deps, env, poll_id),
-        HandleMsg::poll_vote {
+        ExecuteMsg::mint {} => mint(deps, env),
+        ExecuteMsg::poll_end { poll_id } => poll_end(deps, env, poll_id),
+        ExecuteMsg::poll_execute { poll_id } => poll_execute(deps, env, poll_id),
+        ExecuteMsg::poll_expire { poll_id } => poll_expire(deps, env, poll_id),
+        ExecuteMsg::poll_vote {
             poll_id,
             vote,
             amount,
-        } => poll_vote(deps, env, poll_id, vote, amount),
-        HandleMsg::receive(msg) => receive_cw20(deps, env, msg),
-        HandleMsg::update_config {
+        } => poll_vote(deps, env, info, poll_id, vote, amount),
+        ExecuteMsg::receive(msg) => receive_cw20(deps, env, info, msg),
+        ExecuteMsg::update_config {
             owner,
             spec_token,
             quorum,
@@ -104,14 +119,11 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             effective_delay,
             expiration_period,
             proposal_deposit,
-            mint_per_block,
-            mint_start,
-            mint_end,
             warchest_address,
-            warchest_ratio,
         } => update_config(
             deps,
             env,
+            info,
             owner,
             spec_token,
             quorum,
@@ -120,91 +132,86 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             effective_delay,
             expiration_period,
             proposal_deposit,
-            mint_per_block,
-            mint_start,
-            mint_end,
             warchest_address,
-            warchest_ratio,
         ),
-        HandleMsg::upsert_vault {
+        ExecuteMsg::upsert_vault {
             vault_address,
             weight,
-        } => upsert_vault(deps, env, vault_address, weight),
-        HandleMsg::withdraw { amount } => withdraw(deps, env, amount),
+        } => upsert_vault(deps, env, info, vault_address, weight),
+        ExecuteMsg::withdraw { amount } => withdraw(deps, info, amount),
     }
 }
 
-pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+fn receive_cw20(
+    deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
-) -> HandleResult {
+) -> StdResult<Response> {
     // only asset contract can execute this message
-    let config = read_config(&deps.storage)?;
-    if config.spec_token != deps.api.canonical_address(&env.message.sender)? {
-        return Err(StdError::unauthorized());
+    let config = read_config(deps.storage)?;
+    if config.spec_token != deps.api.addr_canonicalize(info.sender.as_str())? {
+        return Err(StdError::generic_err("unauthorized"));
     }
 
-    if let Some(msg) = cw20_msg.msg {
-        match from_binary(&msg)? {
-            Cw20HookMsg::poll_start {
-                title,
-                description,
-                link,
-                execute_msgs,
-            } => poll_start(
-                deps,
-                env,
-                cw20_msg.sender,
-                cw20_msg.amount,
-                title,
-                description,
-                link,
-                execute_msgs,
-            ),
-            Cw20HookMsg::stake_tokens { staker_addr } => stake_tokens(
-                deps,
-                env,
-                staker_addr.unwrap_or(cw20_msg.sender),
-                cw20_msg.amount,
-            ),
-        }
-    } else {
-        Err(StdError::generic_err("data should be given"))
+    match from_binary(&cw20_msg.msg) {
+        Ok(Cw20HookMsg::poll_start {
+            title,
+            description,
+            link,
+            execute_msgs,
+        }) => poll_start(
+            deps,
+            env,
+            cw20_msg.sender,
+            cw20_msg.amount,
+            title,
+            description,
+            link,
+            execute_msgs,
+        ),
+        Ok(Cw20HookMsg::stake_tokens { staker_addr }) => stake_tokens(
+            deps,
+            staker_addr.unwrap_or(cw20_msg.sender),
+            cw20_msg.amount,
+        ),
+        Err(_) => Err(StdError::generic_err("data should be given")),
     }
 }
 
-fn update_config<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+#[allow(clippy::too_many_arguments)]
+fn update_config(
+    deps: DepsMut,
     env: Env,
-    owner: Option<HumanAddr>,
-    spec_token: Option<HumanAddr>,
+    info: MessageInfo,
+    owner: Option<String>,
+    spec_token: Option<String>,
     quorum: Option<Decimal>,
     threshold: Option<Decimal>,
     voting_period: Option<u64>,
     effective_delay: Option<u64>,
     expiration_period: Option<u64>,
     proposal_deposit: Option<Uint128>,
-    mint_per_block: Option<Uint128>,
-    mint_start: Option<u64>,
-    mint_end: Option<u64>,
-    warchest_address: Option<HumanAddr>,
-    warchest_ratio: Option<Decimal>,
-) -> HandleResult {
-    let mut config = config_store(&mut deps.storage).load()?;
-    if config.owner != deps.api.canonical_address(&env.message.sender)? {
-        return Err(StdError::unauthorized());
+    warchest_address: Option<String>,
+) -> StdResult<Response> {
+    let mut config = config_store(deps.storage).load()?;
+    if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
+        return Err(StdError::generic_err("unauthorized"));
     }
 
     if let Some(owner) = owner {
-        config.owner = deps.api.canonical_address(&owner)?;
+        let state = read_state(deps.storage)?;
+        if config.owner == state.contract_addr {
+            return Err(StdError::generic_err("cannot update owner"));
+        }
+        config.owner = deps.api.addr_canonicalize(&owner)?;
     }
 
     if let Some(spec_token) = spec_token {
-        if config.spec_token != CanonicalAddr::default() {
+        if config.spec_token != CanonicalAddr::from(vec![]) {
             return Err(StdError::generic_err("SPEC token is already assigned"));
         }
-        config.spec_token = deps.api.canonical_address(&spec_token)?;
+        config.spec_token = deps.api.addr_canonicalize(&spec_token)?;
     }
 
     if let Some(quorum) = quorum {
@@ -222,6 +229,7 @@ fn update_config<S: Storage, A: Api, Q: Querier>(
     }
 
     if let Some(effective_delay) = effective_delay {
+        validate_effective_delay(effective_delay)?;
         config.effective_delay = effective_delay;
     }
 
@@ -233,54 +241,24 @@ fn update_config<S: Storage, A: Api, Q: Querier>(
         config.proposal_deposit = proposal_deposit;
     }
 
-    if mint_per_block.is_some()
-        || mint_start.is_some()
-        || mint_end.is_some()
-        || warchest_address.is_some()
-        || warchest_ratio.is_some()
-    {
-        let state = read_state(&deps.storage)?;
-        validate_minted(&state, &config, env.block.height)?;
-    }
-
-    if let Some(mint_per_block) = mint_per_block {
-        config.mint_per_block = mint_per_block;
-    }
-
-    if let Some(mint_start) = mint_start {
-        config.mint_start = mint_start;
-    }
-
-    if let Some(mint_end) = mint_end {
-        config.mint_end = mint_end;
-
-        let mut state = state_store(&mut deps.storage).load()?;
-        if validate_minted(&state, &config, env.block.height).is_err() {
-            state.last_mint = env.block.height;
-            state_store(&mut deps.storage).save(&state)?;
-        }
-    }
-
     if let Some(warchest_address) = warchest_address {
-        config.warchest_address = deps.api.canonical_address(&warchest_address)?;
+        if config.warchest_address != CanonicalAddr::from(vec![]) {
+            return Err(StdError::generic_err("Warchest address is already assigned"));
+        }
+        let state = read_state(deps.storage)?;
+        validate_minted(&state, &config, env.block.height)?;
+        config.warchest_address = deps.api.addr_canonicalize(&warchest_address)?;
     }
 
-    if let Some(warchest_ratio) = warchest_ratio {
-        validate_percentage(warchest_ratio, "warchest_ratio")?;
-        config.warchest_ratio = warchest_ratio;
-    }
+    config_store(deps.storage).save(&config)?;
 
-    config_store(&mut deps.storage).save(&config)?;
-
-    Ok(HandleResponse::default())
+    Ok(Response::default())
 }
 
-pub fn query<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    msg: QueryMsg,
-) -> StdResult<Binary> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::balance { address, height } => to_binary(&query_balances(deps, address, height)?),
+        QueryMsg::balance { address } => to_binary(&query_balances(deps, address, env.block.height)?),
         QueryMsg::config {} => to_binary(&query_config(deps)?),
         QueryMsg::poll { poll_id } => to_binary(&query_poll(deps, poll_id)?),
         QueryMsg::polls {
@@ -289,7 +267,7 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
             limit,
             order_by,
         } => to_binary(&query_polls(deps, filter, start_after, limit, order_by)?),
-        QueryMsg::state { height } => to_binary(&query_state(deps, height)?),
+        QueryMsg::state { } => to_binary(&query_state(deps, env.block.height)?),
         QueryMsg::vaults {} => to_binary(&query_vaults(deps)?),
         QueryMsg::voters {
             poll_id,
@@ -300,14 +278,14 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
     }
 }
 
-fn query_config<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<ConfigInfo> {
-    let config = read_config(&deps.storage)?;
+fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
+    let config = read_config(deps.storage)?;
     Ok(ConfigInfo {
-        owner: deps.api.human_address(&config.owner)?,
-        spec_token: if config.spec_token == CanonicalAddr::default() {
+        owner: deps.api.addr_humanize(&config.owner)?.to_string(),
+        spec_token: if config.spec_token == CanonicalAddr::from(vec![]) {
             None
         } else {
-            Some(deps.api.human_address(&config.spec_token)?)
+            Some(deps.api.addr_humanize(&config.spec_token)?.to_string())
         },
         quorum: config.quorum,
         threshold: config.threshold,
@@ -318,22 +296,27 @@ fn query_config<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdRe
         mint_per_block: config.mint_per_block,
         mint_start: config.mint_start,
         mint_end: config.mint_end,
-        warchest_address: if config.warchest_address == CanonicalAddr::default() {
+        warchest_address: if config.warchest_address == CanonicalAddr::from(vec![]) {
             None
         } else {
-            Some(deps.api.human_address(&config.warchest_address)?)
+            Some(
+                deps.api
+                    .addr_humanize(&config.warchest_address)?
+                    .to_string(),
+            )
         },
         warchest_ratio: config.warchest_ratio,
     })
 }
 
-fn query_state<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    height: u64,
-) -> StdResult<StateInfo> {
-    let state = read_state(&deps.storage)?;
-    let config = read_config(&deps.storage)?;
-    let balance = load_token_balance(deps, &config.spec_token, &state.contract_addr)?;
+fn query_state(deps: Deps, height: u64) -> StdResult<StateInfo> {
+    let state = read_state(deps.storage)?;
+    let config = read_config(deps.storage)?;
+    let balance = query_token_balance(
+        &deps.querier,
+        deps.api.addr_humanize(&config.spec_token)?,
+        deps.api.addr_humanize(&state.contract_addr)?,
+    )?;
     let mintable = calc_mintable(&state, &config, height);
     Ok(StateInfo {
         poll_count: state.poll_count,
@@ -341,14 +324,11 @@ fn query_state<S: Storage, A: Api, Q: Querier>(
         poll_deposit: state.poll_deposit,
         last_mint: state.last_mint,
         total_weight: state.total_weight,
-        total_staked: (balance + mintable - state.poll_deposit)?,
+        total_staked: (balance + mintable).checked_sub(state.poll_deposit)?,
     })
 }
 
-pub fn migrate<S: Storage, A: Api, Q: Querier>(
-    _deps: &mut Extern<S, A, Q>,
-    _env: Env,
-    _msg: MigrateMsg,
-) -> MigrateResult {
-    Ok(MigrateResponse::default())
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }

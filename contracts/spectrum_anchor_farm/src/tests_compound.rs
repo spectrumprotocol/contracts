@@ -1,26 +1,26 @@
 use crate::bond::deposit_farm_share;
-use crate::contract::{handle, init, query};
+use crate::contract::{execute, instantiate, query};
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
-use crate::state::{pool_info_read, pool_info_store, read_config};
+use crate::state::{pool_info_read, pool_info_store, read_config, read_state, state_store};
 use anchor_token::gov::Cw20HookMsg as AnchorGovCw20HookMsg;
-use anchor_token::gov::HandleMsg as AnchorGovHandleMsg;
-use anchor_token::staking::HandleMsg as AnchorStakingHandleMsg;
-use cosmwasm_std::testing::{mock_env, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
+use anchor_token::gov::ExecuteMsg as AnchorGovExecuteMsg;
+use anchor_token::staking::ExecuteMsg as AnchorStakingExecuteMsg;
+use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    from_binary, to_binary, Api, Coin, CosmosMsg, Decimal, Extern, HumanAddr, Uint128, WasmMsg,
+    from_binary, to_binary, Api, Coin, CosmosMsg, Decimal, OwnedDeps, Uint128, WasmMsg,
 };
-use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
+use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use spectrum_protocol::anchor_farm::{
-    ConfigInfo, Cw20HookMsg, HandleMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
+    ConfigInfo, Cw20HookMsg, ExecuteMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
-use spectrum_protocol::gov::{Cw20HookMsg as GovCw20HookMsg, HandleMsg as GovHandleMsg};
+use spectrum_protocol::gov::{Cw20HookMsg as GovCw20HookMsg, ExecuteMsg as GovExecuteMsg};
 use std::fmt::Debug;
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
-use terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg, HandleMsg as TerraswapHandleMsg};
+use terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg, ExecuteMsg as TerraswapExecuteMsg};
 
-const SPEC_GOV: &str = "spec_gov";
+const SPEC_GOV: &str = "SPEC_GOV";
 const SPEC_PLATFORM: &str = "spec_platform";
 const SPEC_TOKEN: &str = "spec_token";
 const SPEC_LP: &str = "spec_lp";
@@ -40,13 +40,13 @@ const USER2: &str = "user2";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfoResponse {
-    pub staker_addr: HumanAddr,
+    pub staker_addr: String,
     pub reward_infos: Vec<RewardInfoResponseItem>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfoResponseItem {
-    pub asset_token: HumanAddr,
+    pub asset_token: String,
     pub farm_share_index: Decimal,
     pub auto_spec_share_index: Decimal,
     pub stake_spec_share_index: Decimal,
@@ -66,7 +66,7 @@ pub struct RewardInfoResponseItem {
 
 #[test]
 fn test() {
-    let mut deps = mock_dependencies(20, &[]);
+    let mut deps = mock_dependencies(&[]);
     deps.querier.with_balance_percent(100);
     deps.querier.with_terraswap_pairs(&[
         (
@@ -74,14 +74,14 @@ fn test() {
             &PairInfo {
                 asset_infos: [
                     AssetInfo::Token {
-                        contract_addr: HumanAddr::from(ANC_TOKEN),
+                        contract_addr: ANC_TOKEN.to_string(),
                     },
                     AssetInfo::NativeToken {
                         denom: "uusd".to_string(),
                     },
                 ],
-                contract_addr: HumanAddr::from(ANC_POOL),
-                liquidity_token: HumanAddr::from(ANC_LP),
+                contract_addr: ANC_POOL.to_string(),
+                liquidity_token: ANC_LP.to_string(),
             },
         ),
         (
@@ -89,20 +89,20 @@ fn test() {
             &PairInfo {
                 asset_infos: [
                     AssetInfo::Token {
-                        contract_addr: HumanAddr::from(SPEC_TOKEN),
+                        contract_addr: SPEC_TOKEN.to_string(),
                     },
                     AssetInfo::NativeToken {
                         denom: "uusd".to_string(),
                     },
                 ],
-                contract_addr: HumanAddr::from(SPEC_POOL),
-                liquidity_token: HumanAddr::from(SPEC_LP),
+                contract_addr: SPEC_POOL.to_string(),
+                liquidity_token: SPEC_LP.to_string(),
             },
         ),
     ]);
     deps.querier.with_tax(
         Decimal::percent(1),
-        &[(&"uusd".to_string(), &Uint128(1500000u128))],
+        &[(&"uusd".to_string(), &Uint128::from(1500000u128))],
     );
 
     let _ = test_config(&mut deps);
@@ -115,19 +115,20 @@ fn test() {
     test_compound_anc_with_fees(&mut deps);
 }
 
-fn test_config(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) -> ConfigInfo {
+fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> ConfigInfo {
     // test init & read config & read state
-    let env = mock_env(TEST_CREATOR, &[]);
+    let env = mock_env();
+    let info = mock_info(TEST_CREATOR, &[]);
     let mut config = ConfigInfo {
-        owner: HumanAddr::from(TEST_CREATOR),
-        spectrum_gov: HumanAddr::from(SPEC_GOV),
-        spectrum_token: HumanAddr::from(SPEC_TOKEN),
-        anchor_gov: HumanAddr::from(ANC_GOV),
-        anchor_token: HumanAddr::from(ANC_TOKEN),
-        anchor_staking: HumanAddr::from(ANC_STAKING),
-        terraswap_factory: HumanAddr::from(TERRA_SWAP),
-        platform: Some(HumanAddr::from(SPEC_PLATFORM)),
-        controller: Some(HumanAddr::from(TEST_CONTROLLER)),
+        owner: TEST_CREATOR.to_string(),
+        spectrum_gov: SPEC_GOV.to_string(),
+        spectrum_token: SPEC_TOKEN.to_string(),
+        anchor_gov: ANC_GOV.to_string(),
+        anchor_token: ANC_TOKEN.to_string(),
+        anchor_staking: ANC_STAKING.to_string(),
+        terraswap_factory: TERRA_SWAP.to_string(),
+        platform: SPEC_PLATFORM.to_string(),
+        controller: TEST_CONTROLLER.to_string(),
         base_denom: "uusd".to_string(),
         community_fee: Decimal::zero(),
         platform_fee: Decimal::zero(),
@@ -138,17 +139,17 @@ fn test_config(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) -> Conf
     };
 
     // success init
-    let res = init(deps, env.clone(), config.clone());
+    let res = instantiate(deps.as_mut(), env.clone(), info, config.clone());
     assert!(res.is_ok());
 
     // read config
     let msg = QueryMsg::config {};
-    let res: ConfigInfo = from_binary(&query(deps, msg).unwrap()).unwrap();
-    assert_eq!(res, config.clone());
+    let res: ConfigInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+    assert_eq!(res, config);
 
     // read state
     let msg = QueryMsg::state {};
-    let res: StateInfo = from_binary(&query(deps, msg).unwrap()).unwrap();
+    let res: StateInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(
         res,
         StateInfo {
@@ -160,60 +161,58 @@ fn test_config(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) -> Conf
     );
 
     // alter config, validate owner
-    let env = mock_env(SPEC_GOV, &[]);
-    let msg = HandleMsg::update_config {
-        owner: Some(HumanAddr::from(SPEC_GOV)),
-        platform: None,
+    let info = mock_info(SPEC_GOV, &[]);
+    let msg = ExecuteMsg::update_config {
+        owner: Some(SPEC_GOV.to_string()),
         controller: None,
         community_fee: None,
         platform_fee: None,
         controller_fee: None,
         deposit_fee: None,
-        lock_start: None,
-        lock_end: None,
     };
-    let res = handle(deps, env.clone(), msg.clone());
+    let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
 
     // success
-    let env = mock_env(TEST_CREATOR, &[]);
-    let res = handle(deps, env.clone(), msg);
+    let info = mock_info(TEST_CREATOR, &[]);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     let msg = QueryMsg::config {};
-    let res: ConfigInfo = from_binary(&query(deps, msg).unwrap()).unwrap();
-    config.owner = HumanAddr::from(SPEC_GOV);
-    assert_eq!(res, config.clone());
+    let res: ConfigInfo = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
+    config.owner = SPEC_GOV.to_string();
+    assert_eq!(res, config);
 
     config
 }
 
-fn test_register_asset(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // no permission
-    let env = mock_env(TEST_CREATOR, &[]);
-    let msg = HandleMsg::register_asset {
-        asset_token: HumanAddr::from(ANC_TOKEN),
-        staking_token: HumanAddr::from(ANC_LP),
+    let env = mock_env();
+    let info = mock_info(TEST_CREATOR, &[]);
+    let msg = ExecuteMsg::register_asset {
+        asset_token: ANC_TOKEN.to_string(),
+        staking_token: ANC_LP.to_string(),
         weight: 1u32,
         auto_compound: true,
     };
-    let res = handle(deps, env.clone(), msg.clone());
+    let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
 
     // success
-    let env = mock_env(SPEC_GOV, &[]);
-    let res = handle(deps, env.clone(), msg);
+    let info = mock_info(SPEC_GOV, &[]);
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
 
     // query pool info
     let msg = QueryMsg::pools {};
-    let res: PoolsResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
+    let res: PoolsResponse = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(
         res,
         PoolsResponse {
             pools: vec![PoolItem {
-                asset_token: HumanAddr::from(ANC_TOKEN),
-                staking_token: HumanAddr::from(ANC_LP),
+                asset_token: ANC_TOKEN.to_string(),
+                staking_token: ANC_LP.to_string(),
                 weight: 1u32,
                 auto_compound: true,
                 farm_share: Uint128::zero(),
@@ -230,60 +229,65 @@ fn test_register_asset(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>)
     );
 
     // test register fail
-    let msg = HandleMsg::register_asset {
-        asset_token: HumanAddr::from(FAIL_TOKEN),
-        staking_token: HumanAddr::from(FAIL_LP),
+    let msg = ExecuteMsg::register_asset {
+        asset_token: FAIL_TOKEN.to_string(),
+        staking_token: FAIL_LP.to_string(),
         weight: 2u32,
         auto_compound: true,
     };
-    let res = handle(deps, env.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_err());
 
     // read state
     let msg = QueryMsg::state {};
-    let res: StateInfo = from_binary(&query(deps, msg).unwrap()).unwrap();
+    let res: StateInfo = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(res.total_weight, 1u32);
 }
 
-fn test_compound_unauthorized(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_compound_unauthorized(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // reinvest err
-    let env = mock_env(TEST_CREATOR, &[]);
-    let msg = HandleMsg::compound {};
-    let res = handle(deps, env.clone(), msg.clone());
+    let env = mock_env();
+    let info = mock_info(TEST_CREATOR, &[]);
+    let msg = ExecuteMsg::compound {};
+    let res = execute(deps.as_mut(), env, info, msg);
     assert!(res.is_err());
 }
 
-fn test_compound_zero(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // reinvest zero
-    let env = mock_env(TEST_CONTROLLER, &[]);
-    let msg = HandleMsg::compound {};
-    let res = handle(deps, env.clone(), msg.clone()).unwrap();
+    let env = mock_env();
+    let info = mock_info(TEST_CONTROLLER, &[]);
+    let msg = ExecuteMsg::compound {};
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
     assert_eq!(
-        res.messages,
+        res.messages
+            .into_iter()
+            .map(|it| it.msg)
+            .collect::<Vec<CosmosMsg>>(),
         vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(ANC_STAKING),
-                send: vec![],
-                msg: to_binary(&AnchorStakingHandleMsg::Withdraw {}).unwrap(),
+                contract_addr: ANC_STAKING.to_string(),
+                funds: vec![],
+                msg: to_binary(&AnchorStakingExecuteMsg::Withdraw {}).unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(ANC_TOKEN),
-                msg: to_binary(&Cw20HandleMsg::IncreaseAllowance {
-                    spender: HumanAddr::from(ANC_POOL),
+                contract_addr: ANC_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+                    spender: ANC_POOL.to_string(),
                     amount: Uint128::zero(),
                     expires: None,
                 })
                 .unwrap(),
-                send: vec![],
+                funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(ANC_POOL),
-                msg: to_binary(&TerraswapHandleMsg::ProvideLiquidity {
+                contract_addr: ANC_POOL.to_string(),
+                msg: to_binary(&TerraswapExecuteMsg::ProvideLiquidity {
                     assets: [
                         Asset {
                             info: AssetInfo::Token {
-                                contract_addr: HumanAddr::from(ANC_TOKEN),
+                                contract_addr: ANC_TOKEN.to_string(),
                             },
                             amount: Uint128::zero(),
                         },
@@ -295,91 +299,91 @@ fn test_compound_zero(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) 
                         },
                     ],
                     slippage_tolerance: None,
+                    receiver: None
                 })
                 .unwrap(),
-                send: vec![Coin {
+                funds: vec![Coin {
                     denom: "uusd".to_string(),
                     amount: Uint128::zero(),
                 }],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: env.contract.address,
-                msg: to_binary(&HandleMsg::stake {
-                    asset_token: HumanAddr::from(ANC_TOKEN),
+                contract_addr: env.contract.address.to_string(),
+                msg: to_binary(&ExecuteMsg::stake {
+                    asset_token: ANC_TOKEN.to_string(),
                 })
                 .unwrap(),
-                send: vec![],
+                funds: vec![],
             }),
         ]
     );
 }
 
-fn test_compound_anc_from_allowance(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
-    let env = mock_env(TEST_CONTROLLER, &[]);
+fn test_compound_anc_from_allowance(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+    let env = mock_env();
+    let info = mock_info(TEST_CONTROLLER, &[]);
 
-    let asset_token_raw = deps
-        .api
-        .canonical_address(&HumanAddr::from(ANC_TOKEN))
-        .unwrap();
-    let mut pool_info = pool_info_read(&deps.storage)
+    let asset_token_raw = deps.api.addr_canonicalize(&ANC_TOKEN.to_string()).unwrap();
+    let mut pool_info = pool_info_read(deps.as_ref().storage)
         .load(asset_token_raw.as_slice())
         .unwrap();
     pool_info.reinvest_allowance = Uint128::from(100_000_000u128);
-    pool_info_store(&mut deps.storage)
+    pool_info_store(deps.as_mut().storage)
         .save(asset_token_raw.as_slice(), &pool_info)
         .unwrap();
 
-    let msg = HandleMsg::compound {};
-    let res = handle(deps, env.clone(), msg.clone()).unwrap();
+    let msg = ExecuteMsg::compound {};
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
-    let pool_info = pool_info_read(&deps.storage)
+    let pool_info = pool_info_read(deps.as_ref().storage)
         .load(asset_token_raw.as_slice())
         .unwrap();
 
     assert_eq!(Uint128::from(1_132_243u128), pool_info.reinvest_allowance);
 
     assert_eq!(
-        res.messages,
+        res.messages
+            .into_iter()
+            .map(|it| it.msg)
+            .collect::<Vec<CosmosMsg>>(),
         vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(ANC_STAKING),
-                send: vec![],
-                msg: to_binary(&AnchorStakingHandleMsg::Withdraw {}).unwrap(),
+                contract_addr: ANC_STAKING.to_string(),
+                funds: vec![],
+                msg: to_binary(&AnchorStakingExecuteMsg::Withdraw {}).unwrap(),
             }), //ok
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(ANC_TOKEN),
-                msg: to_binary(&Cw20HandleMsg::Send {
-                    contract: HumanAddr::from(ANC_POOL),
+                contract_addr: ANC_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: ANC_POOL.to_string(),
                     amount: Uint128::from(50_000_000u128),
-                    msg: Some(
-                        to_binary(&TerraswapCw20HookMsg::Swap {
-                            max_spread: None,
-                            belief_price: None,
-                            to: None,
-                        })
-                        .unwrap()
-                    ),
+                    msg: to_binary(&TerraswapCw20HookMsg::Swap {
+                        max_spread: None,
+                        belief_price: None,
+                        to: None,
+                    })
+                    .unwrap()
                 })
                 .unwrap(),
-                send: vec![],
+                funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(ANC_TOKEN),
-                msg: to_binary(&Cw20HandleMsg::IncreaseAllowance {
-                    spender: HumanAddr::from(ANC_POOL),
+                contract_addr: ANC_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+                    spender: ANC_POOL.to_string(),
                     amount: Uint128::from(48_867_757u128),
                     expires: None
                 })
                 .unwrap(),
-                send: vec![],
+                funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(ANC_POOL),
-                msg: to_binary(&TerraswapHandleMsg::ProvideLiquidity {
+                contract_addr: ANC_POOL.to_string(),
+                msg: to_binary(&TerraswapExecuteMsg::ProvideLiquidity {
                     assets: [
                         Asset {
                             info: AssetInfo::Token {
-                                contract_addr: HumanAddr::from(ANC_TOKEN),
+                                contract_addr: ANC_TOKEN.to_string(),
                             },
                             amount: Uint128::from(48_867_757u128),
                         },
@@ -391,90 +395,91 @@ fn test_compound_anc_from_allowance(deps: &mut Extern<MockStorage, MockApi, Wasm
                         },
                     ],
                     slippage_tolerance: None,
+                    receiver: None
                 })
                 .unwrap(),
-                send: vec![Coin {
+                funds: vec![Coin {
                     denom: "uusd".to_string(),
                     amount: Uint128::from(48_867_757u128),
                 }],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: env.contract.address,
-                msg: to_binary(&HandleMsg::stake {
-                    asset_token: HumanAddr::from(ANC_TOKEN),
+                contract_addr: env.contract.address.to_string(),
+                msg: to_binary(&ExecuteMsg::stake {
+                    asset_token: ANC_TOKEN.to_string(),
                 })
                 .unwrap(),
-                send: vec![],
+                funds: vec![],
             }),
         ]
     );
 }
 
-fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // bond err
-    let env = mock_env(TEST_CREATOR, &[]);
-    let msg = HandleMsg::receive(Cw20ReceiveMsg {
-        sender: HumanAddr::from(USER1),
+    let env = mock_env();
+    let info = mock_info(TEST_CREATOR, &[]);
+    let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
+        sender: USER1.to_string(),
         amount: Uint128::from(10000u128),
-        msg: Some(
-            to_binary(&Cw20HookMsg::bond {
-                staker_addr: None,
-                asset_token: HumanAddr::from(ANC_TOKEN),
-                compound_rate: Some(Decimal::percent(60)),
-            })
-            .unwrap(),
-        ),
+        msg: to_binary(&Cw20HookMsg::bond {
+            staker_addr: None,
+            asset_token: ANC_TOKEN.to_string(),
+            compound_rate: Some(Decimal::percent(60)),
+        })
+        .unwrap(),
     });
-    let res = handle(deps, env.clone(), msg.clone());
+    let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
 
     // bond success user1 1000 ANC-LP
-    let env = mock_env(ANC_LP, &[]);
-    let res = handle(deps, env.clone(), msg);
+    let info = mock_info(ANC_LP, &[]);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
-    let config = read_config(&deps.storage).unwrap();
-    let mut pool_info = pool_info_read(&deps.storage)
+    let deps_ref = deps.as_ref();
+    let config = read_config(deps_ref.storage).unwrap();
+    let mut state = read_state(deps_ref.storage).unwrap();
+    let mut pool_info = pool_info_read(deps_ref.storage)
         .load(config.anchor_token.as_slice())
         .unwrap();
-    deposit_farm_share(deps, &mut pool_info, &config, Uint128::from(500u128)).unwrap();
-    pool_info_store(&mut deps.storage)
+    deposit_farm_share(
+        deps_ref,
+        &mut state,
+        &mut pool_info,
+        &config,
+        Uint128::from(500u128),
+    )
+    .unwrap();
+    state_store(deps.as_mut().storage).save(&state).unwrap();
+    pool_info_store(deps.as_mut().storage)
         .save(config.anchor_token.as_slice(), &pool_info)
         .unwrap();
     deps.querier.with_token_balances(&[
         (
-            &HumanAddr::from(ANC_STAKING),
-            &[(
-                &HumanAddr::from(MOCK_CONTRACT_ADDR),
-                &Uint128::from(10000u128),
-            )],
+            &ANC_STAKING.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(10000u128))],
         ),
         (
-            &HumanAddr::from(ANC_GOV),
-            &[(
-                &HumanAddr::from(MOCK_CONTRACT_ADDR),
-                &Uint128::from(1000u128),
-            )],
+            &ANC_GOV.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(1000u128))],
         ),
         (
-            &HumanAddr::from(SPEC_GOV),
-            &[(
-                &HumanAddr::from(MOCK_CONTRACT_ADDR),
-                &Uint128::from(2700u128),
-            )],
+            &SPEC_GOV.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(2700u128))],
         ),
     ]);
 
     // query balance for user1
     let msg = QueryMsg::reward_info {
-        staker_addr: HumanAddr::from(USER1),
-        height: 0u64,
+        staker_addr: USER1.to_string(),
     };
-    let res: RewardInfoResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
+    let res: RewardInfoResponse =
+        from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: HumanAddr::from(ANC_TOKEN),
+            asset_token: ANC_TOKEN.to_string(),
             pending_farm_reward: Uint128::from(1000u128),
             pending_spec_reward: Uint128::from(2700u128),
             bond_amount: Uint128::from(10000u128),
@@ -494,29 +499,33 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
     );
 
     // unbond 3000 ANC-LP
-    let env = mock_env(USER1, &[]);
-    let msg = HandleMsg::unbond {
-        asset_token: HumanAddr::from(ANC_TOKEN),
+    let info = mock_info(USER1, &[]);
+    let msg = ExecuteMsg::unbond {
+        asset_token: ANC_TOKEN.to_string(),
         amount: Uint128::from(3000u128),
     };
-    let res = handle(deps, env.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
     assert_eq!(
-        res.unwrap().messages,
+        res.unwrap()
+            .messages
+            .into_iter()
+            .map(|it| it.msg)
+            .collect::<Vec<CosmosMsg>>(),
         [
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(ANC_STAKING),
-                send: vec![],
-                msg: to_binary(&AnchorStakingHandleMsg::Unbond {
+                contract_addr: ANC_STAKING.to_string(),
+                funds: vec![],
+                msg: to_binary(&AnchorStakingExecuteMsg::Unbond {
                     amount: Uint128::from(3000u128),
                 })
                 .unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(ANC_LP),
-                send: vec![],
-                msg: to_binary(&Cw20HandleMsg::Transfer {
-                    recipient: HumanAddr::from(USER1),
+                contract_addr: ANC_LP.to_string(),
+                funds: vec![],
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: USER1.to_string(),
                     amount: Uint128::from(3000u128),
                 })
                 .unwrap(),
@@ -525,42 +534,46 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
     );
 
     // withdraw rewards
-    let msg = HandleMsg::withdraw { asset_token: None };
-    let res = handle(deps, env.clone(), msg);
+    let msg = ExecuteMsg::withdraw { asset_token: None };
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
     assert_eq!(
-        res.unwrap().messages,
+        res.unwrap()
+            .messages
+            .into_iter()
+            .map(|it| it.msg)
+            .collect::<Vec<CosmosMsg>>(),
         vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(SPEC_GOV),
-                send: vec![],
-                msg: to_binary(&GovHandleMsg::withdraw {
+                contract_addr: SPEC_GOV.to_string(),
+                funds: vec![],
+                msg: to_binary(&GovExecuteMsg::withdraw {
                     amount: Some(Uint128::from(2700u128)),
                 })
                 .unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(SPEC_TOKEN),
-                send: vec![],
-                msg: to_binary(&Cw20HandleMsg::Transfer {
-                    recipient: HumanAddr::from(USER1),
+                contract_addr: SPEC_TOKEN.to_string(),
+                funds: vec![],
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: USER1.to_string(),
                     amount: Uint128::from(2700u128),
                 })
                 .unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(ANC_GOV),
-                send: vec![],
-                msg: to_binary(&AnchorGovHandleMsg::WithdrawVotingTokens {
+                contract_addr: ANC_GOV.to_string(),
+                funds: vec![],
+                msg: to_binary(&AnchorGovExecuteMsg::WithdrawVotingTokens {
                     amount: Some(Uint128::from(1000u128)),
                 })
                 .unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(ANC_TOKEN),
-                send: vec![],
-                msg: to_binary(&Cw20HandleMsg::Transfer {
-                    recipient: HumanAddr::from(USER1),
+                contract_addr: ANC_TOKEN.to_string(),
+                funds: vec![],
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: USER1.to_string(),
                     amount: Uint128::from(1000u128),
                 })
                 .unwrap(),
@@ -570,40 +583,37 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
 
     deps.querier.with_token_balances(&[
         (
-            &HumanAddr::from(ANC_STAKING),
-            &[(
-                &HumanAddr::from(MOCK_CONTRACT_ADDR),
-                &Uint128::from(7000u128),
-            )],
+            &ANC_STAKING.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(7000u128))],
         ),
         (
-            &HumanAddr::from(ANC_GOV),
-            &[(&HumanAddr::from(MOCK_CONTRACT_ADDR), &Uint128::from(0u128))],
+            &ANC_GOV.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(0u128))],
         ),
         (
-            &HumanAddr::from(SPEC_GOV),
-            &[(&HumanAddr::from(MOCK_CONTRACT_ADDR), &Uint128::from(0u128))],
+            &SPEC_GOV.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(0u128))],
         ),
     ]);
 
     // query balance for user2
     let msg = QueryMsg::reward_info {
-        staker_addr: HumanAddr::from(USER2),
-        height: 0u64,
+        staker_addr: USER2.to_string(),
     };
-    let res: RewardInfoResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
+    let res: RewardInfoResponse =
+        from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(res.reward_infos, vec![]);
 
     // query balance for user1
     let msg = QueryMsg::reward_info {
-        staker_addr: HumanAddr::from(USER1),
-        height: 0u64,
+        staker_addr: USER1.to_string(),
     };
-    let res: RewardInfoResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
+    let res: RewardInfoResponse =
+        from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: HumanAddr::from(ANC_TOKEN),
+            asset_token: ANC_TOKEN.to_string(),
             pending_farm_reward: Uint128::from(0u128),
             pending_spec_reward: Uint128::from(0u128),
             bond_amount: Uint128::from(7000u128),
@@ -623,50 +633,49 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
     );
 
     // bond user2 5000 ANC-LP auto-stake
-    let env = mock_env(ANC_LP, &[]);
-    let msg = HandleMsg::receive(Cw20ReceiveMsg {
-        sender: HumanAddr::from(USER2),
+    let info = mock_info(ANC_LP, &[]);
+    let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
+        sender: USER2.to_string(),
         amount: Uint128::from(5000u128),
-        msg: Some(
-            to_binary(&Cw20HookMsg::bond {
-                staker_addr: None,
-                asset_token: HumanAddr::from(ANC_TOKEN),
-                compound_rate: None,
-            })
-            .unwrap(),
-        ),
+        msg: to_binary(&Cw20HookMsg::bond {
+            staker_addr: None,
+            asset_token: ANC_TOKEN.to_string(),
+            compound_rate: None,
+        })
+        .unwrap(),
     });
-    let res = handle(deps, env.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
-    let mut pool_info = pool_info_read(&deps.storage)
+    let deps_ref = deps.as_ref();
+    let mut state = read_state(deps_ref.storage).unwrap();
+    let mut pool_info = pool_info_read(deps_ref.storage)
         .load(config.anchor_token.as_slice())
         .unwrap();
-    deposit_farm_share(deps, &mut pool_info, &config, Uint128::from(10000u128)).unwrap();
-    pool_info_store(&mut deps.storage)
+    deposit_farm_share(
+        deps_ref,
+        &mut state,
+        &mut pool_info,
+        &config,
+        Uint128::from(10000u128),
+    )
+    .unwrap();
+    state_store(deps.as_mut().storage).save(&state).unwrap();
+    pool_info_store(deps.as_mut().storage)
         .save(config.anchor_token.as_slice(), &pool_info)
         .unwrap();
     deps.querier.with_token_balances(&[
         (
-            &HumanAddr::from(ANC_STAKING),
-            &[(
-                &HumanAddr::from(MOCK_CONTRACT_ADDR),
-                &Uint128::from(12000u128),
-            )],
+            &ANC_STAKING.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(12000u128))],
         ),
         (
-            &HumanAddr::from(ANC_GOV),
-            &[(
-                &HumanAddr::from(MOCK_CONTRACT_ADDR),
-                &Uint128::from(5000u128),
-            )],
+            &ANC_GOV.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(5000u128))],
         ),
         (
-            &HumanAddr::from(SPEC_GOV),
-            &[(
-                &HumanAddr::from(MOCK_CONTRACT_ADDR),
-                &Uint128::from(1000u128),
-            )],
+            &SPEC_GOV.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(1000u128))],
         ),
     ]);
 
@@ -688,14 +697,14 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
 
     // query balance for user1
     let msg = QueryMsg::reward_info {
-        staker_addr: HumanAddr::from(USER1),
-        height: 0u64,
+        staker_addr: USER1.to_string(),
     };
-    let res: RewardInfoResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
+    let res: RewardInfoResponse =
+        from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: HumanAddr::from(ANC_TOKEN),
+            asset_token: ANC_TOKEN.to_string(),
             pending_farm_reward: Uint128::from(1794u128),
             pending_spec_reward: Uint128::from(582u128),
             bond_amount: Uint128::from(7000u128),
@@ -716,14 +725,13 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
 
     // query balance for user2
     let msg = QueryMsg::reward_info {
-        staker_addr: HumanAddr::from(USER2),
-        height: 0u64,
+        staker_addr: USER2.to_string(),
     };
-    let res: RewardInfoResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
+    let res: RewardInfoResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: HumanAddr::from(ANC_TOKEN),
+            asset_token: ANC_TOKEN.to_string(),
             pending_farm_reward: Uint128::from(3205u128),
             pending_spec_reward: Uint128::from(416u128),
             bond_amount: Uint128::from(5000u128),
@@ -743,18 +751,16 @@ fn test_bond(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
     );
 }
 
-fn test_compound_anc(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
-    let env = mock_env(TEST_CONTROLLER, &[]);
+fn test_compound_anc(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+    let env = mock_env();
+    let info = mock_info(TEST_CONTROLLER, &[]);
 
-    let asset_token_raw = deps
-        .api
-        .canonical_address(&HumanAddr::from(ANC_TOKEN))
-        .unwrap();
-    let mut pool_info = pool_info_read(&deps.storage)
+    let asset_token_raw = deps.api.addr_canonicalize(&ANC_TOKEN.to_string()).unwrap();
+    let mut pool_info = pool_info_read(deps.as_ref().storage)
         .load(asset_token_raw.as_slice())
         .unwrap();
     pool_info.reinvest_allowance = Uint128::from(0u128);
-    pool_info_store(&mut deps.storage)
+    pool_info_store(deps.as_mut().storage)
         .save(asset_token_raw.as_slice(), &pool_info)
         .unwrap();
 
@@ -770,67 +776,68 @@ fn test_compound_anc(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
     provide ANC = 2052
     remaining = 48
     */
-    let msg = HandleMsg::compound {};
-    let res = handle(deps, env.clone(), msg.clone()).unwrap();
+    let msg = ExecuteMsg::compound {};
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
-    let pool_info = pool_info_read(&deps.storage)
+    let pool_info = pool_info_read(deps.as_ref().storage)
         .load(asset_token_raw.as_slice())
         .unwrap();
 
     assert_eq!(Uint128::from(48u128), pool_info.reinvest_allowance);
 
     assert_eq!(
-        res.messages,
+        res.messages
+            .into_iter()
+            .map(|it| it.msg)
+            .collect::<Vec<CosmosMsg>>(),
         vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(ANC_STAKING),
-                send: vec![],
-                msg: to_binary(&AnchorStakingHandleMsg::Withdraw {}).unwrap(),
+                contract_addr: ANC_STAKING.to_string(),
+                funds: vec![],
+                msg: to_binary(&AnchorStakingExecuteMsg::Withdraw {}).unwrap(),
             }), //ok
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(ANC_TOKEN),
-                msg: to_binary(&Cw20HandleMsg::Send {
-                    contract: HumanAddr::from(ANC_POOL),
+                contract_addr: ANC_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: ANC_POOL.to_string(),
                     amount: Uint128::from(2100u128),
-                    msg: Some(
-                        to_binary(&TerraswapCw20HookMsg::Swap {
-                            max_spread: None,
-                            belief_price: None,
-                            to: None,
-                        })
-                        .unwrap()
-                    ),
+                    msg: to_binary(&TerraswapCw20HookMsg::Swap {
+                        max_spread: None,
+                        belief_price: None,
+                        to: None,
+                    })
+                    .unwrap()
                 })
                 .unwrap(),
-                send: vec![],
+                funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(ANC_TOKEN),
-                send: vec![],
-                msg: to_binary(&Cw20HandleMsg::Send {
-                    contract: HumanAddr::from(ANC_GOV),
+                contract_addr: ANC_TOKEN.to_string(),
+                funds: vec![],
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: ANC_GOV.to_string(),
                     amount: Uint128::from(7800u128),
-                    msg: Some(to_binary(&AnchorGovCw20HookMsg::StakeVotingTokens {}).unwrap()),
+                    msg: to_binary(&AnchorGovCw20HookMsg::StakeVotingTokens {}).unwrap(),
                 })
                 .unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(ANC_TOKEN),
-                msg: to_binary(&Cw20HandleMsg::IncreaseAllowance {
-                    spender: HumanAddr::from(ANC_POOL),
+                contract_addr: ANC_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+                    spender: ANC_POOL.to_string(),
                     amount: Uint128::from(2052u128),
                     expires: None
                 })
                 .unwrap(),
-                send: vec![],
+                funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(ANC_POOL),
-                msg: to_binary(&TerraswapHandleMsg::ProvideLiquidity {
+                contract_addr: ANC_POOL.to_string(),
+                msg: to_binary(&TerraswapExecuteMsg::ProvideLiquidity {
                     assets: [
                         Asset {
                             info: AssetInfo::Token {
-                                contract_addr: HumanAddr::from(ANC_TOKEN),
+                                contract_addr: ANC_TOKEN.to_string(),
                             },
                             amount: Uint128::from(2052u128),
                         },
@@ -842,58 +849,50 @@ fn test_compound_anc(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
                         },
                     ],
                     slippage_tolerance: None,
+                    receiver: None
                 })
                 .unwrap(),
-                send: vec![Coin {
+                funds: vec![Coin {
                     denom: "uusd".to_string(),
                     amount: Uint128::from(2052u128),
                 }],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: env.contract.address,
-                msg: to_binary(&HandleMsg::stake {
-                    asset_token: HumanAddr::from(ANC_TOKEN),
+                contract_addr: env.contract.address.to_string(),
+                msg: to_binary(&ExecuteMsg::stake {
+                    asset_token: ANC_TOKEN.to_string(),
                 })
                 .unwrap(),
-                send: vec![],
+                funds: vec![],
             }),
         ]
     );
 
     deps.querier.with_token_balances(&[
         (
-            &HumanAddr::from(ANC_STAKING),
-            &[(
-                &HumanAddr::from(MOCK_CONTRACT_ADDR),
-                &Uint128::from(12100u128),
-            )],
+            &ANC_STAKING.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(12100u128))],
         ),
         (
-            &HumanAddr::from(ANC_GOV),
-            &[(
-                &HumanAddr::from(MOCK_CONTRACT_ADDR),
-                &Uint128::from(12800u128),
-            )],
+            &ANC_GOV.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(12800u128))],
         ),
         (
-            &HumanAddr::from(SPEC_GOV),
-            &[(
-                &HumanAddr::from(MOCK_CONTRACT_ADDR),
-                &Uint128::from(1000u128),
-            )],
+            &SPEC_GOV.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(1000u128))],
         ),
     ]);
 
     // query balance for user1
     let msg = QueryMsg::reward_info {
-        staker_addr: HumanAddr::from(USER1),
-        height: 0u64,
+        staker_addr: USER1.to_string(),
     };
-    let res: RewardInfoResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
+    let res: RewardInfoResponse =
+        from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: HumanAddr::from(ANC_TOKEN),
+            asset_token: ANC_TOKEN.to_string(),
             pending_farm_reward: Uint128::from(4594u128),
             pending_spec_reward: Uint128::from(586u128),
             bond_amount: Uint128::from(7100u128),
@@ -914,14 +913,13 @@ fn test_compound_anc(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
 
     // query balance for user2
     let msg = QueryMsg::reward_info {
-        staker_addr: HumanAddr::from(USER2),
-        height: 0u64,
+        staker_addr: USER2.to_string(),
     };
-    let res: RewardInfoResponse = from_binary(&query(deps, msg).unwrap()).unwrap();
+    let res: RewardInfoResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: HumanAddr::from(ANC_TOKEN),
+            asset_token: ANC_TOKEN.to_string(),
             pending_farm_reward: Uint128::from(8205u128),
             pending_spec_reward: Uint128::from(413u128),
             bond_amount: Uint128::from(5000u128),
@@ -941,33 +939,28 @@ fn test_compound_anc(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
     );
 }
 
-fn test_compound_anc_with_fees(deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_compound_anc_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // update fees
-    let env = mock_env(SPEC_GOV, &[]);
-    let msg = HandleMsg::update_config {
-        owner: Some(HumanAddr::from(SPEC_GOV)),
-        platform: None,
+    let env = mock_env();
+    let info = mock_info(SPEC_GOV, &[]);
+    let msg = ExecuteMsg::update_config {
+        owner: None,
         controller: None,
         community_fee: Some(Decimal::percent(3u64)),
         platform_fee: Some(Decimal::percent(1u64)),
         controller_fee: Some(Decimal::percent(1u64)),
         deposit_fee: None,
-        lock_start: None,
-        lock_end: None,
     };
-    let res = handle(deps, env.clone(), msg.clone());
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
-    let env = mock_env(TEST_CONTROLLER, &[]);
-    let asset_token_raw = deps
-        .api
-        .canonical_address(&HumanAddr::from(ANC_TOKEN))
-        .unwrap();
-    let mut pool_info = pool_info_read(&deps.storage)
+    let info = mock_info(TEST_CONTROLLER, &[]);
+    let asset_token_raw = deps.api.addr_canonicalize(&ANC_TOKEN.to_string()).unwrap();
+    let mut pool_info = pool_info_read(deps.as_ref().storage)
         .load(asset_token_raw.as_slice())
         .unwrap();
     pool_info.reinvest_allowance = Uint128::from(0u128);
-    pool_info_store(&mut deps.storage)
+    pool_info_store(deps.as_mut().storage)
         .save(asset_token_raw.as_slice(), &pool_info)
         .unwrap();
 
@@ -990,43 +983,44 @@ fn test_compound_anc_with_fees(deps: &mut Extern<MockStorage, MockApi, WasmMockQ
     controller fee = 121 / 605 * 590 = 118
     total swap amount 2647 ANC
     */
-    let msg = HandleMsg::compound {};
-    let res = handle(deps, env.clone(), msg.clone()).unwrap();
+    let msg = ExecuteMsg::compound {};
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
-    let pool_info = pool_info_read(&deps.storage)
+    let pool_info = pool_info_read(deps.as_ref().storage)
         .load(asset_token_raw.as_slice())
         .unwrap();
 
     assert_eq!(Uint128::from(46u128), pool_info.reinvest_allowance);
 
     assert_eq!(
-        res.messages,
+        res.messages
+            .into_iter()
+            .map(|it| it.msg)
+            .collect::<Vec<CosmosMsg>>(),
         vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(ANC_STAKING),
-                send: vec![],
-                msg: to_binary(&AnchorStakingHandleMsg::Withdraw {}).unwrap(),
+                contract_addr: ANC_STAKING.to_string(),
+                funds: vec![],
+                msg: to_binary(&AnchorStakingExecuteMsg::Withdraw {}).unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(ANC_TOKEN),
-                msg: to_binary(&Cw20HandleMsg::Send {
-                    contract: HumanAddr::from(ANC_POOL),
+                contract_addr: ANC_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: ANC_POOL.to_string(),
                     amount: Uint128::from(2647u128),
-                    msg: Some(
-                        to_binary(&TerraswapCw20HookMsg::Swap {
-                            max_spread: None,
-                            belief_price: None,
-                            to: None,
-                        })
-                        .unwrap()
-                    ),
+                    msg: to_binary(&TerraswapCw20HookMsg::Swap {
+                        max_spread: None,
+                        belief_price: None,
+                        to: None,
+                    })
+                    .unwrap()
                 })
                 .unwrap(),
-                send: vec![],
+                funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(SPEC_POOL),
-                msg: to_binary(&TerraswapHandleMsg::Swap {
+                contract_addr: SPEC_POOL.to_string(),
+                msg: to_binary(&TerraswapExecuteMsg::Swap {
                     offer_asset: Asset {
                         info: AssetInfo::NativeToken {
                             denom: "uusd".to_string(),
@@ -1038,82 +1032,78 @@ fn test_compound_anc_with_fees(deps: &mut Extern<MockStorage, MockApi, WasmMockQ
                     to: None,
                 })
                 .unwrap(),
-                send: vec![Coin {
+                funds: vec![Coin {
                     denom: "uusd".to_string(),
                     amount: Uint128::from(591u128),
                 }],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(SPEC_GOV),
-                msg: to_binary(&GovHandleMsg::mint {}).unwrap(),
-                send: vec![],
+                contract_addr: SPEC_GOV.to_string(),
+                msg: to_binary(&GovExecuteMsg::mint {}).unwrap(),
+                funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(SPEC_TOKEN),
-                msg: to_binary(&Cw20HandleMsg::Transfer {
-                    recipient: HumanAddr::from(SPEC_GOV),
+                contract_addr: SPEC_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: SPEC_GOV.to_string(),
                     amount: Uint128::from(354u128),
                 })
                 .unwrap(),
-                send: vec![],
+                funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(SPEC_TOKEN),
-                msg: to_binary(&Cw20HandleMsg::Send {
-                    contract: HumanAddr::from(SPEC_GOV),
+                contract_addr: SPEC_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: SPEC_GOV.to_string(),
                     amount: Uint128::from(118u128),
-                    msg: Some(
-                        to_binary(&GovCw20HookMsg::stake_tokens {
-                            staker_addr: Some(HumanAddr::from(SPEC_PLATFORM)),
-                        })
-                        .unwrap()
-                    ),
+                    msg: to_binary(&GovCw20HookMsg::stake_tokens {
+                        staker_addr: Some(SPEC_PLATFORM.to_string()),
+                    })
+                    .unwrap()
                 })
                 .unwrap(),
-                send: vec![],
+                funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(SPEC_TOKEN),
-                msg: to_binary(&Cw20HandleMsg::Send {
-                    contract: HumanAddr::from(SPEC_GOV),
+                contract_addr: SPEC_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: SPEC_GOV.to_string(),
                     amount: Uint128::from(118u128),
-                    msg: Some(
-                        to_binary(&GovCw20HookMsg::stake_tokens {
-                            staker_addr: Some(HumanAddr::from(TEST_CONTROLLER)),
-                        })
-                        .unwrap()
-                    ),
+                    msg: to_binary(&GovCw20HookMsg::stake_tokens {
+                        staker_addr: Some(TEST_CONTROLLER.to_string()),
+                    })
+                    .unwrap()
                 })
                 .unwrap(),
-                send: vec![],
+                funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(ANC_TOKEN),
-                send: vec![],
-                msg: to_binary(&Cw20HandleMsg::Send {
-                    contract: HumanAddr::from(ANC_GOV),
+                contract_addr: ANC_TOKEN.to_string(),
+                funds: vec![],
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: ANC_GOV.to_string(),
                     amount: Uint128::from(7410u128),
-                    msg: Some(to_binary(&AnchorGovCw20HookMsg::StakeVotingTokens {}).unwrap()),
+                    msg: to_binary(&AnchorGovCw20HookMsg::StakeVotingTokens {}).unwrap(),
                 })
                 .unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(ANC_TOKEN),
-                msg: to_binary(&Cw20HandleMsg::IncreaseAllowance {
-                    spender: HumanAddr::from(ANC_POOL),
+                contract_addr: ANC_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+                    spender: ANC_POOL.to_string(),
                     amount: Uint128::from(1996u128),
                     expires: None
                 })
                 .unwrap(),
-                send: vec![],
+                funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: HumanAddr::from(ANC_POOL),
-                msg: to_binary(&TerraswapHandleMsg::ProvideLiquidity {
+                contract_addr: ANC_POOL.to_string(),
+                msg: to_binary(&TerraswapExecuteMsg::ProvideLiquidity {
                     assets: [
                         Asset {
                             info: AssetInfo::Token {
-                                contract_addr: HumanAddr::from(ANC_TOKEN),
+                                contract_addr: ANC_TOKEN.to_string(),
                             },
                             amount: Uint128::from(1996u128),
                         },
@@ -1125,20 +1115,21 @@ fn test_compound_anc_with_fees(deps: &mut Extern<MockStorage, MockApi, WasmMockQ
                         },
                     ],
                     slippage_tolerance: None,
+                    receiver: None
                 })
                 .unwrap(),
-                send: vec![Coin {
+                funds: vec![Coin {
                     denom: "uusd".to_string(),
                     amount: Uint128::from(1996u128),
                 }],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: env.contract.address,
-                msg: to_binary(&HandleMsg::stake {
-                    asset_token: HumanAddr::from(ANC_TOKEN),
+                contract_addr: env.contract.address.to_string(),
+                msg: to_binary(&ExecuteMsg::stake {
+                    asset_token: ANC_TOKEN.to_string(),
                 })
                 .unwrap(),
-                send: vec![],
+                funds: vec![],
             }),
         ]
     );
