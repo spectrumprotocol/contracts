@@ -3,7 +3,7 @@ use cosmwasm_std::{
     StdError, StdResult, Uint128, WasmMsg,
 };
 use spectrum_protocol::common::OrderBy;
-use spectrum_protocol::gov::{
+use spectrum_protocol::gov_v2::{
     PollExecuteMsg, PollInfo, PollStatus, PollsResponse, VoteOption, VoterInfo, VotersResponse,
 };
 

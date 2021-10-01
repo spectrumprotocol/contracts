@@ -288,7 +288,6 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
                     amount: platform_amount,
                     msg: to_binary(&GovCw20HookMsg::stake_tokens {
                         staker_addr: Some(deps.api.addr_humanize(&config.platform)?.to_string()),
-                        days: None,
                     })?,
                 })?,
                 funds: vec![],
@@ -307,7 +306,6 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
                     amount: controller_amount,
                     msg: to_binary(&GovCw20HookMsg::stake_tokens {
                         staker_addr: Some(deps.api.addr_humanize(&config.controller)?.to_string()),
-                        days: None,
                     })?,
                 })?,
                 funds: vec![],

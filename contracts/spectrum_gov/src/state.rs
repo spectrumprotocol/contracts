@@ -9,7 +9,7 @@ use cosmwasm_storage::{
 use spectrum_protocol::common::{
     calc_range_end, calc_range_end_addr, calc_range_start, calc_range_start_addr, OrderBy,
 };
-use spectrum_protocol::gov::{PollExecuteMsg, PollStatus, VoterInfo};
+use spectrum_protocol::gov_v2::{PollExecuteMsg, PollStatus, VoterInfo};
 use std::convert::TryInto;
 
 static KEY_CONFIG: &[u8] = b"config";

@@ -2,6 +2,7 @@
 
 pub mod common;
 pub mod gov;
+pub mod gov_v2;
 pub mod math;
 pub mod mirror_farm;
 pub mod platform;

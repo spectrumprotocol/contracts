@@ -104,7 +104,6 @@ impl WasmMockQuerier {
                             balance: *balance,
                             share: *balance,
                             locked_balance: vec![],
-                            pools: vec![],
                         })))
                     }
                     _ => self.base.handle_query(request),

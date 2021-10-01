@@ -58,6 +58,14 @@
           "properties": {
             "amount": {
               "$ref": "#/definitions/Uint128"
+            },
+            "days": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
             }
           }
         }
@@ -78,6 +86,14 @@
           "properties": {
             "amount": {
               "$ref": "#/definitions/Uint128"
+            },
+            "days": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
             }
           }
         }
@@ -98,6 +114,38 @@
                 "string",
                 "null"
               ]
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "update_stake"
+      ],
+      "properties": {
+        "update_stake": {
+          "type": "object",
+          "required": [
+            "amount",
+            "from_days",
+            "to_days"
+          ],
+          "properties": {
+            "amount": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "from_days": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "to_days": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
             }
           }
         }

@@ -365,7 +365,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 funds: vec![],
                 msg: to_binary(&GovExecuteMsg::withdraw {
                     amount: Some(Uint128::from(2700u128)),
-                    days: None,
                 })
                 .unwrap(),
             }),
@@ -678,7 +677,6 @@ fn test_harvest_all(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
                     amount: Uint128::from(272u128),
                     msg: to_binary(&GovCw20HookMsg::stake_tokens {
                         staker_addr: Some(TEST_PLATFORM.to_string()),
-                        days: None,
                     })
                     .unwrap()
                 })
@@ -692,7 +690,6 @@ fn test_harvest_all(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
                     amount: Uint128::from(274u128),
                     msg: to_binary(&GovCw20HookMsg::stake_tokens {
                         staker_addr: Some(TEST_CONTROLLER.to_string()),
-                        days: None,
                     })
                     .unwrap()
                 })

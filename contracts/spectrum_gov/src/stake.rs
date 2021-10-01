@@ -4,7 +4,7 @@ use cosmwasm_std::{
     StdError, StdResult, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
-use spectrum_protocol::gov::{BalanceResponse, PollStatus, VaultInfo, VaultsResponse, BalancePoolInfo};
+use spectrum_protocol::gov_v2::{BalanceResponse, PollStatus, VaultInfo, VaultsResponse, BalancePoolInfo};
 use terraswap::querier::query_token_balance;
 
 #[allow(clippy::needless_range_loop)]

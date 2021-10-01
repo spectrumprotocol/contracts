@@ -8,7 +8,7 @@ use cosmwasm_std::{
 
 use crate::state::{config_store, read_config, read_reward, read_rewards, read_state, reward_store, state_store, Config, RewardInfo, State};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use spectrum_protocol::gov::{
+use spectrum_protocol::gov_v2::{
     BalanceResponse as GovBalanceResponse, Cw20HookMsg as GovCw20HookMsg,
     ExecuteMsg as GovExecuteMsg, QueryMsg as GovQueryMsg, StateInfo as GovStateInfo, VoteOption,
 };
