@@ -163,7 +163,9 @@ fn bond(
                 token_info_op = Some((contract_addr, asset.amount))
             }
             AssetInfo::NativeToken { .. } => {
-                asset.assert_sent_native_token_balance(&info)?;
+                if info.sender != env.contract.address {
+                    asset.assert_sent_native_token_balance(&info)?;
+                }
                 native_asset_op = Some(asset.clone())
             }
         }
@@ -335,15 +337,13 @@ fn zap_to_bond(
 
     let asset_infos = [provide_asset.info.clone(), pair_asset];
 
-    let buy_amount = provide_asset.amount.multiply_ratio(1u128, 2u128);
-    let bond_amount = provide_asset.amount.checked_sub(buy_amount)?;
-
+    let bond_amount = provide_asset.amount.multiply_ratio(1u128, 2u128);
     let bond_asset = Asset {
         info: provide_asset.info.clone(),
         amount: bond_amount,
     };
     let tax_amount = bond_asset.compute_tax(&deps.querier)?;
-    let bond_asset = Asset {
+    let swap_asset = Asset {
         info: provide_asset.info,
         amount: bond_amount.checked_sub(tax_amount)?,
     };
@@ -362,14 +362,14 @@ fn zap_to_bond(
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: terraswap_pair.contract_addr,
                 msg: to_binary(&PairExecuteMsg::Swap {
-                    offer_asset: bond_asset.clone(),
+                    offer_asset: swap_asset.clone(),
                     max_spread: Some(max_spread),
                     belief_price,
                     to: None,
                 })?,
                 funds: vec![Coin {
                     denom,
-                    amount: buy_amount,
+                    amount: swap_asset.amount,
                 }],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
@@ -497,17 +497,6 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
-    let allowlist = msg
-        .allowlist
-        .into_iter()
-        .map(|w| deps.api.addr_canonicalize(&w))
-        .collect::<StdResult<Vec<CanonicalAddr>>>()?;
-
-    config_store(deps.storage).save(&Config {
-        owner: deps.api.addr_canonicalize(&msg.owner)?,
-        terraswap_factory: deps.api.addr_canonicalize(&msg.terraswap_factory)?,
-        allowlist: HashSet::from_iter(allowlist),
-    })?;
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
 }
