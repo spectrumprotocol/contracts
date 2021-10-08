@@ -34,9 +34,7 @@ pub fn instantiate(
     })?;
 
     state_store(deps.storage).save(&State {
-        contract_addr: deps
-            .api
-            .addr_canonicalize(&env.contract.address.to_string())?,
+        contract_addr: deps.api.addr_canonicalize(env.contract.address.as_str())?,
         previous_share: Uint128::zero(),
         share_index: Decimal::zero(),
         total_weight: 0u32,
@@ -52,10 +50,10 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             poll_id,
             vote,
             amount,
-        } => poll_vote(deps, env, info, poll_id, vote, amount),
-        ExecuteMsg::receive(msg) => receive_cw20(deps, env, info, msg),
-        ExecuteMsg::stake { amount } => stake(deps, env, info, amount),
-        ExecuteMsg::unstake { amount } => unstake(deps, env, info, amount),
+        } => poll_vote(deps, info, poll_id, vote, amount),
+        ExecuteMsg::receive(msg) => receive_cw20(deps, info, msg),
+        ExecuteMsg::stake { amount } => stake(deps, info, amount),
+        ExecuteMsg::unstake { amount } => unstake(deps, info, amount),
         ExecuteMsg::upsert_share {
             address,
             weight,
@@ -65,21 +63,19 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         } => upsert_share(
             deps,
             info,
-            env,
             address,
             weight,
             lock_start,
             lock_end,
             lock_amount,
         ),
-        ExecuteMsg::update_config { owner } => update_config(deps, env, info, owner),
+        ExecuteMsg::update_config { owner } => update_config(deps, info, owner),
         ExecuteMsg::withdraw { amount } => withdraw(deps, env, info, amount),
     }
 }
 
 fn receive_cw20(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> StdResult<Response> {
@@ -89,26 +85,21 @@ fn receive_cw20(
         return Err(StdError::generic_err("unauthorized"));
     }
     match from_binary(&cw20_msg.msg) {
-        Ok(Cw20HookMsg::deposit {}) => deposit(deps, env, cw20_msg.sender, cw20_msg.amount),
+        Ok(Cw20HookMsg::deposit {}) => deposit(deps, cw20_msg.sender, cw20_msg.amount),
         Err(_) => Err(StdError::generic_err("data should be given")),
     }
 }
 
-fn deposit(deps: DepsMut, _env: Env, sender: String, amount: Uint128) -> StdResult<Response> {
-    let sender_validated = deps.api.addr_validate(sender.as_str())?;
-    let staker_addr = deps.api.addr_canonicalize(&sender_validated.to_string())?;
+fn deposit(deps: DepsMut, sender: String, amount: Uint128) -> StdResult<Response> {
+    let staker_addr = deps.api.addr_canonicalize(&sender)?;
     let mut reward_info = read_reward(deps.storage, &staker_addr)?;
     reward_info.amount += amount;
     reward_store(deps.storage).save(staker_addr.as_slice(), &reward_info)?;
-    Ok(Response::new().add_attributes(vec![
-        attr("action", "dep"),
-        attr("amount", amount.to_string()),
-    ]))
+    Ok(Response::new().add_attributes(vec![attr("action", "dep"), attr("amount", amount)]))
 }
 
 fn poll_vote(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     poll_id: u64,
     vote: VoteOption,
@@ -137,11 +128,11 @@ fn poll_vote(
     )
 }
 
-fn stake(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint128) -> StdResult<Response> {
+fn stake(deps: DepsMut, info: MessageInfo, amount: Uint128) -> StdResult<Response> {
     // record reward before any share change
     let mut state = read_state(deps.storage)?;
     let config = read_config(deps.storage)?;
-    deposit_reward(deps.as_ref(), &mut state, &config, env.block.height, false)?;
+    deposit_reward(deps.as_ref(), &mut state, &config, false)?;
 
     let staker_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
     let mut reward_info = read_reward(deps.storage, &staker_addr)?;
@@ -150,9 +141,7 @@ fn stake(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint128) -> StdResu
     // calculate new stake share
     let gov_state: GovStateInfo = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
-        msg: to_binary(&GovQueryMsg::state {
-            height: env.block.height,
-        })?,
+        msg: to_binary(&GovQueryMsg::state {})?,
     }))?;
     let new_share = amount.multiply_ratio(gov_state.total_share, gov_state.total_staked);
 
@@ -163,6 +152,7 @@ fn stake(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint128) -> StdResu
 
     state.previous_share += new_share;
     state_store(deps.storage).save(&state)?;
+
     Ok(Response::new()
         .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.spectrum_token)?.to_string(),
@@ -173,17 +163,14 @@ fn stake(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint128) -> StdResu
             })?,
             funds: vec![],
         })])
-        .add_attributes(vec![
-            attr("action", "stake"),
-            attr("amount", amount.to_string()),
-        ]))
+        .add_attributes(vec![attr("action", "stake"), attr("amount", amount)]))
 }
 
-fn unstake(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint128) -> StdResult<Response> {
+fn unstake(deps: DepsMut, info: MessageInfo, amount: Uint128) -> StdResult<Response> {
     // record reward before any share change
     let mut state = read_state(deps.storage)?;
     let config = read_config(deps.storage)?;
-    let staked = deposit_reward(deps.as_ref(), &mut state, &config, env.block.height, false)?;
+    let staked = deposit_reward(deps.as_ref(), &mut state, &config, false)?;
 
     let staker_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
     let mut reward_info = read_reward(deps.storage, &staker_addr)?;
@@ -196,6 +183,7 @@ fn unstake(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint128) -> StdRe
 
     state.previous_share = state.previous_share.checked_sub(share)?;
     state_store(deps.storage).save(&state)?;
+
     Ok(Response::new()
         .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
@@ -204,10 +192,7 @@ fn unstake(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint128) -> StdRe
             })?,
             funds: vec![],
         })])
-        .add_attributes(vec![
-            attr("action", "unstake"),
-            attr("amount", amount.to_string()),
-        ]))
+        .add_attributes(vec![attr("action", "unstake"), attr("amount", amount)]))
 }
 
 fn withdraw(
@@ -219,7 +204,7 @@ fn withdraw(
     // record reward before any share change
     let mut state = read_state(deps.storage)?;
     let config = read_config(deps.storage)?;
-    let staked = deposit_reward(deps.as_ref(), &mut state, &config, env.block.height, false)?;
+    let staked = deposit_reward(deps.as_ref(), &mut state, &config, false)?;
 
     let staker_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
     let mut reward_info = read_reward(deps.storage, &staker_addr)?;
@@ -241,6 +226,7 @@ fn withdraw(
     reward_info.amount = reward_info.amount.checked_sub(withdraw_amount)?;
     reward_store(deps.storage).save(staker_addr.as_slice(), &reward_info)?;
     state_store(deps.storage).save(&state)?;
+
     Ok(Response::new()
         .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.spectrum_token)?.to_string(),
@@ -252,7 +238,7 @@ fn withdraw(
         })])
         .add_attributes(vec![
             attr("action", "withdraw"),
-            attr("amount", withdraw_amount.to_string()),
+            attr("amount", withdraw_amount),
         ]))
 }
 
@@ -260,7 +246,6 @@ fn deposit_reward(
     deps: Deps,
     state: &mut State,
     config: &Config,
-    height: u64,
     query: bool,
 ) -> StdResult<GovBalanceResponse> {
     if state.total_weight == 0u32 {
@@ -275,7 +260,6 @@ fn deposit_reward(
         contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
         msg: to_binary(&GovQueryMsg::balance {
             address: deps.api.addr_humanize(&state.contract_addr)?.to_string(),
-            height: Some(height),
         })?,
     }))?;
     let diff = staked.share.checked_sub(state.previous_share);
@@ -292,8 +276,8 @@ fn deposit_reward(
 }
 
 fn before_share_change(state: &State, reward_info: &mut RewardInfo) -> StdResult<()> {
-    let share = Uint128::from(reward_info.weight as u128)
-        * (state.share_index - reward_info.share_index);
+    let share =
+        Uint128::from(reward_info.weight as u128) * (state.share_index - reward_info.share_index);
     reward_info.share += share;
     reward_info.share_index = state.share_index;
 
@@ -304,22 +288,27 @@ fn before_share_change(state: &State, reward_info: &mut RewardInfo) -> StdResult
 fn upsert_share(
     deps: DepsMut,
     info: MessageInfo,
-    env: Env,
     address: String,
     weight: u32,
     lock_start: Option<u64>,
     lock_end: Option<u64>,
     lock_amount: Option<Uint128>,
 ) -> StdResult<Response> {
-    let address_validated = deps.api.addr_validate(&address)?;
+
+    let lock_start = lock_start.unwrap_or(0u64);
+    let lock_end = lock_end.unwrap_or(0u64);
+    if lock_end < lock_start {
+        return Err(StdError::generic_err("invalid lock parameters"));
+    }
+
     let config = read_config(deps.storage)?;
     if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(StdError::generic_err("unauthorized"));
     }
     let mut state = state_store(deps.storage).load()?;
-    deposit_reward(deps.as_ref(), &mut state, &config, env.block.height, false)?;
+    deposit_reward(deps.as_ref(), &mut state, &config, false)?;
 
-    let address_raw = deps.api.addr_canonicalize(&address_validated.to_string())?;
+    let address_raw = deps.api.addr_canonicalize(&address)?;
     let key = address_raw.as_slice();
     let mut reward_info = reward_store(deps.storage)
         .may_load(key)?
@@ -327,8 +316,8 @@ fn upsert_share(
 
     state.total_weight = state.total_weight + weight - reward_info.weight;
     reward_info.weight = weight;
-    reward_info.lock_start = lock_start.unwrap_or(0u64);
-    reward_info.lock_end = lock_end.unwrap_or(0u64);
+    reward_info.lock_start = lock_start;
+    reward_info.lock_end = lock_end;
     reward_info.lock_amount = lock_amount.unwrap_or_else(Uint128::zero);
 
     state_store(deps.storage).save(&state)?;
@@ -346,7 +335,6 @@ fn upsert_share(
 
 fn update_config(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     owner: Option<String>,
 ) -> StdResult<Response> {
@@ -357,7 +345,10 @@ fn update_config(
     }
 
     if let Some(owner) = owner {
-        config.owner = deps.api.addr_canonicalize(&owner.as_str())?;
+        if config.owner == config.spectrum_gov {
+            return Err(StdError::generic_err("cannot update owner"));
+        }
+        config.owner = deps.api.addr_canonicalize(&owner)?;
     }
 
     config_store(deps.storage).save(&config)?;
@@ -365,10 +356,10 @@ fn update_config(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::config {} => to_binary(&query_config(deps)?),
-        QueryMsg::balance { address, height } => to_binary(&query_balance(deps, address, height)?),
+        QueryMsg::balance { address } => to_binary(&query_balance(deps, address, env.block.height)?),
         QueryMsg::shares {} => to_binary(&query_shares(deps)?),
         QueryMsg::state {} => to_binary(&query_state(deps)?),
     }
@@ -385,15 +376,12 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
     Ok(resp)
 }
 
-pub fn query_balance(deps: Deps, staker_addr: String, height: u64) -> StdResult<BalanceResponse> {
-    let staker_addr_validated = deps.api.addr_validate(&staker_addr.as_str())?;
-    let staker_addr_raw = deps
-        .api
-        .addr_canonicalize(&staker_addr_validated.as_str())?;
+fn query_balance(deps: Deps, staker_addr: String, height: u64) -> StdResult<BalanceResponse> {
+    let staker_addr_raw = deps.api.addr_canonicalize(&staker_addr)?;
     let mut state = read_state(deps.storage)?;
 
     let config = read_config(deps.storage)?;
-    let staked = deposit_reward(deps, &mut state, &config, height, true)?;
+    let staked = deposit_reward(deps, &mut state, &config, true)?;
     let mut reward_info = read_reward(deps.storage, &staker_addr_raw)?;
     before_share_change(&state, &mut reward_info)?;
 

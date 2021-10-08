@@ -5,6 +5,7 @@
   "required": [
     "base_denom",
     "community_fee",
+    "controller",
     "controller_fee",
     "deposit_fee",
     "lock_end",
@@ -13,6 +14,7 @@
     "mirror_staking",
     "mirror_token",
     "owner",
+    "platform",
     "platform_fee",
     "spectrum_gov",
     "spectrum_token",
@@ -26,10 +28,7 @@
       "$ref": "#/definitions/Decimal"
     },
     "controller": {
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": "string"
     },
     "controller_fee": {
       "$ref": "#/definitions/Decimal"
@@ -60,10 +59,7 @@
       "type": "string"
     },
     "platform": {
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": "string"
     },
     "platform_fee": {
       "$ref": "#/definitions/Decimal"

@@ -120,7 +120,9 @@ pub struct PoolInfo {
 
 impl PoolInfo {
     pub fn calc_auto_bond_share(&self, auto_bond_amount: Uint128, lp_balance: Uint128) -> Uint128 {
-        let total_auto_bond_amount = lp_balance.checked_sub(self.total_stake_bond_amount).unwrap();
+        let total_auto_bond_amount = lp_balance
+            .checked_sub(self.total_stake_bond_amount)
+            .unwrap();
         if self.total_auto_bond_share.is_zero() || total_auto_bond_amount.is_zero() {
             auto_bond_amount
         } else {
@@ -141,7 +143,8 @@ impl PoolInfo {
         if self.total_auto_bond_share.is_zero() {
             Uint128::zero()
         } else {
-            lp_balance.checked_sub(self.total_stake_bond_amount)
+            lp_balance
+                .checked_sub(self.total_stake_bond_amount)
                 .unwrap()
                 .multiply_ratio(auto_bond_share, self.total_auto_bond_share)
         }
@@ -169,7 +172,6 @@ static PREFIX_REWARD: &[u8] = b"reward";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfo {
-
     // index to reconcile with pool_info.farm_share_index
     // (pool_info.farm_share_index - reward_info.farm_share_index) * reward_info.stake_bond_share
     // = new MIR rewards for auto-stake

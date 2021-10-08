@@ -12,13 +12,21 @@ use crate::poll::{
     poll_end, poll_execute, poll_expire, poll_start, poll_vote, query_poll, query_polls,
     query_voters,
 };
-use crate::stake::{
-    calc_mintable, mint, query_balances, query_vaults, stake_tokens, upsert_vault, validate_minted,
-    withdraw,
-};
+use crate::stake::{calc_mintable, mint, query_balances, query_vaults, stake_tokens, upsert_vault, withdraw, validate_minted};
 use crate::state::{config_store, read_config, read_state, state_store, Config, State};
 use cw20::Cw20ReceiveMsg;
 use terraswap::querier::query_token_balance;
+
+// minimum effective delay around 1 day at 7 second per block
+const MINIMUM_EFFECTIVE_DELAY: u64 = 12342u64;
+
+fn validate_effective_delay(value: u64) -> StdResult<()> {
+    if value < MINIMUM_EFFECTIVE_DELAY {
+        Err(StdError::generic_err("minimum effective_delay is ".to_string() + &MINIMUM_EFFECTIVE_DELAY.to_string()))
+    } else {
+        Ok(())
+    }
+}
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -30,6 +38,11 @@ pub fn instantiate(
     validate_percentage(msg.quorum, "quorum")?;
     validate_percentage(msg.threshold, "threshold")?;
     validate_percentage(msg.warchest_ratio, "warchest_ratio")?;
+    validate_effective_delay(msg.effective_delay)?;
+
+    if msg.mint_end < msg.mint_start {
+        return Err(StdError::generic_err("invalid mint parameters"));
+    }
 
     let config = Config {
         owner: deps.api.addr_canonicalize(&msg.owner)?,
@@ -106,11 +119,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             effective_delay,
             expiration_period,
             proposal_deposit,
-            mint_per_block,
-            mint_start,
-            mint_end,
             warchest_address,
-            warchest_ratio,
         } => update_config(
             deps,
             env,
@@ -123,11 +132,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             effective_delay,
             expiration_period,
             proposal_deposit,
-            mint_per_block,
-            mint_start,
-            mint_end,
             warchest_address,
-            warchest_ratio,
         ),
         ExecuteMsg::upsert_vault {
             vault_address,
@@ -167,7 +172,6 @@ fn receive_cw20(
         ),
         Ok(Cw20HookMsg::stake_tokens { staker_addr }) => stake_tokens(
             deps,
-            env,
             staker_addr.unwrap_or(cw20_msg.sender),
             cw20_msg.amount,
         ),
@@ -188,11 +192,7 @@ fn update_config(
     effective_delay: Option<u64>,
     expiration_period: Option<u64>,
     proposal_deposit: Option<Uint128>,
-    mint_per_block: Option<Uint128>,
-    mint_start: Option<u64>,
-    mint_end: Option<u64>,
     warchest_address: Option<String>,
-    warchest_ratio: Option<Decimal>,
 ) -> StdResult<Response> {
     let mut config = config_store(deps.storage).load()?;
     if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
@@ -200,6 +200,10 @@ fn update_config(
     }
 
     if let Some(owner) = owner {
+        let state = read_state(deps.storage)?;
+        if config.owner == state.contract_addr {
+            return Err(StdError::generic_err("cannot update owner"));
+        }
         config.owner = deps.api.addr_canonicalize(&owner)?;
     }
 
@@ -225,6 +229,7 @@ fn update_config(
     }
 
     if let Some(effective_delay) = effective_delay {
+        validate_effective_delay(effective_delay)?;
         config.effective_delay = effective_delay;
     }
 
@@ -236,41 +241,13 @@ fn update_config(
         config.proposal_deposit = proposal_deposit;
     }
 
-    if mint_per_block.is_some()
-        || mint_start.is_some()
-        || mint_end.is_some()
-        || warchest_address.is_some()
-        || warchest_ratio.is_some()
-    {
+    if let Some(warchest_address) = warchest_address {
+        if config.warchest_address != CanonicalAddr::from(vec![]) {
+            return Err(StdError::generic_err("Warchest address is already assigned"));
+        }
         let state = read_state(deps.storage)?;
         validate_minted(&state, &config, env.block.height)?;
-    }
-
-    if let Some(mint_per_block) = mint_per_block {
-        config.mint_per_block = mint_per_block;
-    }
-
-    if let Some(mint_start) = mint_start {
-        config.mint_start = mint_start;
-    }
-
-    if let Some(mint_end) = mint_end {
-        config.mint_end = mint_end;
-
-        let mut state = state_store(deps.storage).load()?;
-        if validate_minted(&state, &config, env.block.height).is_err() {
-            state.last_mint = env.block.height;
-            state_store(deps.storage).save(&state)?;
-        }
-    }
-
-    if let Some(warchest_address) = warchest_address {
         config.warchest_address = deps.api.addr_canonicalize(&warchest_address)?;
-    }
-
-    if let Some(warchest_ratio) = warchest_ratio {
-        validate_percentage(warchest_ratio, "warchest_ratio")?;
-        config.warchest_ratio = warchest_ratio;
     }
 
     config_store(deps.storage).save(&config)?;
@@ -279,9 +256,9 @@ fn update_config(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::balance { address, height } => to_binary(&query_balances(deps, address, height)?),
+        QueryMsg::balance { address } => to_binary(&query_balances(deps, address, env.block.height)?),
         QueryMsg::config {} => to_binary(&query_config(deps)?),
         QueryMsg::poll { poll_id } => to_binary(&query_poll(deps, poll_id)?),
         QueryMsg::polls {
@@ -290,7 +267,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             limit,
             order_by,
         } => to_binary(&query_polls(deps, filter, start_after, limit, order_by)?),
-        QueryMsg::state { height } => to_binary(&query_state(deps, height)?),
+        QueryMsg::state { } => to_binary(&query_state(deps, env.block.height)?),
         QueryMsg::vaults {} => to_binary(&query_vaults(deps)?),
         QueryMsg::voters {
             poll_id,
@@ -335,9 +312,11 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
 fn query_state(deps: Deps, height: u64) -> StdResult<StateInfo> {
     let state = read_state(deps.storage)?;
     let config = read_config(deps.storage)?;
-    let balance = query_token_balance(&deps.querier,
-                                      deps.api.addr_humanize(&config.spec_token)?,
-                                      deps.api.addr_humanize(&state.contract_addr)?)?;
+    let balance = query_token_balance(
+        &deps.querier,
+        deps.api.addr_humanize(&config.spec_token)?,
+        deps.api.addr_humanize(&state.contract_addr)?,
+    )?;
     let mintable = calc_mintable(&state, &config, height);
     Ok(StateInfo {
         poll_count: state.poll_count,

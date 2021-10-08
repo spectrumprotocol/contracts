@@ -12,11 +12,7 @@ use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrap
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
 use terraswap::pair::SimulationResponse;
 
-use pylon_token::gov::StakerResponse as PylonStakerResponse;
-use pylon_token::staking::StakerInfoResponse as PylonStakerInfoResponse;
 use spectrum_protocol::gov::BalanceResponse as SpecBalanceResponse;
-
-const MINE_STAKING: &str = "mine_staking";
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
@@ -43,12 +39,13 @@ pub struct WasmMockQuerier {
 
 #[derive(Clone, Default)]
 pub struct TokenQuerier {
-    // this lets us iterate over all pairs that match the first String
+    // this lets us iterate over all pairs that match the first string
     balances: HashMap<String, HashMap<String, Uint128>>,
     balance_percent: u128,
 }
 
 impl TokenQuerier {
+    #![allow(dead_code)]
     pub fn new(balances: &[(&String, &[(&String, &Uint128)])], balance_percent: u128) -> Self {
         TokenQuerier {
             balances: balances_to_map(balances),
@@ -75,11 +72,12 @@ pub(crate) fn balances_to_map(
 #[derive(Clone, Default)]
 pub struct TaxQuerier {
     rate: Decimal,
-    // this lets us iterate over all pairs that match the first String
+    // this lets us iterate over all pairs that match the first string
     caps: HashMap<String, Uint128>,
 }
 
 impl TaxQuerier {
+    #![allow(dead_code)]
     pub fn new(rate: Decimal, caps: &[(&String, &Uint128)]) -> Self {
         TaxQuerier {
             rate,
@@ -129,7 +127,7 @@ impl Querier for WasmMockQuerier {
                 })
             }
         };
-        self.handle_query(&request)
+        self.execute_query(&request)
     }
 }
 
@@ -138,13 +136,6 @@ impl Querier for WasmMockQuerier {
 enum MockQueryMsg {
     balance {
         address: String,
-    },
-    Staker {
-        address: String,
-    },
-    StakerInfo {
-        staker: String,
-        block_height: Option<u64>,
     },
     Pair {
         asset_infos: [AssetInfo; 2],
@@ -155,7 +146,7 @@ enum MockQueryMsg {
 }
 
 impl WasmMockQuerier {
-    pub fn handle_query(&self, request: &QueryRequest<TerraQueryWrapper>) -> QuerierResult {
+    pub fn execute_query(&self, request: &QueryRequest<TerraQueryWrapper>) -> QuerierResult {
         match &request {
             QueryRequest::Custom(TerraQueryWrapper { route, query_data }) => {
                 if &TerraRoute::Treasury == route {
@@ -193,30 +184,6 @@ impl WasmMockQuerier {
                             locked_balance: vec![],
                         })))
                     }
-                    MockQueryMsg::Staker { address } => {
-                        let balance = self.read_token_balance(contract_addr, address);
-                        SystemResult::Ok(ContractResult::from(to_binary(&PylonStakerResponse {
-                            balance,
-                            share: balance
-                                .multiply_ratio(100u128, self.token_querier.balance_percent),
-                            locked_balance: vec![],
-                        })))
-                    }
-                    MockQueryMsg::StakerInfo {
-                        staker,
-                        block_height: _,
-                    } => {
-                        let contract_addr = &MINE_STAKING.to_string();
-                        let balance = self.read_token_balance(contract_addr, staker.clone());
-                        SystemResult::Ok(ContractResult::from(to_binary(
-                            &PylonStakerInfoResponse {
-                                staker,
-                                reward_index: Decimal::zero(),
-                                bond_amount: balance,
-                                pending_reward: balance,
-                            },
-                        )))
-                    }
                     MockQueryMsg::Pair { asset_infos } => {
                         let key = asset_infos[0].to_string() + asset_infos[1].to_string().as_str();
                         match self.terraswap_factory_querier.pairs.get(&key) {
@@ -249,6 +216,7 @@ impl WasmMockQuerier {
 }
 
 impl WasmMockQuerier {
+    #![allow(dead_code)]
     pub fn new(base: MockQuerier<TerraQueryWrapper>) -> Self {
         WasmMockQuerier {
             base,

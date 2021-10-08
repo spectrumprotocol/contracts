@@ -2,9 +2,12 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{Coin, ContractResult, Empty, OwnedDeps, Querier, QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery, from_slice, to_binary, from_binary};
+use cosmwasm_std::{
+    from_binary, from_slice, to_binary, Coin, ContractResult, Empty, OwnedDeps, Querier,
+    QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
+};
+use cw20::BalanceResponse as Cw20BalanceResponse;
 use std::collections::HashMap;
-use cw20::{BalanceResponse as Cw20BalanceResponse};
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
@@ -76,9 +79,7 @@ impl Querier for WasmMockQuerier {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum MockQueryMsg {
-    Balance {
-        address: String,
-    },
+    Balance { address: String },
 }
 
 impl WasmMockQuerier {
@@ -91,9 +92,9 @@ impl WasmMockQuerier {
                         SystemResult::Ok(ContractResult::from(to_binary(&Cw20BalanceResponse {
                             balance,
                         })))
-                    },
+                    }
                 }
-            },
+            }
             _ => self.base.handle_query(request),
         }
     }

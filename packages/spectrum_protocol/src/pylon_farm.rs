@@ -13,8 +13,8 @@ pub struct ConfigInfo {
     pub pylon_token: String,
     pub pylon_staking: String,
     pub pylon_gov: String,
-    pub platform: Option<String>,
-    pub controller: Option<String>,
+    pub platform: String,
+    pub controller: String,
     pub base_denom: String,
     pub community_fee: Decimal,
     pub platform_fee: Decimal,
@@ -28,7 +28,6 @@ pub enum ExecuteMsg {
     // Update config
     update_config {
         owner: Option<String>,
-        platform: Option<String>,
         controller: Option<String>,
         community_fee: Option<Decimal>,
         platform_fee: Option<Decimal>,
@@ -54,7 +53,12 @@ pub enum ExecuteMsg {
     stake {
         asset_token: String,
     },
-    compound {}
+    compound {},
+    update_bond {
+        asset_token: String,
+        amount_to_stake: Uint128,
+        amount_to_auto: Uint128,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -74,7 +78,6 @@ pub enum QueryMsg {
     // get deposited balances
     reward_info {
         staker_addr: String,
-        height: u64,
     },
     state {},
 }

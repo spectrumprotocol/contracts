@@ -11,17 +11,11 @@
         "balance": {
           "type": "object",
           "required": [
-            "address",
-            "height"
+            "address"
           ],
           "properties": {
             "address": {
               "type": "string"
-            },
-            "height": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
             }
           }
         }

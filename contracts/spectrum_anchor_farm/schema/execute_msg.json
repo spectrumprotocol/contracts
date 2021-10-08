@@ -59,29 +59,7 @@
                 }
               ]
             },
-            "lock_end": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint64",
-              "minimum": 0.0
-            },
-            "lock_start": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint64",
-              "minimum": 0.0
-            },
             "owner": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "platform": {
               "type": [
                 "string",
                 "null"
@@ -208,6 +186,34 @@
       "properties": {
         "compound": {
           "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "update_bond"
+      ],
+      "properties": {
+        "update_bond": {
+          "type": "object",
+          "required": [
+            "amount_to_auto",
+            "amount_to_stake",
+            "asset_token"
+          ],
+          "properties": {
+            "amount_to_auto": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "amount_to_stake": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "asset_token": {
+              "type": "string"
+            }
+          }
         }
       },
       "additionalProperties": false

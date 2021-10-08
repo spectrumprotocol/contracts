@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Binary, CanonicalAddr, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Order,  Response, StdError, StdResult, Uint128,
+    attr, from_binary, to_binary, Binary, CanonicalAddr, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Order, Response, StdError, StdResult, Uint128,
 };
 
 use crate::{
@@ -17,9 +17,9 @@ use spectrum_protocol::mirror_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
 
-use crate::bond::{deposit_spec_reward, query_reward_info, unbond, withdraw, spec_reward_to_pool};
-use crate::state::{pool_info_read, pool_info_store, read_state};
+use crate::bond::{deposit_spec_reward, query_reward_info, spec_reward_to_pool, unbond, withdraw, update_bond};
 use crate::querier::query_mirror_pool_balance;
+use crate::state::{pool_info_read, pool_info_store, read_state};
 
 /// (we require 0-1)
 fn validate_percentage(value: Decimal, field: &str) -> StdResult<()> {
@@ -40,6 +40,11 @@ pub fn instantiate(
     validate_percentage(msg.community_fee, "community_fee")?;
     validate_percentage(msg.platform_fee, "platform_fee")?;
     validate_percentage(msg.controller_fee, "controller_fee")?;
+    validate_percentage(msg.deposit_fee, "deposit_fee")?;
+
+    if msg.lock_end < msg.lock_start {
+        return Err(StdError::generic_err("invalid lock parameters"));
+    }
 
     let api = deps.api;
     store_config(
@@ -52,16 +57,8 @@ pub fn instantiate(
             mirror_token: deps.api.addr_canonicalize(&msg.mirror_token)?,
             mirror_staking: deps.api.addr_canonicalize(&msg.mirror_staking)?,
             mirror_gov: deps.api.addr_canonicalize(&msg.mirror_gov)?,
-            platform: if let Some(platform) = msg.platform {
-                api.addr_canonicalize(&platform)?
-            } else {
-                CanonicalAddr::from(vec![])
-            },
-            controller: if let Some(controller) = msg.controller {
-                api.addr_canonicalize(&controller)?
-            } else {
-                CanonicalAddr::from(vec![])
-            },
+            platform: api.addr_canonicalize(&msg.platform)?,
+            controller: api.addr_canonicalize(&msg.controller)?,
             base_denom: msg.base_denom,
             community_fee: msg.community_fee,
             platform_fee: msg.platform_fee,
@@ -88,7 +85,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::update_config {
             owner,
-            platform,
             controller,
             community_fee,
             platform_fee,
@@ -96,10 +92,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             deposit_fee,
         } => update_config(
             deps,
-            env,
             info,
             owner,
-            platform,
             controller,
             community_fee,
             platform_fee,
@@ -113,7 +107,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             auto_compound,
         } => register_asset(
             deps,
-            env,
             info,
             asset_token,
             staking_token,
@@ -128,6 +121,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::harvest_all {} => harvest_all(deps, env, info),
         ExecuteMsg::re_invest { asset_token } => re_invest(deps, env, info, asset_token),
         ExecuteMsg::stake { asset_token } => stake(deps, env, info, asset_token),
+        ExecuteMsg::update_bond { asset_token, amount_to_auto, amount_to_stake } => update_bond(deps, env, info, asset_token, amount_to_auto, amount_to_stake),
     }
 }
 
@@ -158,10 +152,8 @@ fn receive_cw20(
 #[allow(clippy::too_many_arguments)]
 pub fn update_config(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     owner: Option<String>,
-    platform: Option<String>,
     controller: Option<String>,
     community_fee: Option<Decimal>,
     platform_fee: Option<Decimal>,
@@ -175,11 +167,10 @@ pub fn update_config(
     }
 
     if let Some(owner) = owner {
+        if config.owner == config.spectrum_gov {
+            return Err(StdError::generic_err("cannot update owner"));
+        }
         config.owner = deps.api.addr_canonicalize(&owner)?;
-    }
-
-    if let Some(platform) = platform {
-        config.platform = deps.api.addr_canonicalize(&platform)?;
     }
 
     if let Some(controller) = controller {
@@ -207,12 +198,12 @@ pub fn update_config(
     }
 
     store_config(deps.storage, &config)?;
+
     Ok(Response::new().add_attributes(vec![attr("action", "update_config")]))
 }
 
 pub fn register_asset(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     asset_token: String,
     staking_token: String,
@@ -227,7 +218,7 @@ pub fn register_asset(
     }
 
     let mut state = read_state(deps.storage)?;
-    deposit_spec_reward(deps.as_ref(), &mut state, &config, env.block.height, false)?;
+    deposit_spec_reward(deps.as_ref(), &mut state, &config, false)?;
 
     let mut pool_info = pool_info_read(deps.storage)
         .may_load(asset_token_raw.as_slice())?
@@ -259,24 +250,37 @@ pub fn register_asset(
     pool_info.weight = weight;
     pool_info.auto_compound = auto_compound;
 
+    if pool_info.total_stake_bond_share.is_zero()
+        && pool_info.total_auto_bond_share.is_zero()
+    {
+        pool_info.staking_token = deps.api.addr_canonicalize(&staking_token)?;
+    } else {
+        return Err(StdError::generic_err("pool is not empty"));
+    }
+
     pool_info_store(deps.storage).save(&asset_token_raw.as_slice(), &pool_info)?;
     state_store(deps.storage).save(&state)?;
+
     Ok(Response::new().add_attributes(vec![
         attr("action", "register_asset"),
-        attr("asset_token", asset_token.as_str()),
+        attr("asset_token", asset_token),
     ]))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::config {} => to_binary(&query_config(deps)?),
         QueryMsg::pools {} => to_binary(&query_pools(deps)?),
         QueryMsg::reward_info {
             asset_token,
             staker_addr,
-            height,
-        } => to_binary(&query_reward_info(deps, staker_addr, asset_token, height)?),
+        } => to_binary(&query_reward_info(
+            deps,
+            staker_addr,
+            asset_token,
+            env.block.height,
+        )?),
         QueryMsg::state {} => to_binary(&query_state(deps)?),
     }
 }
@@ -294,16 +298,8 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         mirror_staking: deps.api.addr_humanize(&config.mirror_staking)?.to_string(),
         spectrum_gov: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
         mirror_gov: deps.api.addr_humanize(&config.mirror_gov)?.to_string(),
-        platform: if config.platform == CanonicalAddr::from(vec![]) {
-            None
-        } else {
-            Some(deps.api.addr_humanize(&config.platform)?.to_string())
-        },
-        controller: if config.controller == CanonicalAddr::from(vec![]) {
-            None
-        } else {
-            Some(deps.api.addr_humanize(&config.controller)?.to_string())
-        },
+        platform: deps.api.addr_humanize(&config.platform)?.to_string(),
+        controller: deps.api.addr_humanize(&config.controller)?.to_string(),
         base_denom: config.base_denom,
         community_fee: config.community_fee,
         platform_fee: config.platform_fee,
@@ -342,11 +338,13 @@ fn query_pools(deps: Deps) -> StdResult<PoolsResponse> {
             })
         })
         .collect::<StdResult<Vec<PoolItem>>>()?;
+
     Ok(PoolsResponse { pools })
 }
 
 fn query_state(deps: Deps) -> StdResult<StateInfo> {
     let state = read_state(deps.storage)?;
+
     Ok(StateInfo {
         spec_share_index: state.spec_share_index,
         previous_spec_share: state.previous_spec_share,

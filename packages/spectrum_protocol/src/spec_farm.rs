@@ -45,7 +45,6 @@ pub enum QueryMsg {
     reward_info {
         staker_addr: String,
         asset_token: Option<String>,
-        height: u64,
     },
     state {},
 }

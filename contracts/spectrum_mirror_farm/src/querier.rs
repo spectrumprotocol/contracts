@@ -46,9 +46,7 @@ pub fn query_mirror_pool_info(
 ) -> StdResult<PoolInfoResponse> {
     let res: PoolInfoResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: mirror_staking,
-        msg: to_binary(&QueryMsg::PoolInfo {
-            asset_token,
-        })?,
+        msg: to_binary(&QueryMsg::PoolInfo { asset_token })?,
     }))?;
 
     Ok(res)

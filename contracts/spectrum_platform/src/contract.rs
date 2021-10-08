@@ -24,8 +24,12 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: ConfigInfo,
 ) -> StdResult<Response> {
-    validate_quorum(msg.quorum)?;
-    validate_threshold(msg.threshold)?;
+    if msg.quorum < Decimal::percent(50u64) ||  msg.quorum > Decimal::one() {
+        return Err(StdError::generic_err("initial quorum must be 0.5 to 1"))
+    }
+    if msg.threshold < Decimal::percent(50u64) ||  msg.threshold > Decimal::one() {
+        return Err(StdError::generic_err("initial threshold must be 0.5 to 1"))
+    }
 
     let config = Config {
         owner: deps.api.addr_canonicalize(&msg.owner)?,
@@ -90,7 +94,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             expiration_period,
         } => update_config(
             deps,
-            env,
             info,
             owner,
             quorum,
@@ -99,16 +102,13 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             effective_delay,
             expiration_period,
         ),
-        ExecuteMsg::upsert_board { address, weight } => {
-            upsert_board(deps, env, info, address, weight)
-        }
+        ExecuteMsg::upsert_board { address, weight } => upsert_board(deps, info, address, weight),
     }
 }
 
 #[allow(clippy::too_many_arguments)]
 fn update_config(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     owner: Option<String>,
     quorum: Option<Decimal>,
@@ -123,6 +123,10 @@ fn update_config(
     }
 
     if let Some(owner) = owner {
+        let state = read_state(deps.storage)?;
+        if config.owner == state.contract_addr {
+            return Err(StdError::generic_err("cannot update owner"));
+        }
         config.owner = deps.api.addr_canonicalize(&owner)?;
     }
 
@@ -154,7 +158,6 @@ fn update_config(
 
 fn upsert_board(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     address: String,
     weight: u32,
@@ -185,7 +188,7 @@ fn upsert_board(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps,  _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::boards {} => to_binary(&query_boards(deps)?),
         QueryMsg::config {} => to_binary(&query_config(deps)?),

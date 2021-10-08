@@ -13,7 +13,7 @@ use crate::{
 
 use cw20::Cw20ReceiveMsg;
 
-use crate::bond::{deposit_spec_reward, query_reward_info, unbond, withdraw};
+use crate::bond::{deposit_spec_reward, query_reward_info, unbond, withdraw, update_bond};
 use crate::state::{pool_info_read, pool_info_store, read_state};
 use spectrum_protocol::anchor_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
@@ -38,8 +38,12 @@ pub fn instantiate(
     validate_percentage(msg.community_fee, "community_fee")?;
     validate_percentage(msg.platform_fee, "platform_fee")?;
     validate_percentage(msg.controller_fee, "controller_fee")?;
+    validate_percentage(msg.deposit_fee, "deposit_fee")?;
 
-    let api = deps.api;
+    if msg.lock_end < msg.lock_start {
+        return Err(StdError::generic_err("invalid lock parameters"));
+    }
+
     store_config(
         deps.storage,
         &Config {
@@ -50,16 +54,8 @@ pub fn instantiate(
             anchor_token: deps.api.addr_canonicalize(&msg.anchor_token)?,
             anchor_staking: deps.api.addr_canonicalize(&msg.anchor_staking)?,
             anchor_gov: deps.api.addr_canonicalize(&msg.anchor_gov)?,
-            platform: if let Some(platform) = msg.platform {
-                api.addr_canonicalize(&platform)?
-            } else {
-                CanonicalAddr::from(vec![])
-            },
-            controller: if let Some(controller) = msg.controller {
-                api.addr_canonicalize(&controller)?
-            } else {
-                CanonicalAddr::from(vec![])
-            },
+            platform: deps.api.addr_canonicalize(&msg.platform)?,
+            controller: deps.api.addr_canonicalize(&msg.controller)?,
             base_denom: msg.base_denom,
             community_fee: msg.community_fee,
             platform_fee: msg.platform_fee,
@@ -86,7 +82,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::update_config {
             owner,
-            platform,
             controller,
             community_fee,
             platform_fee,
@@ -94,10 +89,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             deposit_fee,
         } => update_config(
             deps,
-            env,
             info,
             owner,
-            platform,
             controller,
             community_fee,
             platform_fee,
@@ -111,7 +104,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             auto_compound,
         } => register_asset(
             deps,
-            env,
             info,
             asset_token,
             staking_token,
@@ -125,6 +117,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::withdraw { asset_token } => withdraw(deps, env, info, asset_token),
         ExecuteMsg::stake { asset_token } => stake(deps, env, info, asset_token),
         ExecuteMsg::compound {} => compound(deps, env, info),
+        ExecuteMsg::update_bond { asset_token, amount_to_auto, amount_to_stake } => update_bond(deps, env, info, asset_token, amount_to_auto, amount_to_stake),
     }
 }
 
@@ -136,10 +129,10 @@ fn receive_cw20(
 ) -> StdResult<Response> {
     match from_binary(&cw20_msg.msg) {
         Ok(Cw20HookMsg::bond {
-            staker_addr,
-            asset_token,
-            compound_rate,
-        }) => bond(
+               staker_addr,
+               asset_token,
+               compound_rate,
+           }) => bond(
             deps,
             env,
             info,
@@ -155,10 +148,8 @@ fn receive_cw20(
 #[allow(clippy::too_many_arguments)]
 pub fn update_config(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     owner: Option<String>,
-    platform: Option<String>,
     controller: Option<String>,
     community_fee: Option<Decimal>,
     platform_fee: Option<Decimal>,
@@ -172,11 +163,10 @@ pub fn update_config(
     }
 
     if let Some(owner) = owner {
+        if config.owner == config.spectrum_gov {
+            return Err(StdError::generic_err("cannot update owner"));
+        }
         config.owner = deps.api.addr_canonicalize(&owner)?;
-    }
-
-    if let Some(platform) = platform {
-        config.platform = deps.api.addr_canonicalize(&platform)?;
     }
 
     if let Some(controller) = controller {
@@ -208,9 +198,8 @@ pub fn update_config(
     Ok(Response::new().add_attributes(vec![attr("action", "update_config")]))
 }
 
-pub fn register_asset(
+fn register_asset(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     asset_token: String,
     staking_token: String,
@@ -233,7 +222,7 @@ pub fn register_asset(
     }
 
     let mut state = read_state(deps.storage)?;
-    deposit_spec_reward(deps.as_ref(), &mut state, &config, env.block.height, false)?;
+    deposit_spec_reward(deps.as_ref(), &mut state, &config, false)?;
 
     let mut pool_info = pool_info_read(deps.storage)
         .may_load(asset_token_raw.as_slice())?
@@ -259,24 +248,23 @@ pub fn register_asset(
     state_store(deps.storage).save(&state)?;
     Ok(Response::new().add_attributes(vec![
         attr("action", "register_asset"),
-        attr("asset_token", asset_token.as_str()),
+        attr("asset_token", asset_token),
     ]))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::config {} => to_binary(&query_config(deps)?),
         QueryMsg::pools {} => to_binary(&query_pools(deps)?),
         QueryMsg::reward_info {
             staker_addr,
-            height,
-        } => to_binary(&query_reward_info(deps, staker_addr, height)?),
+        } => to_binary(&query_reward_info(deps, staker_addr, env.block.height)?),
         QueryMsg::state {} => to_binary(&query_state(deps)?),
     }
 }
 
-pub fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
+fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
     let config = read_config(deps.storage)?;
     let resp = ConfigInfo {
         owner: deps.api.addr_humanize(&config.owner)?.to_string(),
@@ -289,16 +277,8 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         anchor_staking: deps.api.addr_humanize(&config.anchor_staking)?.to_string(),
         spectrum_gov: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
         anchor_gov: deps.api.addr_humanize(&config.anchor_gov)?.to_string(),
-        platform: if config.platform == CanonicalAddr::from(vec![]) {
-            None
-        } else {
-            Some(deps.api.addr_humanize(&config.platform)?.to_string())
-        },
-        controller: if config.controller == CanonicalAddr::from(vec![]) {
-            None
-        } else {
-            Some(deps.api.addr_humanize(&config.controller)?.to_string())
-        },
+        platform: deps.api.addr_humanize(&config.platform)?.to_string(),
+        controller: deps.api.addr_humanize(&config.controller)?.to_string(),
         base_denom: config.base_denom,
         community_fee: config.community_fee,
         platform_fee: config.platform_fee,
