@@ -517,7 +517,6 @@ pub fn update_bond(
 
 pub fn withdraw(
     mut deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     asset_token: Option<String>,
 ) -> StdResult<Response> {
@@ -702,7 +701,6 @@ pub fn query_reward_info(
     deps: Deps,
     staker_addr: String,
     asset_token: Option<String>,
-    height: u64,
 ) -> StdResult<RewardInfoResponse> {
     let staker_addr_raw = deps.api.addr_canonicalize(&staker_addr)?;
     let mut state = read_state(deps.storage)?;

@@ -24,10 +24,6 @@ pub fn instantiate(
     msg: ConfigInfo,
 ) -> StdResult<Response> {
 
-    if msg.lock_end < msg.lock_start {
-        return Err(StdError::generic_err("invalid lock parameters"));
-    }
-
     config_store(deps.storage).save(&Config {
         owner: deps.api.addr_canonicalize(&msg.owner)?,
         spectrum_gov: deps.api.addr_canonicalize(&msg.spectrum_gov)?,
@@ -45,7 +41,7 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
+pub fn execute(deps: DepsMut, _env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
         ExecuteMsg::receive(msg) => receive_cw20(deps, info, msg),
         ExecuteMsg::register_asset {
@@ -53,7 +49,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             staking_token,
             weight,
         } => register_asset(deps, info, asset_token, staking_token, weight),
-        ExecuteMsg::withdraw { asset_token } => withdraw(deps, env, info, asset_token),
+        ExecuteMsg::withdraw { asset_token } => withdraw(deps, info, asset_token),
         ExecuteMsg::unbond {
             asset_token,
             amount,
@@ -145,14 +141,14 @@ fn update_config(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::config {} => to_binary(&query_config(deps)?),
         QueryMsg::pools {} => to_binary(&query_pools(deps)?),
         QueryMsg::reward_info {
             staker_addr,
             asset_token,
-        } => to_binary(&query_reward_info(deps, staker_addr, asset_token, env.block.height)?),
+        } => to_binary(&query_reward_info(deps, staker_addr, asset_token)?),
         QueryMsg::state {} => to_binary(&query_state(deps)?),
     }
 }

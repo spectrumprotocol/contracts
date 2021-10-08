@@ -499,7 +499,6 @@ pub fn update_bond(
 
 pub fn withdraw(
     mut deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     asset_token: Option<String>,
 ) -> StdResult<Response> {
@@ -515,7 +514,6 @@ pub fn withdraw(
     let (spec_amount, spec_share, farm_amount, farm_share) = withdraw_reward(
         deps.branch(),
         &config,
-        env.block.height,
         &state,
         &staker_addr,
         &asset_token,
@@ -574,7 +572,6 @@ pub fn withdraw(
 fn withdraw_reward(
     deps: DepsMut,
     config: &Config,
-    height: u64,
     state: &State,
     staker_addr: &CanonicalAddr,
     asset_token: &Option<CanonicalAddr>,
@@ -679,7 +676,6 @@ fn calc_spec_balance(share: Uint128, staked: &SpecBalanceResponse) -> Uint128 {
 pub fn query_reward_info(
     deps: Deps,
     staker_addr: String,
-    height: u64,
 ) -> StdResult<RewardInfoResponse> {
     let staker_addr_raw = deps.api.addr_canonicalize(&staker_addr)?;
     let mut state = read_state(deps.storage)?;
@@ -689,7 +685,6 @@ pub fn query_reward_info(
     let reward_infos = read_reward_infos(
         deps,
         &config,
-        height,
         &state,
         &staker_addr_raw,
         &spec_staked,
@@ -704,7 +699,6 @@ pub fn query_reward_info(
 fn read_reward_infos(
     deps: Deps,
     config: &Config,
-    height: u64,
     state: &State,
     staker_addr: &CanonicalAddr,
     spec_staked: &SpecBalanceResponse,
