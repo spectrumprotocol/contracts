@@ -56,8 +56,4 @@ pub enum QueryMsg {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {
-    pub owner: String,
-    pub terraswap_factory: String,
-    pub allowlist: Vec<String>,
-}
+pub struct MigrateMsg {}
