@@ -139,7 +139,11 @@ pub struct StateInfo {
     pub spec_share_index: Decimal, // per weight
     pub total_farm_share: Uint128,
     pub total_weight: u32,
+    pub earning: Uint128,
+    pub earning_spec: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub earning_spec: Uint128,
+}

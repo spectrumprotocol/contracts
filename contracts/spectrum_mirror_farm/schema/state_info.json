@@ -3,12 +3,20 @@
   "title": "StateInfo",
   "type": "object",
   "required": [
+    "earning",
+    "earning_spec",
     "previous_spec_share",
     "spec_share_index",
     "total_farm_share",
     "total_weight"
   ],
   "properties": {
+    "earning": {
+      "$ref": "#/definitions/Uint128"
+    },
+    "earning_spec": {
+      "$ref": "#/definitions/Uint128"
+    },
     "previous_spec_share": {
       "$ref": "#/definitions/Uint128"
     },
