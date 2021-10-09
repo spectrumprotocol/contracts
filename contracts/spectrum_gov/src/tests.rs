@@ -6,7 +6,7 @@ use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONT
 use cosmwasm_std::{Binary, CanonicalAddr, CosmosMsg, Decimal, OwnedDeps, StdError, SubMsg, Uint128, WasmMsg, from_binary, to_binary, to_vec};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use spectrum_protocol::common::OrderBy;
-use spectrum_protocol::gov_v2::{BalanceResponse, ConfigInfo, Cw20HookMsg, ExecuteMsg, PollExecuteMsg, PollInfo, PollStatus, PollsResponse, QueryMsg, StateInfo, VaultInfo, VaultsResponse, VoteOption, VoterInfo, VotersResponse, StatePoolInfo};
+use spectrum_protocol::gov::{BalanceResponse, ConfigInfo, Cw20HookMsg, ExecuteMsg, PollExecuteMsg, PollInfo, PollStatus, PollsResponse, QueryMsg, StateInfo, VaultInfo, VaultsResponse, VoteOption, VoterInfo, VotersResponse, StatePoolInfo};
 
 const VOTING_TOKEN: &str = "voting_token";
 const TEST_CREATOR: &str = "creator";

@@ -12,7 +12,7 @@ use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrap
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
 use terraswap::pair::SimulationResponse;
 
-use spectrum_protocol::gov_v2::BalanceResponse as SpecBalanceResponse;
+use spectrum_protocol::gov::BalanceResponse as SpecBalanceResponse;
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.

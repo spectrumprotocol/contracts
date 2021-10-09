@@ -4,7 +4,7 @@ use cosmwasm_std::{
     from_binary, to_binary, Binary, CanonicalAddr, Decimal, Deps, DepsMut, Env, MessageInfo,
     Response, StdError, StdResult, Uint128,
 };
-use spectrum_protocol::gov_v2::{ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, QueryMsg, StateInfo, StatePoolInfo};
+use spectrum_protocol::gov::{ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, QueryMsg, StateInfo, StatePoolInfo};
 
 use crate::poll::{
     poll_end, poll_execute, poll_expire, poll_start, poll_vote, query_poll, query_polls,

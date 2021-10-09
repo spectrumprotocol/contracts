@@ -3,7 +3,7 @@ use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
 use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{from_binary, to_binary, OwnedDeps, Uint128, CosmosMsg, WasmMsg};
 use cw20::Cw20ReceiveMsg;
-use spectrum_protocol::gov_v2::{VoteOption, ExecuteMsg as GovExecuteMsg};
+use spectrum_protocol::gov::{VoteOption, ExecuteMsg as GovExecuteMsg};
 use spectrum_protocol::wallet::{BalanceResponse, ConfigInfo, Cw20HookMsg, ExecuteMsg, QueryMsg};
 
 const TEST_CREATOR: &str = "creator";

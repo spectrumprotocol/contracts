@@ -6,7 +6,7 @@ use cosmwasm_std::{
     from_binary, from_slice, to_binary, Coin, ContractResult, Empty, OwnedDeps, Querier,
     QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
 };
-use spectrum_protocol::gov_v2::{BalanceResponse, StateInfo, StatePoolInfo, BalancePoolInfo};
+use spectrum_protocol::gov::{BalanceResponse, StateInfo, StatePoolInfo, BalancePoolInfo};
 use std::collections::HashMap;
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
