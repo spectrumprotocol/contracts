@@ -519,6 +519,8 @@ pub fn withdraw(
     mut deps: DepsMut,
     info: MessageInfo,
     asset_token: Option<String>,
+    spec_amount: Option<Uint128>,
+    farm_amount: Option<Uint128>,
 ) -> StdResult<Response> {
     let staker_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
     let asset_token = asset_token.map(|a| deps.api.addr_canonicalize(&a).unwrap());
@@ -536,6 +538,8 @@ pub fn withdraw(
         &staker_addr,
         &asset_token,
         &spec_staked,
+        spec_amount,
+        farm_amount,
     )?;
 
     state.previous_spec_share = state.previous_spec_share.checked_sub(spec_share)?;
@@ -594,6 +598,8 @@ fn withdraw_reward(
     staker_addr: &CanonicalAddr,
     asset_token: &Option<CanonicalAddr>,
     spec_staked: &SpecBalanceResponse,
+    mut request_spec_amount: Option<Uint128>,
+    mut request_farm_amount: Option<Uint128>,
 ) -> StdResult<(Uint128, Uint128, Uint128, Uint128)> {
     let rewards_bucket = rewards_read(deps.storage, &staker_addr);
 
@@ -651,19 +657,42 @@ fn withdraw_reward(
         before_share_change(&pool_info, &mut reward_info)?;
 
         // update withdraw
-        farm_share += reward_info.farm_share;
-        farm_amount += calc_farm_balance(
-            reward_info.farm_share,
-            farm_staked.balance,
-            state.total_farm_share,
-        );
+        let (asset_farm_share, asset_farm_amount) = if let Some(request_amount) = request_farm_amount {
+            let avail_amount = calc_farm_balance(reward_info.farm_share, farm_staked.balance, state.total_farm_share);
+            let asset_farm_amount = if request_amount > avail_amount { avail_amount } else { request_amount };
+            let mut asset_farm_share = calc_farm_share(asset_farm_amount, farm_staked.balance, state.total_farm_share);
+            if calc_farm_balance(asset_farm_share, farm_staked.balance, state.total_farm_share) < asset_farm_amount {
+                asset_farm_share += Uint128::new(1u128);
+            }
+            request_farm_amount = Some(request_amount.checked_sub(asset_farm_amount)?);
+            (asset_farm_share, asset_farm_amount)
+        } else {
+            (reward_info.farm_share, calc_farm_balance(
+                reward_info.farm_share,
+                farm_staked.balance,
+                state.total_farm_share,
+            ))
+        };
+        farm_share += asset_farm_share;
+        farm_amount += asset_farm_amount;
 
-        let withdraw_share = reward_info.spec_share;
-        spec_share += withdraw_share;
-        spec_amount += calc_spec_balance(withdraw_share, spec_staked);
-        pool_info.farm_share = pool_info.farm_share.checked_sub(reward_info.farm_share)?;
-        reward_info.farm_share = Uint128::zero();
-        reward_info.spec_share = Uint128::zero();
+        let (asset_spec_share, asset_spec_amount) = if let Some(request_amount) = request_spec_amount {
+            let avail_amount = calc_spec_balance(reward_info.spec_share, spec_staked);
+            let asset_spec_amount = if request_amount > avail_amount { avail_amount } else { request_amount };
+            let mut asset_spec_share = calc_spec_share(asset_spec_amount, spec_staked);
+            if calc_spec_balance(asset_spec_share, spec_staked) < asset_spec_amount {
+                asset_spec_share += Uint128::new(1u128);
+            }
+            request_spec_amount = Some(request_amount.checked_sub(asset_spec_amount)?);
+            (asset_spec_share, asset_spec_amount)
+        } else {
+            (reward_info.spec_share, calc_spec_balance(reward_info.spec_share, spec_staked))
+        };
+        spec_share += asset_spec_share;
+        spec_amount += asset_spec_amount;
+        pool_info.farm_share = pool_info.farm_share.checked_sub(asset_farm_share)?;
+        reward_info.farm_share = reward_info.farm_share.checked_sub(asset_farm_share)?;
+        reward_info.spec_share = reward_info.spec_share.checked_sub(asset_spec_share)?;
 
         // update rewards info
         pool_info_store(deps.storage).save(key, &pool_info)?;
@@ -678,6 +707,17 @@ fn withdraw_reward(
         }
     }
 
+    if let Some(request_amount) = request_farm_amount {
+        if !request_amount.is_zero() {
+            return Err(StdError::generic_err("Cannot withdraw more than remaining amount"));
+        }
+    }
+    if let Some(request_amount) = request_spec_amount {
+        if !request_amount.is_zero() {
+            return Err(StdError::generic_err("Cannot withdraw more than remaining amount"));
+        }
+    }
+
     Ok((spec_amount, spec_share, farm_amount, farm_share))
 }
 
@@ -689,11 +729,27 @@ fn calc_farm_balance(share: Uint128, total_balance: Uint128, total_farm_share: U
     }
 }
 
+fn calc_farm_share(amount: Uint128, total_balance: Uint128, total_farm_share: Uint128) -> Uint128 {
+    if total_balance.is_zero() {
+        amount
+    } else {
+        amount.multiply_ratio(total_farm_share, total_balance)
+    }
+}
+
 fn calc_spec_balance(share: Uint128, staked: &SpecBalanceResponse) -> Uint128 {
     if staked.share.is_zero() {
         Uint128::zero()
     } else {
         share.multiply_ratio(staked.balance, staked.share)
+    }
+}
+
+fn calc_spec_share(amount: Uint128, stated: &SpecBalanceResponse) -> Uint128 {
+    if stated.balance.is_zero() {
+        amount
+    } else {
+        amount.multiply_ratio(stated.share, stated.balance)
     }
 }
 

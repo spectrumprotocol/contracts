@@ -49,7 +49,7 @@ pub fn execute(deps: DepsMut, _env: Env, info: MessageInfo, msg: ExecuteMsg) -> 
             staking_token,
             weight,
         } => register_asset(deps, info, asset_token, staking_token, weight),
-        ExecuteMsg::withdraw { asset_token } => withdraw(deps, info, asset_token),
+        ExecuteMsg::withdraw { asset_token, spec_amount } => withdraw(deps, info, asset_token, spec_amount),
         ExecuteMsg::unbond {
             asset_token,
             amount,

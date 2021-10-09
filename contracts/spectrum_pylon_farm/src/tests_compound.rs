@@ -526,7 +526,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     );
 
     // withdraw rewards
-    let msg = ExecuteMsg::withdraw { asset_token: None };
+    let msg = ExecuteMsg::withdraw { asset_token: None, spec_amount: None, farm_amount: None };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
     assert_eq!(

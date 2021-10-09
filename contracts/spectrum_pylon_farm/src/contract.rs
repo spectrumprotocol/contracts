@@ -110,7 +110,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             asset_token,
             amount,
         } => unbond(deps, env, info, asset_token, amount),
-        ExecuteMsg::withdraw { asset_token } => withdraw(deps, info, asset_token),
+        ExecuteMsg::withdraw { asset_token, spec_amount, farm_amount } => withdraw(deps, info, asset_token, spec_amount, farm_amount),
         ExecuteMsg::stake { asset_token } => stake(deps, env, info, asset_token),
         ExecuteMsg::compound {} => compound(deps, env, info),
         ExecuteMsg::update_bond { asset_token, amount_to_auto, amount_to_stake } => update_bond(deps, env, info, asset_token, amount_to_auto, amount_to_stake),

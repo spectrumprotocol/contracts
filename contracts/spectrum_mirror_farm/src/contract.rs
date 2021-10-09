@@ -113,7 +113,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             asset_token,
             amount,
         } => unbond(deps, env, info, asset_token, amount),
-        ExecuteMsg::withdraw { asset_token } => withdraw(deps, info, asset_token),
+        ExecuteMsg::withdraw { asset_token, spec_amount, farm_amount } => withdraw(deps, info, asset_token, spec_amount, farm_amount),
         ExecuteMsg::harvest_all {} => harvest_all(deps, env, info),
         ExecuteMsg::re_invest { asset_token } => re_invest(deps, env, info, asset_token),
         ExecuteMsg::stake { asset_token } => stake(deps, env, info, asset_token),

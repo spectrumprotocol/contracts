@@ -49,6 +49,8 @@ pub enum ExecuteMsg {
     withdraw {
         // If the asset token is not given, then all rewards are withdrawn
         asset_token: Option<String>,
+        spec_amount: Option<Uint128>,
+        farm_amount: Option<Uint128>,
     },
     harvest_all {},
     re_invest {
