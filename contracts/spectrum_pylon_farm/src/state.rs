@@ -58,6 +58,7 @@ pub struct State {
     pub total_farm_share: Uint128,
     pub total_weight: u32,
     pub earning: Uint128,
+    #[serde(default)] pub earning_spec: Uint128,
 }
 
 impl State {

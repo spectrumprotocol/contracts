@@ -73,6 +73,7 @@ pub fn instantiate(
         total_farm_share: Uint128::zero(),
         total_weight: 0u32,
         earning: Uint128::zero(),
+        earning_spec: Uint128::zero(),
     })?;
 
     Ok(Response::default())
@@ -331,10 +332,15 @@ fn query_state(deps: Deps) -> StdResult<StateInfo> {
         previous_spec_share: state.previous_spec_share,
         total_farm_share: state.total_farm_share,
         total_weight: state.total_weight,
+        earning: state.earning,
+        earning_spec: state.earning_spec,
     })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
+    let mut state = read_state(deps.storage)?;
+    state.earning_spec = msg.earning_spec;
+    state_store(deps.storage).save(&state)?;
     Ok(Response::default())
 }
