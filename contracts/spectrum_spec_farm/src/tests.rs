@@ -1,7 +1,7 @@
 use crate::contract::{execute, instantiate, query};
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
 use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{from_binary, to_binary, CosmosMsg, Decimal, OwnedDeps, Uint128, WasmMsg};
+use cosmwasm_std::{from_binary, to_binary, CosmosMsg, Decimal, OwnedDeps, Uint128, WasmMsg, Storage};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use spectrum_protocol::gov::ExecuteMsg as GovExecuteMsg;
 use spectrum_protocol::spec_farm::{
@@ -118,7 +118,16 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
     assert_eq!(res.total_weight, 1u32);
 }
 
-fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn clone_storage(storage: &MockStorage) -> MockStorage {
+    let range = storage.range(None, None, cosmwasm_std::Order::Ascending);
+    let mut cloned = MockStorage::new();
+    for item in range {
+        cloned.set(item.0.as_slice(), item.1.as_slice());
+    }
+    cloned
+}
+
+fn test_bond(mut deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // bond err
     let mut env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
@@ -189,9 +198,16 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         })
     );
 
-    // withdraw
-    let msg = ExecuteMsg::withdraw { asset_token: None };
-    let res = execute(deps.as_mut(), env.clone(), info, msg);
+    // withdraw more than available, failed
+    let old_storage = clone_storage(&deps.storage);
+    let msg = ExecuteMsg::withdraw { asset_token: None, spec_amount: Some(Uint128::from(501u128)) };
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    assert!(res.is_err());
+    deps.storage = old_storage;
+
+    // withdraw partial
+    let msg = ExecuteMsg::withdraw { asset_token: None, spec_amount: Some(Uint128::from(200u128)) };
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
     assert_eq!(
         res.unwrap()
@@ -204,7 +220,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 contract_addr: GOV.to_string(),
                 funds: vec![],
                 msg: to_binary(&GovExecuteMsg::withdraw {
-                    amount: Some(Uint128::from(500u128)),
+                    amount: Some(Uint128::from(200u128)),
                 })
                 .unwrap(),
             }),
@@ -213,9 +229,45 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 funds: vec![],
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: USER1.to_string(),
-                    amount: Uint128::from(500u128),
+                    amount: Uint128::from(200u128),
                 })
                 .unwrap(),
+            }),
+        ]
+    );
+
+    deps.querier.with_token_balances(&[(
+        &GOV.to_string(),
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(300u128))],
+    )]);
+
+    // withdraw all
+    let msg = ExecuteMsg::withdraw { asset_token: None, spec_amount: None };
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    assert!(res.is_ok());
+    assert_eq!(
+        res.unwrap()
+            .messages
+            .into_iter()
+            .map(|it| it.msg)
+            .collect::<Vec<CosmosMsg>>(),
+        vec![
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: GOV.to_string(),
+                funds: vec![],
+                msg: to_binary(&GovExecuteMsg::withdraw {
+                    amount: Some(Uint128::from(300u128)),
+                })
+                    .unwrap(),
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: TOKEN.to_string(),
+                funds: vec![],
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: USER1.to_string(),
+                    amount: Uint128::from(300u128),
+                })
+                    .unwrap(),
             }),
         ]
     );
