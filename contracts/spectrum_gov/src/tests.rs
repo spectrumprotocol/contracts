@@ -1,7 +1,7 @@
 use crate::contract::{execute, instantiate, query};
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
-use crate::stake::calc_mintable;
-use crate::state::{Config, State};
+use crate::stake::{calc_mintable, reconcile_balance};
+use crate::state::{Config, State, StatePool,};
 use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{Binary, CanonicalAddr, CosmosMsg, Decimal, OwnedDeps, StdError, SubMsg, Uint128, WasmMsg, from_binary, to_binary, to_vec};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
@@ -1375,4 +1375,33 @@ fn test_mintable() {
     assert_eq!(calc_mintable(&state, &config, 10), Uint128::zero());
     assert_eq!(calc_mintable(&state, &config, 110), Uint128::zero());
     assert_eq!(calc_mintable(&state, &config, 111), Uint128::zero());
+}
+
+#[test]
+fn test_reconcile_balance() {
+    let pool = StatePool {
+        days: 30u64,
+        total_share: Uint128::zero(),
+        total_balance: Uint128::from(100u128),
+        active: true,
+    };
+    let mut state = State {
+        contract_addr: CanonicalAddr::from(vec![]),
+        poll_count: 0,
+        total_share: Uint128::zero(),
+        prev_balance: Uint128::from(200u128),
+        total_balance: Uint128::from(100u128),
+        poll_deposit: Uint128::zero(),
+        last_mint: 0,
+        total_weight: 0,
+        pools: vec![pool]
+    };
+
+    reconcile_balance(&mut state, Uint128::from(1200u128)).unwrap();
+    assert_eq!(state.total_balance, Uint128::from(350u128));
+    assert_eq!(state.pools.get(0).unwrap().total_balance, Uint128::from(850u128));
+
+    reconcile_balance(&mut state, Uint128::from(1080u128)).unwrap();
+    assert_eq!(state.total_balance, Uint128::from(315u128));
+    assert_eq!(state.pools.get(0).unwrap().total_balance, Uint128::from(765u128));
 }
