@@ -73,6 +73,7 @@ pub fn deposit_reward(
             share: Uint128::zero(),
             balance: Uint128::zero(),
             locked_balance: vec![],
+            pools: vec![],
         });
     }
 
@@ -208,6 +209,7 @@ pub fn withdraw(
                 contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
                 msg: to_binary(&ExecuteMsg::withdraw {
                     amount: Some(amount),
+                    days: None,
                 })?,
                 funds: vec![],
             }),
@@ -272,7 +274,7 @@ fn withdraw_reward(
             reward_info.spec_share.checked_sub(locked_share)?
         };
         share += withdraw_share;
-        amount += calc_spec_balace(withdraw_share, staked);
+        amount += calc_spec_balance(withdraw_share, staked);
         reward_info.spec_share = locked_share;
 
         // Update rewards info
@@ -287,7 +289,7 @@ fn withdraw_reward(
     Ok((amount, share))
 }
 
-fn calc_spec_balace(share: Uint128, staked: &BalanceResponse) -> Uint128 {
+fn calc_spec_balance(share: Uint128, staked: &BalanceResponse) -> Uint128 {
     if staked.share.is_zero() {
         Uint128::zero()
     } else {
@@ -348,11 +350,11 @@ fn read_reward_infos(
                 asset_token: asset_token.clone(),
                 bond_amount: reward_info.bond_amount,
                 spec_share: reward_info.spec_share,
-                pending_spec_reward: calc_spec_balace(reward_info.spec_share, staked),
+                pending_spec_reward: calc_spec_balance(reward_info.spec_share, staked),
                 accum_spec_share: reward_info.accum_spec_share,
                 spec_share_index,
                 locked_spec_share,
-                locked_spec_reward: calc_spec_balace(locked_spec_share, staked),
+                locked_spec_reward: calc_spec_balance(locked_spec_share, staked),
             }]
         } else {
             vec![]
@@ -377,11 +379,11 @@ fn read_reward_infos(
                     asset_token: deps.api.addr_humanize(&asset_token_raw)?.to_string(),
                     bond_amount: reward_info.bond_amount,
                     spec_share: reward_info.spec_share,
-                    pending_spec_reward: calc_spec_balace(reward_info.spec_share, staked),
+                    pending_spec_reward: calc_spec_balance(reward_info.spec_share, staked),
                     accum_spec_share: reward_info.accum_spec_share,
                     spec_share_index,
                     locked_spec_share,
-                    locked_spec_reward: calc_spec_balace(locked_spec_share, staked),
+                    locked_spec_reward: calc_spec_balance(locked_spec_share, staked),
                 })
             })
             .collect::<StdResult<Vec<RewardInfoResponseItem>>>()?;
