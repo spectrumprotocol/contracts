@@ -344,7 +344,7 @@ fn test_stake_30d(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let msg = QueryMsg::balance {
         address: USER1.to_string(),
     };
-    let res: BalanceResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
+    let res: BalanceResponse = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(
         res,
         BalanceResponse {
@@ -355,53 +355,53 @@ fn test_stake_30d(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         }
     );
 
-    //
-    // // vote
-    // let msg = ExecuteMsg::poll_vote {
-    //     poll_id: 1u64,
-    //     amount: Uint128::from(100u64),
-    //     vote: VoteOption::yes,
-    // };
-    // let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
-    // assert!(res.is_ok());
-    //
-    // // other user cannot vote
-    // let info = mock_info(USER3, &[]);
-    // let res = execute(deps.as_mut(), env.clone(), info, msg);
-    // assert!(res.is_err());
-    //
-    // // unstake more than you have
-    // let info = mock_info(USER1, &[]);
-    // let msg = ExecuteMsg::unstake {
-    //     amount: Uint128::from(150u64),
-    //     days: None,
-    // };
-    // let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
-    // assert!(res.is_err());
-    //
-    // let msg = ExecuteMsg::unstake {
-    //     amount: Uint128::from(20u64),
-    //     days: None,
-    // };
-    // let res = execute(deps.as_mut(), env.clone(), info, msg);
-    // assert!(res.is_ok());
-    //
-    // deps.querier.with_token_balances(&[(
-    //     &SPEC_GOV.to_string(),
-    //     &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(80u128), &Uint128::from(0u128))],
-    // )]);
-    //
-    // let msg = QueryMsg::balance {
-    //     address: USER1.to_string(),
-    // };
-    // let res: BalanceResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
-    // assert_eq!(
-    //     res,
-    //     BalanceResponse {
-    //         share: Uint128::from(80u128),
-    //         staked_amount: Uint128::from(80u128),
-    //         unstaked_amount: Uint128::from(20u128),
-    //         locked_amount: Uint128::from(100u128),
-    //     }
-    // );
+    
+    // vote
+    let msg = ExecuteMsg::poll_vote {
+        poll_id: 1u64,
+        amount: Uint128::from(100u64),
+        vote: VoteOption::yes,
+    };
+    let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
+    assert!(res.is_ok());
+    
+    // other user cannot vote
+    let info = mock_info(USER3, &[]);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
+    assert!(res.is_err());
+    
+    // unstake more than you have
+    let info = mock_info(USER1, &[]);
+    let msg = ExecuteMsg::unstake {
+        amount: Uint128::from(150u64),
+        days: None,
+    };
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    assert!(res.is_err());
+    
+    let msg = ExecuteMsg::unstake {
+        amount: Uint128::from(20u64),
+        days: None,
+    };
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
+    assert!(res.is_ok());
+    
+    deps.querier.with_token_balances(&[(
+        &SPEC_GOV.to_string(),
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(80u128), &Uint128::from(0u128))],
+    )]);
+    
+    let msg = QueryMsg::balance {
+        address: USER1.to_string(),
+    };
+    let res: BalanceResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
+    assert_eq!(
+        res,
+        BalanceResponse {
+            share: Uint128::from(48u128),
+            staked_amount: Uint128::from(53u128),
+            unstaked_amount: Uint128::from(20u128),
+            locked_amount: Uint128::from(100u128),
+        }
+    );
 }
