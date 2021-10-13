@@ -271,50 +271,6 @@ fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                 funds: vec![],
                 msg: to_binary(&AnchorStakingExecuteMsg::Withdraw {}).unwrap(),
             }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: ANC_TOKEN.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-                    spender: ANC_POOL.to_string(),
-                    amount: Uint128::zero(),
-                    expires: None,
-                })
-                .unwrap(),
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: ANC_POOL.to_string(),
-                msg: to_binary(&TerraswapExecuteMsg::ProvideLiquidity {
-                    assets: [
-                        Asset {
-                            info: AssetInfo::Token {
-                                contract_addr: ANC_TOKEN.to_string(),
-                            },
-                            amount: Uint128::zero(),
-                        },
-                        Asset {
-                            info: AssetInfo::NativeToken {
-                                denom: "uusd".to_string(),
-                            },
-                            amount: Uint128::zero(),
-                        },
-                    ],
-                    slippage_tolerance: None,
-                    receiver: None
-                })
-                .unwrap(),
-                funds: vec![Coin {
-                    denom: "uusd".to_string(),
-                    amount: Uint128::zero(),
-                }],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: env.contract.address.to_string(),
-                msg: to_binary(&ExecuteMsg::stake {
-                    asset_token: ANC_TOKEN.to_string(),
-                })
-                .unwrap(),
-                funds: vec![],
-            }),
         ]
     );
 }
