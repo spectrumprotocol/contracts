@@ -140,7 +140,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
         asset_token: MIR_TOKEN.to_string(),
         staking_token: INVALID_LP.to_string(),
         weight: 1u32,
-        auto_compound: true,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
@@ -160,7 +159,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
                 asset_token: MIR_TOKEN.to_string(),
                 staking_token: INVALID_LP.to_string(),
                 weight: 1u32,
-                auto_compound: true,
                 farm_share: Uint128::zero(),
                 state_spec_share_index: Decimal::zero(),
                 stake_spec_share_index: Decimal::zero(),
@@ -179,7 +177,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
         asset_token: MIR_TOKEN.to_string(),
         staking_token: MIR_LP.to_string(),
         weight: 1u32,
-        auto_compound: true,
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
@@ -194,7 +191,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
                 asset_token: MIR_TOKEN.to_string(),
                 staking_token: MIR_LP.to_string(),
                 weight: 1u32,
-                auto_compound: true,
                 farm_share: Uint128::zero(),
                 state_spec_share_index: Decimal::zero(),
                 stake_spec_share_index: Decimal::zero(),
@@ -213,7 +209,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
         asset_token: SPY_TOKEN.to_string(),
         staking_token: SPY_LP.to_string(),
         weight: 2u32,
-        auto_compound: true,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
@@ -295,7 +290,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         asset_token: MIR_TOKEN.to_string(),
         staking_token: INVALID_LP.to_string(),
         weight: 1u32,
-        auto_compound: true,
     };
     let info = mock_info(SPEC_GOV, &[]);
     let res = execute(deps.as_mut(), env.clone(), info, msg);

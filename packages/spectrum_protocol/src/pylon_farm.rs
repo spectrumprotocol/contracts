@@ -43,7 +43,6 @@ pub enum ExecuteMsg {
         asset_token: String,
         staking_token: String,
         weight: u32,
-        auto_compound: bool,
     },
     // Withdraw rewards
     withdraw {
@@ -95,7 +94,6 @@ pub struct PoolItem {
     pub total_stake_bond_share: Uint128,
     pub total_stake_bond_amount: Uint128, // amount stake
     pub weight: u32,
-    pub auto_compound: bool,
     pub farm_share: Uint128, // MINE share
     pub state_spec_share_index: Decimal,
     pub farm_share_index: Decimal,       // per stake bond share
