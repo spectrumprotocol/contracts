@@ -27,6 +27,7 @@ pub enum ExecuteMsg {
     },
     withdraw {
         asset_token: Option<String>,
+        spec_amount: Option<Uint128>,
     },
 }
 

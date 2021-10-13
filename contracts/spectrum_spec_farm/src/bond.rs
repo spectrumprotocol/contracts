@@ -182,6 +182,7 @@ pub fn withdraw(
     deps: DepsMut,
     info: MessageInfo,
     asset_token: Option<String>,
+    spec_amount: Option<Uint128>,
 ) -> StdResult<Response> {
     let staker_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
     let asset_token = asset_token.map(|a| deps.api.addr_canonicalize(&a).unwrap());
@@ -195,6 +196,7 @@ pub fn withdraw(
         &staker_addr,
         &asset_token,
         &staked,
+        spec_amount,
     )?;
     state.previous_spec_share = state.previous_spec_share.checked_sub(share)?;
     state_store(deps.storage).save(&state)?;
@@ -226,6 +228,7 @@ fn withdraw_reward(
     staker_addr: &CanonicalAddr,
     asset_token: &Option<CanonicalAddr>,
     staked: &BalanceResponse,
+    mut request_spec_amount: Option<Uint128>,
 ) -> StdResult<(Uint128, Uint128)> {
     let rewards_bucket = rewards_read(storage, &staker_addr);
 
@@ -260,10 +263,21 @@ fn withdraw_reward(
         reward_to_pool(state, &mut pool_info)?;
         before_share_change(&pool_info, &mut reward_info)?;
 
-        let withdraw_share = reward_info.spec_share;
-        share += withdraw_share;
-        amount += calc_spec_balance(withdraw_share, staked);
-        reward_info.spec_share = Uint128::zero();
+        let (asset_spec_share, asset_spec_amount) = if let Some(request_amount) = request_spec_amount {
+            let avail_amount = calc_spec_balance(reward_info.spec_share, staked);
+            let asset_spec_amount = if request_amount > avail_amount { avail_amount } else { request_amount };
+            let mut asset_spec_share = calc_spec_share(asset_spec_amount, staked);
+            if calc_spec_balance(asset_spec_share, staked) < asset_spec_amount {
+                asset_spec_share += Uint128::new(1u128);
+            }
+            request_spec_amount = Some(request_amount.checked_sub(asset_spec_amount)?);
+            (asset_spec_share, asset_spec_amount)
+        } else {
+            (reward_info.spec_share, calc_spec_balance(reward_info.spec_share, staked))
+        };
+        share += asset_spec_share;
+        amount += asset_spec_amount;
+        reward_info.spec_share = reward_info.spec_share.checked_sub(asset_spec_share)?;
 
         // Update rewards info
         pool_info_store(storage).save(key, &pool_info)?;
@@ -271,6 +285,12 @@ fn withdraw_reward(
             rewards_store(storage, &staker_addr).remove(key);
         } else {
             rewards_store(storage, &staker_addr).save(key, &reward_info)?;
+        }
+    }
+
+    if let Some(request_amount) = request_spec_amount {
+        if !request_amount.is_zero() {
+            return Err(StdError::generic_err("Cannot withdraw more than remaining amount"));
         }
     }
 
@@ -282,6 +302,14 @@ fn calc_spec_balance(share: Uint128, staked: &BalanceResponse) -> Uint128 {
         Uint128::zero()
     } else {
         share.multiply_ratio(staked.balance, staked.share)
+    }
+}
+
+fn calc_spec_share(amount: Uint128, stated: &BalanceResponse) -> Uint128 {
+    if stated.balance.is_zero() {
+        amount
+    } else {
+        amount.multiply_ratio(stated.share, stated.balance)
     }
 }
 
