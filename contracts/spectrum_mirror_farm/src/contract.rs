@@ -101,14 +101,12 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             asset_token,
             staking_token,
             weight,
-            auto_compound,
         } => register_asset(
             deps,
             info,
             asset_token,
             staking_token,
             weight,
-            auto_compound,
         ),
         ExecuteMsg::unbond {
             asset_token,
@@ -205,7 +203,6 @@ pub fn register_asset(
     asset_token: String,
     staking_token: String,
     weight: u32,
-    auto_compound: bool,
 ) -> StdResult<Response> {
     let config: Config = read_config(deps.storage)?;
     let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
@@ -225,7 +222,6 @@ pub fn register_asset(
             total_stake_bond_share: Uint128::zero(),
             total_stake_bond_amount: Uint128::zero(),
             weight: 0u32,
-            auto_compound: false,
             farm_share: Uint128::zero(),
             farm_share_index: Decimal::zero(),
             state_spec_share_index: state.spec_share_index,
@@ -245,7 +241,6 @@ pub fn register_asset(
 
     state.total_weight = state.total_weight + weight - pool_info.weight;
     pool_info.weight = weight;
-    pool_info.auto_compound = auto_compound;
 
     if pool_info.total_stake_bond_share.is_zero()
         && pool_info.total_auto_bond_share.is_zero()
@@ -321,7 +316,6 @@ fn query_pools(deps: Deps) -> StdResult<PoolsResponse> {
                     .addr_humanize(&pool_info.staking_token)?
                     .to_string(),
                 weight: pool_info.weight,
-                auto_compound: pool_info.auto_compound,
                 total_auto_bond_share: pool_info.total_auto_bond_share,
                 total_stake_bond_share: pool_info.total_stake_bond_share,
                 total_stake_bond_amount: pool_info.total_stake_bond_amount,

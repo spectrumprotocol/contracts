@@ -97,9 +97,6 @@ pub struct PoolInfo {
     // distribution weight
     pub weight: u32,
 
-    // readonly, flag whether UI should show compound option
-    pub auto_compound: bool,
-
     // current MIR reward share for the pool
     pub farm_share: Uint128,
 
