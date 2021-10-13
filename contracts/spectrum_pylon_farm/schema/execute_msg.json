@@ -114,16 +114,12 @@
           "type": "object",
           "required": [
             "asset_token",
-            "auto_compound",
             "staking_token",
             "weight"
           ],
           "properties": {
             "asset_token": {
               "type": "string"
-            },
-            "auto_compound": {
-              "type": "boolean"
             },
             "staking_token": {
               "type": "string"

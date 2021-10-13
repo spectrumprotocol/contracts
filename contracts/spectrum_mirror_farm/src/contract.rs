@@ -101,14 +101,12 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             asset_token,
             staking_token,
             weight,
-            auto_compound,
         } => register_asset(
             deps,
             info,
             asset_token,
             staking_token,
             weight,
-            auto_compound,
         ),
         ExecuteMsg::unbond {
             asset_token,
@@ -243,7 +241,6 @@ pub fn register_asset(
 
     state.total_weight = state.total_weight + weight - pool_info.weight;
     pool_info.weight = weight;
-    pool_info.auto_compound = auto_compound;
 
     if pool_info.total_stake_bond_share.is_zero()
         && pool_info.total_auto_bond_share.is_zero()

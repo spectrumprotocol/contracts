@@ -98,14 +98,12 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             asset_token,
             staking_token,
             weight,
-            auto_compound,
         } => register_asset(
             deps,
             info,
             asset_token,
             staking_token,
             weight,
-            auto_compound,
         ),
         ExecuteMsg::unbond {
             asset_token,
@@ -237,7 +235,6 @@ fn register_asset(
         });
     state.total_weight = state.total_weight + weight - pool_info.weight;
     pool_info.weight = weight;
-    pool_info.auto_compound = auto_compound;
 
     pool_info_store(deps.storage).save(&asset_token_raw.as_slice(), &pool_info)?;
     state_store(deps.storage).save(&state)?;
