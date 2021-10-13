@@ -60,7 +60,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let total_fee = community_fee + platform_fee + controller_fee;
 
     // calculate auto-compound, auto-Stake, and commission in ANC
-    let mut pool_info = pool_info_read(deps.storage).load(&config.anchor_token.as_slice())?;
+    let mut pool_info = pool_info_read(deps.storage).load(config.anchor_token.as_slice())?;
     let reward = anchor_reward_info.pending_reward;
     if !reward.is_zero() && !anchor_reward_info.bond_amount.is_zero() {
         let commission = reward * total_fee;
@@ -161,7 +161,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let provide_anc = swap_anc_rate.return_amount + swap_anc_rate.commission_amount;
 
     pool_info.reinvest_allowance = swap_amount.checked_sub(provide_anc)?;
-    pool_info_store(deps.storage).save(&config.anchor_token.as_slice(), &pool_info)?;
+    pool_info_store(deps.storage).save(config.anchor_token.as_slice(), &pool_info)?;
 
     attributes.push(attr("total_ust_return_amount", total_ust_return_amount));
 

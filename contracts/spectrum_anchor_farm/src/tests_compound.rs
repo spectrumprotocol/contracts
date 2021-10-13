@@ -258,7 +258,7 @@ fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
     let env = mock_env();
     let info = mock_info(TEST_CONTROLLER, &[]);
     let msg = ExecuteMsg::compound {};
-    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
+    let res = execute(deps.as_mut(), env, info, msg).unwrap();
 
     assert_eq!(
         res.messages

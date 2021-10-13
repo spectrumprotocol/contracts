@@ -246,7 +246,7 @@ fn register_asset(
     pool_info.weight = weight;
     pool_info.auto_compound = auto_compound;
 
-    pool_info_store(deps.storage).save(&asset_token_raw.as_slice(), &pool_info)?;
+    pool_info_store(deps.storage).save(asset_token_raw.as_slice(), &pool_info)?;
     state_store(deps.storage).save(&state)?;
     Ok(Response::new().add_attributes(vec![
         attr("action", "register_asset"),
