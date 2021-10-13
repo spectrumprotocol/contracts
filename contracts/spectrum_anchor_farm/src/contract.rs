@@ -40,10 +40,6 @@ pub fn instantiate(
     validate_percentage(msg.controller_fee, "controller_fee")?;
     validate_percentage(msg.deposit_fee, "deposit_fee")?;
 
-    if msg.lock_end < msg.lock_start {
-        return Err(StdError::generic_err("invalid lock parameters"));
-    }
-
     store_config(
         deps.storage,
         &Config {
@@ -61,8 +57,6 @@ pub fn instantiate(
             platform_fee: msg.platform_fee,
             controller_fee: msg.controller_fee,
             deposit_fee: msg.deposit_fee,
-            lock_start: msg.lock_start,
-            lock_end: msg.lock_end,
         },
     )?;
 
@@ -117,7 +111,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             asset_token,
             amount,
         } => unbond(deps, env, info, asset_token, amount),
-        ExecuteMsg::withdraw { asset_token } => withdraw(deps, env, info, asset_token),
+        ExecuteMsg::withdraw { asset_token } => withdraw(deps, info, asset_token),
         ExecuteMsg::stake { asset_token } => stake(deps, env, info, asset_token),
         ExecuteMsg::compound {} => compound(deps, env, info),
         ExecuteMsg::update_bond { asset_token, amount_to_auto, amount_to_stake } => update_bond(deps, env, info, asset_token, amount_to_auto, amount_to_stake),
@@ -256,13 +250,13 @@ fn register_asset(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::config {} => to_binary(&query_config(deps)?),
         QueryMsg::pools {} => to_binary(&query_pools(deps)?),
         QueryMsg::reward_info {
             staker_addr,
-        } => to_binary(&query_reward_info(deps, staker_addr, env.block.height)?),
+        } => to_binary(&query_reward_info(deps, staker_addr)?),
         QueryMsg::state {} => to_binary(&query_state(deps)?),
     }
 }
@@ -287,8 +281,6 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         platform_fee: config.platform_fee,
         controller_fee: config.controller_fee,
         deposit_fee: config.deposit_fee,
-        lock_start: config.lock_start,
-        lock_end: config.lock_end,
     };
 
     Ok(resp)

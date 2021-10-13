@@ -41,7 +41,6 @@ pub struct RewardInfoResponseItem {
     pub stake_bond_amount: Uint128,
     pub pending_farm_reward: Uint128,
     pub pending_spec_reward: Uint128,
-    pub accum_spec_share: Uint128,
 }
 
 #[test]
@@ -113,8 +112,6 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         platform_fee: Decimal::zero(),
         controller_fee: Decimal::zero(),
         deposit_fee: Decimal::zero(),
-        lock_start: 0u64,
-        lock_end: 0u64,
     };
 
     // success instantiate

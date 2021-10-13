@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    attr, to_binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Order,
+    attr, to_binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, MessageInfo, Order,
     QueryRequest, Response, StdError, StdResult, Storage, Uint128, WasmMsg, WasmQuery,
 };
 
@@ -44,7 +44,6 @@ pub fn bond(
             spec_share_index: pool_info.spec_share_index,
             bond_amount: Uint128::zero(),
             spec_share: Uint128::zero(),
-            accum_spec_share: Uint128::zero(),
         });
     before_share_change(&pool_info, &mut reward_info)?;
 
@@ -114,7 +113,6 @@ fn before_share_change(pool_info: &PoolInfo, reward_info: &mut RewardInfo) -> St
     let share =
         reward_info.bond_amount * (pool_info.spec_share_index - reward_info.spec_share_index);
     reward_info.spec_share += share;
-    reward_info.accum_spec_share += share;
     reward_info.spec_share_index = pool_info.spec_share_index;
     Ok(())
 }
@@ -182,7 +180,6 @@ pub fn unbond(
 
 pub fn withdraw(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     asset_token: Option<String>,
 ) -> StdResult<Response> {
@@ -194,8 +191,6 @@ pub fn withdraw(
     let staked = deposit_reward(deps.as_ref(), &mut state, &config, false)?;
     let (amount, share) = withdraw_reward(
         deps.storage,
-        &config,
-        env.block.height,
         &state,
         &staker_addr,
         &asset_token,
@@ -227,8 +222,6 @@ pub fn withdraw(
 
 fn withdraw_reward(
     storage: &mut dyn Storage,
-    config: &Config,
-    height: u64,
     state: &State,
     staker_addr: &CanonicalAddr,
     asset_token: &Option<CanonicalAddr>,
@@ -267,15 +260,10 @@ fn withdraw_reward(
         reward_to_pool(state, &mut pool_info)?;
         before_share_change(&pool_info, &mut reward_info)?;
 
-        let locked_share = config.calc_locked_reward(reward_info.accum_spec_share, height);
-        let withdraw_share = if locked_share >= reward_info.spec_share {
-            Uint128::zero()
-        } else {
-            reward_info.spec_share.checked_sub(locked_share)?
-        };
+        let withdraw_share = reward_info.spec_share;
         share += withdraw_share;
         amount += calc_spec_balance(withdraw_share, staked);
-        reward_info.spec_share = locked_share;
+        reward_info.spec_share = Uint128::zero();
 
         // Update rewards info
         pool_info_store(storage).save(key, &pool_info)?;
@@ -301,7 +289,6 @@ pub fn query_reward_info(
     deps: Deps,
     staker_addr: String,
     asset_token: Option<String>,
-    height: u64,
 ) -> StdResult<RewardInfoResponse> {
     let staker_addr_raw = deps.api.addr_canonicalize(&staker_addr)?;
     let mut state = read_state(deps.storage)?;
@@ -310,8 +297,6 @@ pub fn query_reward_info(
     let staked = deposit_reward(deps, &mut state, &config, true)?;
     let reward_infos = read_reward_infos(
         deps,
-        &config,
-        height,
         &state,
         &staker_addr_raw,
         &asset_token,
@@ -326,8 +311,6 @@ pub fn query_reward_info(
 
 fn read_reward_infos(
     deps: Deps,
-    config: &Config,
-    height: u64,
     state: &State,
     staker_addr: &CanonicalAddr,
     asset_token: &Option<String>,
@@ -345,16 +328,12 @@ fn read_reward_infos(
             reward_to_pool(&state, &mut pool_info)?;
             before_share_change(&pool_info, &mut reward_info)?;
 
-            let locked_spec_share = config.calc_locked_reward(reward_info.accum_spec_share, height);
             vec![RewardInfoResponseItem {
                 asset_token: asset_token.clone(),
                 bond_amount: reward_info.bond_amount,
                 spec_share: reward_info.spec_share,
                 pending_spec_reward: calc_spec_balance(reward_info.spec_share, staked),
-                accum_spec_share: reward_info.accum_spec_share,
                 spec_share_index,
-                locked_spec_share,
-                locked_spec_reward: calc_spec_balance(locked_spec_share, staked),
             }]
         } else {
             vec![]
@@ -373,17 +352,12 @@ fn read_reward_infos(
                 reward_to_pool(&state, &mut pool_info)?;
                 before_share_change(&pool_info, &mut reward_info)?;
 
-                let locked_spec_share =
-                    config.calc_locked_reward(reward_info.accum_spec_share, height);
                 Ok(RewardInfoResponseItem {
                     asset_token: deps.api.addr_humanize(&asset_token_raw)?.to_string(),
                     bond_amount: reward_info.bond_amount,
                     spec_share: reward_info.spec_share,
                     pending_spec_reward: calc_spec_balance(reward_info.spec_share, staked),
-                    accum_spec_share: reward_info.accum_spec_share,
                     spec_share_index,
-                    locked_spec_share,
-                    locked_spec_reward: calc_spec_balance(locked_spec_share, staked),
                 })
             })
             .collect::<StdResult<Vec<RewardInfoResponseItem>>>()?;

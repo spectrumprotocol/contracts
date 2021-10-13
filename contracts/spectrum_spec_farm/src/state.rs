@@ -13,20 +13,6 @@ pub struct Config {
     pub owner: CanonicalAddr,
     pub spectrum_token: CanonicalAddr,
     pub spectrum_gov: CanonicalAddr,
-    pub lock_start: u64,
-    pub lock_end: u64,
-}
-
-impl Config {
-    pub fn calc_locked_reward(&self, total_amount: Uint128, height: u64) -> Uint128 {
-        if self.lock_end <= height {
-            Uint128::zero()
-        } else if self.lock_start >= height {
-            total_amount
-        } else {
-            total_amount.multiply_ratio(self.lock_end - height, self.lock_end - self.lock_start)
-        }
-    }
 }
 
 pub fn config_store(storage: &mut dyn Storage) -> Singleton<Config> {
@@ -81,7 +67,6 @@ pub struct RewardInfo {
     pub spec_share_index: Decimal,
     pub bond_amount: Uint128,
     pub spec_share: Uint128,
-    pub accum_spec_share: Uint128,
 }
 
 pub fn rewards_store<'a>(

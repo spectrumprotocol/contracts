@@ -20,8 +20,6 @@ pub struct ConfigInfo {
     pub platform_fee: Decimal,
     pub controller_fee: Decimal,
     pub deposit_fee: Decimal,
-    pub lock_start: u64,
-    pub lock_end: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -128,9 +126,6 @@ pub struct RewardInfoResponseItem {
     pub stake_bond_share: Uint128,
     pub pending_farm_reward: Uint128,
     pub pending_spec_reward: Uint128,
-    pub accum_spec_share: Uint128,
-    pub locked_spec_share: Uint128,
-    pub locked_spec_reward: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
