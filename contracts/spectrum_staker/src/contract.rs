@@ -4,12 +4,15 @@ use std::iter::FromIterator;
 use crate::state::{config_store, read_config, Config};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{attr, to_binary, Binary, CanonicalAddr, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg, from_binary, BankMsg};
+use cosmwasm_std::{
+    attr, from_binary, to_binary, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg, Decimal, Deps,
+    DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
+};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use spectrum_protocol::mirror_farm::{ Cw20HookMsg as MirrorCw20HookMsg };
-use spectrum_protocol::staker::{ConfigInfo, ExecuteMsg, MigrateMsg, QueryMsg, Cw20HookMsg};
+use spectrum_protocol::mirror_farm::Cw20HookMsg as MirrorCw20HookMsg;
+use spectrum_protocol::staker::{ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, QueryMsg};
 use terraswap::asset::{Asset, AssetInfo};
-use terraswap::pair::{ExecuteMsg as PairExecuteMsg, Cw20HookMsg as PairCw20HookMsg};
+use terraswap::pair::{Cw20HookMsg as PairCw20HookMsg, ExecuteMsg as PairExecuteMsg};
 use terraswap::querier::{query_pair_info, query_token_balance};
 
 // max slippage tolerance is 0.5
@@ -130,14 +133,23 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::update_config {
             insert_allowlist,
             remove_allowlist,
-        } => update_config(deps, info,  insert_allowlist, remove_allowlist),
+        } => update_config(deps, info, insert_allowlist, remove_allowlist),
         ExecuteMsg::zap_to_unbond_hook {
             staker_addr,
             prev_sell_asset,
             prev_target_asset,
             belief_price,
             max_spread,
-        } => zap_to_unbond_hook(deps, env, info, staker_addr, prev_sell_asset, prev_target_asset, belief_price, max_spread),
+        } => zap_to_unbond_hook(
+            deps,
+            env,
+            info,
+            staker_addr,
+            prev_sell_asset,
+            prev_target_asset,
+            belief_price,
+            max_spread,
+        ),
     }
 }
 
@@ -149,11 +161,11 @@ fn receive_cw20(
 ) -> StdResult<Response> {
     match from_binary(&cw20_msg.msg) {
         Ok(Cw20HookMsg::zap_to_unbond {
-               sell_asset,
-               target_asset,
-                belief_price,
-                max_spread
-           }) => zap_to_unbond(
+            sell_asset,
+            target_asset,
+            belief_price,
+            max_spread,
+        }) => zap_to_unbond(
             deps,
             env,
             info,
@@ -540,40 +552,39 @@ fn zap_to_unbond(
         env.contract.address.clone(),
     )?;
 
-    let current_denom_amount = deps.querier.query_balance(
-        env.contract.address.to_string(),
-        denom
-    )?.amount;
+    let current_denom_amount = deps
+        .querier
+        .query_balance(env.contract.address.to_string(), denom)?
+        .amount;
 
-    Ok(Response::new()
-        .add_messages(vec![
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: terraswap_pair.liquidity_token,
-                msg: to_binary(&Cw20ExecuteMsg::Send {
-                    amount,
-                    contract: terraswap_pair.contract_addr,
-                    msg: to_binary(&PairCw20HookMsg::WithdrawLiquidity {})?
-                })?,
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: env.contract.address.to_string(),
-                msg: to_binary(&ExecuteMsg::zap_to_unbond_hook {
-                    staker_addr,
-                    prev_sell_asset: Asset {
-                        amount: current_asset_token_amount,
-                        info: sell_asset,
-                    },
-                    prev_target_asset: Asset {
-                        amount: current_denom_amount,
-                        info: target_asset,
-                    },
-                    belief_price,
-                    max_spread,
-                })?,
-                funds: vec![],
-            })
-        ]))
+    Ok(Response::new().add_messages(vec![
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: terraswap_pair.liquidity_token,
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                amount,
+                contract: terraswap_pair.contract_addr,
+                msg: to_binary(&PairCw20HookMsg::WithdrawLiquidity {})?,
+            })?,
+            funds: vec![],
+        }),
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: env.contract.address.to_string(),
+            msg: to_binary(&ExecuteMsg::zap_to_unbond_hook {
+                staker_addr,
+                prev_sell_asset: Asset {
+                    amount: current_asset_token_amount,
+                    info: sell_asset,
+                },
+                prev_target_asset: Asset {
+                    amount: current_denom_amount,
+                    info: target_asset,
+                },
+                belief_price,
+                max_spread,
+            })?,
+            funds: vec![],
+        }),
+    ]))
 }
 
 fn zap_to_unbond_hook(
@@ -606,10 +617,10 @@ fn zap_to_unbond_hook(
         env.contract.address.clone(),
     )?;
 
-    let current_denom_amount = deps.querier.query_balance(
-        env.contract.address.to_string(),
-        denom.clone(),
-    )?.amount;
+    let current_denom_amount = deps
+        .querier
+        .query_balance(env.contract.address.to_string(), denom.clone())?
+        .amount;
 
     let transfer_asset = Asset {
         info: prev_target_asset.info.clone(),
@@ -622,29 +633,28 @@ fn zap_to_unbond_hook(
     let asset_infos = [prev_target_asset.info, prev_sell_asset.info];
     let terraswap_pair = query_pair_info(&deps.querier, terraswap_factory, &asset_infos)?;
 
-    Ok(Response::new()
-        .add_messages(vec![
-            CosmosMsg::Bank(BankMsg::Send {
-                to_address: staker_addr.clone(),
-                amount: vec![Coin {
-                    denom,
-                    amount: transfer_asset.amount.checked_sub(tax_amount)?,
-                }],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: asset_token,
-                msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: terraswap_pair.contract_addr,
-                    amount: current_asset_token_amount.checked_sub(prev_sell_asset.amount)?,
-                    msg: to_binary(&PairCw20HookMsg::Swap {
-                        to: Some(staker_addr),
-                        belief_price,
-                        max_spread: Some(max_spread),
-                    })?,
+    Ok(Response::new().add_messages(vec![
+        CosmosMsg::Bank(BankMsg::Send {
+            to_address: staker_addr.clone(),
+            amount: vec![Coin {
+                denom,
+                amount: transfer_asset.amount.checked_sub(tax_amount)?,
+            }],
+        }),
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: asset_token,
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: terraswap_pair.contract_addr,
+                amount: current_asset_token_amount.checked_sub(prev_sell_asset.amount)?,
+                msg: to_binary(&PairCw20HookMsg::Swap {
+                    to: Some(staker_addr),
+                    belief_price,
+                    max_spread: Some(max_spread),
                 })?,
-                funds: vec![],
-            })
-        ]))
+            })?,
+            funds: vec![],
+        }),
+    ]))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
