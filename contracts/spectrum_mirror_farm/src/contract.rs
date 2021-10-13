@@ -250,7 +250,7 @@ pub fn register_asset(
         return Err(StdError::generic_err("pool is not empty"));
     }
 
-    pool_info_store(deps.storage).save(&asset_token_raw.as_slice(), &pool_info)?;
+    pool_info_store(deps.storage).save(asset_token_raw.as_slice(), &pool_info)?;
     state_store(deps.storage).save(&state)?;
 
     Ok(Response::new().add_attributes(vec![

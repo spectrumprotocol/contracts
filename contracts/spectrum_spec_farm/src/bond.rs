@@ -50,8 +50,8 @@ pub fn bond(
     pool_info.total_bond_amount += amount;
     reward_info.bond_amount += amount;
     rewards_store(deps.storage, &staker_addr_raw)
-        .save(&asset_token_raw.as_slice(), &reward_info)?;
-    pool_info_store(deps.storage).save(&asset_token_raw.as_slice(), &pool_info)?;
+        .save(asset_token_raw.as_slice(), &reward_info)?;
+    pool_info_store(deps.storage).save(asset_token_raw.as_slice(), &pool_info)?;
     state_store(deps.storage).save(&state)?;
     Ok(Response::new().add_attributes(vec![
         attr("action", "bond"),
@@ -230,7 +230,7 @@ fn withdraw_reward(
     staked: &BalanceResponse,
     mut request_spec_amount: Option<Uint128>,
 ) -> StdResult<(Uint128, Uint128)> {
-    let rewards_bucket = rewards_read(storage, &staker_addr);
+    let rewards_bucket = rewards_read(storage, staker_addr);
 
     // single reward withdraw
     let reward_pairs: Vec<(CanonicalAddr, RewardInfo)>;
@@ -282,9 +282,9 @@ fn withdraw_reward(
         // Update rewards info
         pool_info_store(storage).save(key, &pool_info)?;
         if reward_info.spec_share.is_zero() && reward_info.bond_amount.is_zero() {
-            rewards_store(storage, &staker_addr).remove(key);
+            rewards_store(storage, staker_addr).remove(key);
         } else {
-            rewards_store(storage, &staker_addr).save(key, &reward_info)?;
+            rewards_store(storage, staker_addr).save(key, &reward_info)?;
         }
     }
 
@@ -344,16 +344,16 @@ fn read_reward_infos(
     asset_token: &Option<String>,
     staked: &BalanceResponse,
 ) -> StdResult<Vec<RewardInfoResponseItem>> {
-    let rewards_bucket = rewards_read(deps.storage, &staker_addr);
+    let rewards_bucket = rewards_read(deps.storage, staker_addr);
     let reward_infos: Vec<RewardInfoResponseItem>;
     if let Some(asset_token) = asset_token {
-        let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
+        let asset_token_raw = deps.api.addr_canonicalize(asset_token)?;
         let key = asset_token_raw.as_slice();
         reward_infos = if let Some(mut reward_info) = rewards_bucket.may_load(key)? {
             let spec_share_index = reward_info.spec_share_index;
             let mut pool_info = pool_info_read(deps.storage).load(key)?;
 
-            reward_to_pool(&state, &mut pool_info)?;
+            reward_to_pool(state, &mut pool_info)?;
             before_share_change(&pool_info, &mut reward_info)?;
 
             vec![RewardInfoResponseItem {
@@ -377,7 +377,7 @@ fn read_reward_infos(
                 let spec_share_index = reward_info.spec_share_index;
                 let mut pool_info =
                     pool_info_read(deps.storage).load(asset_token_raw.as_slice())?;
-                reward_to_pool(&state, &mut pool_info)?;
+                reward_to_pool(state, &mut pool_info)?;
                 before_share_change(&pool_info, &mut reward_info)?;
 
                 Ok(RewardInfoResponseItem {

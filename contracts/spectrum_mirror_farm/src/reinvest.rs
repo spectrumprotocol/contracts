@@ -71,7 +71,7 @@ fn re_invest_asset(
     let commission = for_liquidity * Decimal::from_str(TERRASWAP_COMMISSION_RATE)?;
     let net_liquidity = for_liquidity.checked_sub(commission)?;
     pool_info.reinvest_allowance = commission;
-    pool_info_store(deps.storage).save(&asset_token_raw.as_slice(), &pool_info)?;
+    pool_info_store(deps.storage).save(asset_token_raw.as_slice(), &pool_info)?;
 
     let net_swap_after_tax = deduct_tax(deps.as_ref(), net_swap, config.base_denom.clone());
     let net_liquidity_after_tax =
@@ -241,7 +241,7 @@ fn re_invest_mir(
     let provide_mir = swap_mir_rate.return_amount + swap_mir_rate.commission_amount;
 
     pool_info.reinvest_allowance = swap_amount.checked_sub(provide_mir)?;
-    pool_info_store(deps.storage).save(&mir_token_raw.as_slice(), &pool_info)?;
+    pool_info_store(deps.storage).save(mir_token_raw.as_slice(), &pool_info)?;
 
     let swap_mir = CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: mir_token.clone(),

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use cosmwasm_std::{
-    attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, Decimal, DepsMut, Env, MessageInfo,
+    attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, DepsMut, Env, MessageInfo,
     Response, StdError, StdResult, Uint128, WasmMsg,
 };
 
@@ -55,16 +55,8 @@ pub fn harvest_all(mut deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<
 
     let mut attributes: Vec<Attribute> = vec![];
     let community_fee = config.community_fee;
-    let platform_fee = if config.platform == CanonicalAddr::from(vec![]) {
-        Decimal::zero()
-    } else {
-        config.platform_fee
-    };
-    let controller_fee = if config.controller == CanonicalAddr::from(vec![]) {
-        Decimal::zero()
-    } else {
-        config.controller_fee
-    };
+    let platform_fee = config.platform_fee;
+    let controller_fee = config.controller_fee;
     let total_fee = community_fee + platform_fee + controller_fee;
     for mirror_reward_info in mirror_reward_infos.reward_infos.iter() {
         let reward = mirror_reward_info.pending_reward;

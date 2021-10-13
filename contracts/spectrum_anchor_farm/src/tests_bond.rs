@@ -5,7 +5,7 @@ use crate::state::{pool_info_read, pool_info_store, read_config, read_state, sta
 use anchor_token::gov::ExecuteMsg as AnchorGovExecuteMsg;
 use anchor_token::staking::ExecuteMsg as AnchorStakingExecuteMsg;
 use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{from_binary, to_binary, CosmosMsg, Decimal, OwnedDeps, Uint128, WasmMsg};
+use cosmwasm_std::{from_binary, to_binary, CosmosMsg, OwnedDeps, Uint128, WasmMsg, Decimal};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

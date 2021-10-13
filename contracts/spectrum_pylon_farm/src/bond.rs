@@ -38,7 +38,7 @@ fn bond_internal(
 
     // update reward index; before changing share
     if !pool_info.total_auto_bond_share.is_zero() || !pool_info.total_stake_bond_share.is_zero() {
-        deposit_spec_reward(deps.as_ref(), &mut state, &config, false)?;
+        deposit_spec_reward(deps.as_ref(), &mut state, config, false)?;
         spec_reward_to_pool(&state, &mut pool_info, lp_balance)?;
     }
 
@@ -67,7 +67,7 @@ fn bond_internal(
     )?;
 
     rewards_store(deps.storage, &sender_addr_raw)
-        .save(&asset_token_raw.as_slice(), &reward_info)?;
+        .save(asset_token_raw.as_slice(), &reward_info)?;
     pool_info_store(deps.storage).save(asset_token_raw.as_slice(), &pool_info)?;
     state_store(deps.storage).save(&state)?;
 
@@ -340,7 +340,7 @@ fn unbond_internal(
     }
 
     // distribute reward to pending reward; before changing share
-    deposit_spec_reward(deps.as_ref(), &mut state, &config, false)?;
+    deposit_spec_reward(deps.as_ref(), &mut state, config, false)?;
     spec_reward_to_pool(&state, &mut pool_info, lp_balance)?;
     before_share_change(&pool_info, &mut reward_info)?;
 
@@ -458,7 +458,7 @@ pub fn update_bond(
 
     let config = read_config(deps.storage)?;
 
-    let staker_addr_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
+    let staker_addr_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
     let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
 
     let amount = amount_to_auto + amount_to_stake;
@@ -583,7 +583,7 @@ fn withdraw_reward(
     mut request_spec_amount: Option<Uint128>,
     mut request_farm_amount: Option<Uint128>,
 ) -> StdResult<(Uint128, Uint128, Uint128, Uint128)> {
-    let rewards_bucket = rewards_read(deps.storage, &staker_addr);
+    let rewards_bucket = rewards_read(deps.storage, staker_addr);
 
     // single reward withdraw; or all rewards
     let reward_pairs: Vec<(CanonicalAddr, RewardInfo)>;
@@ -677,9 +677,9 @@ fn withdraw_reward(
             && reward_info.auto_bond_share.is_zero()
             && reward_info.stake_bond_share.is_zero()
         {
-            rewards_store(deps.storage, &staker_addr).remove(key);
+            rewards_store(deps.storage, staker_addr).remove(key);
         } else {
-            rewards_store(deps.storage, &staker_addr).save(key, &reward_info)?;
+            rewards_store(deps.storage, staker_addr).save(key, &reward_info)?;
         }
     }
 
@@ -759,7 +759,7 @@ fn read_reward_infos(
     staker_addr: &CanonicalAddr,
     spec_staked: &SpecBalanceResponse,
 ) -> StdResult<Vec<RewardInfoResponseItem>> {
-    let rewards_bucket = rewards_read(deps.storage, &staker_addr);
+    let rewards_bucket = rewards_read(deps.storage, staker_addr);
 
     let reward_pair = rewards_bucket
         .range(None, None, Order::Ascending)

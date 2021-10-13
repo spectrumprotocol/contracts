@@ -104,7 +104,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert!(res.is_ok());
 
     let msg = QueryMsg::config {};
-    let res: ConfigInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+    let res: ConfigInfo = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(
         HashSet::<String>::from_iter(res.allowlist),
         HashSet::from_iter(vec![FARM1.to_string(), FARM2.to_string()])
@@ -115,7 +115,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let env = mock_env();
     let info = mock_info(
         USER1,
-        &vec![Coin {
+        &[Coin {
             denom: "uusd".to_string(),
             amount: Uint128::from(50_000_000u128),
         }],
@@ -130,7 +130,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         prev_staking_token_amount: Uint128::zero(),
         compound_rate: Some(Decimal::percent(100u64)),
     };
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert_eq!(res, Err(StdError::generic_err("unauthorized")));
 
     // slippage too high
@@ -303,7 +303,7 @@ fn test_zap(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let env = mock_env();
     let info = mock_info(
         USER1,
-        &vec![Coin {
+        &[Coin {
             denom: "uusd".to_string(),
             amount: Uint128::from(100_000_000u128),
         }],
@@ -324,7 +324,7 @@ fn test_zap(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         prev_asset_token_amount: Uint128::zero(),
         slippage_tolerance: Decimal::percent(1u64),
     };
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert_eq!(res, Err(StdError::generic_err("unauthorized")));
 
     // slippage too high
