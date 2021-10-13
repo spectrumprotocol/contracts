@@ -26,6 +26,7 @@
         "lock_amount",
         "lock_end",
         "lock_start",
+        "pools",
         "share",
         "share_index",
         "weight"
@@ -50,6 +51,12 @@
           "format": "uint64",
           "minimum": 0.0
         },
+        "pools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SharePoolInfo"
+          }
+        },
         "share": {
           "$ref": "#/definitions/Uint128"
         },
@@ -60,6 +67,27 @@
           "type": "integer",
           "format": "uint32",
           "minimum": 0.0
+        }
+      }
+    },
+    "SharePoolInfo": {
+      "type": "object",
+      "required": [
+        "days",
+        "share",
+        "share_index"
+      ],
+      "properties": {
+        "days": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "share": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "share_index": {
+          "$ref": "#/definitions/Decimal"
         }
       }
     },

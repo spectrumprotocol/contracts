@@ -191,6 +191,7 @@ impl WasmMockQuerier {
                             share: balance
                                 .multiply_ratio(100u128, self.token_querier.balance_percent),
                             locked_balance: vec![],
+                            pools: vec![],
                         })))
                     }
                     MockQueryMsg::Staker { address } => {

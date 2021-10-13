@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{CanonicalAddr, Decimal, Order, StdResult, Storage, Uint128};
 use cosmwasm_storage::{bucket, bucket_read, singleton, singleton_read, Bucket, Singleton};
+use spectrum_protocol::wallet::{SharePoolInfo, StatePoolInfo};
 
 static KEY_CONFIG: &[u8] = b"config";
 
@@ -29,6 +30,7 @@ pub struct State {
     pub previous_share: Uint128,
     pub share_index: Decimal, // per weight
     pub total_weight: u32,
+    #[serde(default)] pub pools: Vec<StatePoolInfo>,
 }
 
 pub fn state_store(storage: &mut dyn Storage) -> Singleton<State> {
@@ -54,6 +56,7 @@ pub struct RewardInfo {
     pub share_index: Decimal,
     pub share: Uint128,
     pub weight: u32,
+    #[serde(default)] pub pools: Vec<SharePoolInfo>,
 }
 
 impl RewardInfo {
