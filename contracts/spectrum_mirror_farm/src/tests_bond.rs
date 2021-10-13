@@ -1068,7 +1068,7 @@ fn test_partial_withdraw(mut deps: &mut OwnedDeps<MockStorage, MockApi, WasmMock
         spec_amount: None,
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
-    assert!(res.is_err());
+    assert_eq!(res, Err(StdError::generic_err("Cannot withdraw more than remaining amount")));
     deps.storage = old_storage;
 
     // withdraw more than available2
@@ -1079,7 +1079,7 @@ fn test_partial_withdraw(mut deps: &mut OwnedDeps<MockStorage, MockApi, WasmMock
         spec_amount: Some(Uint128::from(14759u128)),
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
-    assert!(res.is_err());
+    assert_eq!(res, Err(StdError::generic_err("Cannot withdraw more than remaining amount")));
     deps.storage = old_storage;
 
     // withdraw partial

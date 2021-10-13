@@ -1,7 +1,7 @@
 use crate::contract::{execute, instantiate, query};
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
 use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{from_binary, to_binary, CosmosMsg, Decimal, OwnedDeps, Uint128, WasmMsg, Storage};
+use cosmwasm_std::{CosmosMsg, Decimal, OwnedDeps, StdError, Storage, Uint128, WasmMsg, from_binary, to_binary};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use spectrum_protocol::gov::ExecuteMsg as GovExecuteMsg;
 use spectrum_protocol::spec_farm::{
@@ -202,7 +202,7 @@ fn test_bond(mut deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let old_storage = clone_storage(&deps.storage);
     let msg = ExecuteMsg::withdraw { asset_token: None, spec_amount: Some(Uint128::from(501u128)) };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
-    assert!(res.is_err());
+    assert_eq!(res, Err(StdError::generic_err("Cannot withdraw more than remaining amount")));
     deps.storage = old_storage;
 
     // withdraw partial
