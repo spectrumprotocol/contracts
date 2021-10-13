@@ -53,8 +53,11 @@ pub struct State {
     // total SPEC reward distribution weight
     pub total_weight: u32,
 
-    // is for stat only, not use
+    // earning in ust
     pub earning: Uint128,
+
+    // earning in spec
+    #[serde(default)] pub earning_spec: Uint128,
 }
 
 impl State {

@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{CanonicalAddr, Decimal, Order, StdResult, Storage, Uint128};
+use cosmwasm_std::{CanonicalAddr, Decimal, Order, StdResult, Storage, Uint128, StdError};
 use cosmwasm_storage::{
     bucket, bucket_read, singleton, singleton_read, Bucket, ReadonlyBucket, Singleton,
 };
@@ -10,6 +10,7 @@ use spectrum_protocol::common::{
     calc_range_end, calc_range_end_addr, calc_range_start, calc_range_start_addr, OrderBy,
 };
 use spectrum_protocol::gov::{PollExecuteMsg, PollStatus, VoterInfo};
+use std::convert::TryInto;
 
 static KEY_CONFIG: &[u8] = b"config";
 
@@ -40,22 +41,100 @@ pub fn read_config(storage: &dyn Storage) -> StdResult<Config> {
 
 static KEY_STATE: &[u8] = b"state";
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct StatePool {
+    pub days: u64,
+    pub total_share: Uint128,
+    pub total_balance: Uint128,
+    pub active: bool,
+}
+
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
 pub struct State {
     pub contract_addr: CanonicalAddr,
     pub poll_count: u64,
-    pub total_share: Uint128,
     pub poll_deposit: Uint128,
     pub last_mint: u64,
     pub total_weight: u32,
+    pub total_share: Uint128,
+    #[serde(default)] pub prev_balance: Uint128,
+    #[serde(default)] pub total_balance: Uint128,
+    #[serde(default)] pub pools: Vec<StatePool>,
+}
+
+impl StatePool {
+    pub fn calc_share(&self, amount: Uint128) -> Uint128 {
+        if self.total_share.is_zero() || self.total_balance.is_zero() {
+            amount
+        } else {
+            amount.multiply_ratio(self.total_share, self.total_balance)
+        }
+    }
+
+    pub fn calc_balance(&self, share: Uint128) -> Uint128 {
+        if self.total_share.is_zero() {
+            Uint128::zero()
+        } else {
+            share.multiply_ratio(self.total_balance, self.total_share)
+        }
+    }
 }
 
 impl State {
-    pub fn calc_share(&self, amount: Uint128, total_balance: Uint128) -> Uint128 {
-        if self.total_share.is_zero() || total_balance.is_zero() {
-            amount
+    pub fn add_share(&mut self, days: u64, share: Uint128, amount: Uint128) -> StdResult<()> {
+        if days == 0 {
+            self.total_share += share;
+            self.total_balance += amount;
         } else {
-            amount.multiply_ratio(self.total_share, total_balance)
+            let pool = self.pools.iter_mut().find(|it| it.days == days).ok_or_else(|| StdError::not_found("pool"))?;
+            if !pool.active {
+                return Err(StdError::generic_err("pool is not active"));
+            }
+            pool.total_share += share;
+            pool.total_balance += amount;
+        }
+        self.prev_balance += amount;
+
+        Ok(())
+    }
+
+    pub fn deduct_share(&mut self, days: u64, share: Uint128, amount: Uint128) -> StdResult<()> {
+        if days == 0 {
+            self.total_share -= share;
+            self.total_balance -= amount;
+        } else {
+            let pool = self.pools.iter_mut().find(|it| it.days == days).ok_or_else(|| StdError::not_found("pool"))?;
+            pool.total_share -= share;
+            pool.total_balance -= amount;
+        }
+        self.prev_balance -= amount;
+
+        Ok(())
+    }
+
+    pub fn calc_share(&self, days: u64, amount: Uint128) -> StdResult<Uint128> {
+        if days == 0 {
+            if self.total_share.is_zero() || self.total_balance.is_zero() {
+                Ok(amount)
+            } else {
+                Ok(amount.multiply_ratio(self.total_share, self.total_balance))
+            }
+        } else {
+            let pool = self.pools.iter().find(|it| it.days == days).ok_or_else(|| StdError::not_found("pool"))?;
+            Ok(pool.calc_share(amount))
+        }
+    }
+
+    pub fn calc_balance(&self, days: u64, share: Uint128) -> StdResult<Uint128> {
+        if days == 0u64 {
+            if self.total_share.is_zero() {
+                Ok(Uint128::zero())
+            } else {
+                Ok(share.multiply_ratio(self.total_balance, self.total_share))
+            }
+        } else {
+            let pool = self.pools.iter().find(|it| it.days == days).ok_or_else(|| StdError::not_found("pool"))?;
+            Ok(pool.calc_balance(share))
         }
     }
 }
@@ -96,19 +175,88 @@ pub fn read_poll(storage: &dyn Storage, key: &[u8]) -> StdResult<Option<Poll>> {
 
 static PREFIX_ACCOUNT: &[u8] = b"account";
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct BalancePool {
+    pub days: u64,
+    pub share: Uint128,
+    pub unlock: u64,
+}
+
 #[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Account {
     pub share: Uint128,                        // total staked balance
     pub locked_balance: Vec<(u64, VoterInfo)>, // maps poll_id to weight voted
+    #[serde(default)] pub pools: Vec<BalancePool>,
+}
+
+pub const SEC_IN_DAY: u64 = 24u64 * 60u64 * 60u64;
+impl BalancePool {
+    pub fn add_share(&mut self, time: u64, share: Uint128, time_burned: u64) {
+        let new_share = self.share + share;
+        let remaining = if self.unlock < time {
+            Uint128::zero()
+        } else {
+            Uint128::from(self.unlock - time).multiply_ratio(self.share, new_share)
+        };
+        let additional = Uint128::from(SEC_IN_DAY * self.days - time_burned).multiply_ratio(share, new_share);
+        let add_time: u64 = (remaining + additional).u128().try_into().unwrap();
+        self.unlock = time + add_time;
+        self.share = new_share;
+    }
 }
 
 impl Account {
-    pub fn calc_balance(&self, total_balance: Uint128, total_share: Uint128) -> Uint128 {
-        if total_share.is_zero() {
-            Uint128::zero()
+    pub fn add_share(&mut self, days: u64, time: u64, share: Uint128, time_burned: u64) -> StdResult<()> {
+        if days == 0u64 {
+            self.share += share;
         } else {
-            self.share.multiply_ratio(total_balance, total_share)
+            let mut pool = self.pools.iter_mut().find(|it| it.days == days);
+            if pool.is_none() {
+                self.pools.push(BalancePool {
+                    days,
+                    share: Uint128::zero(),
+                    unlock: 0u64,
+                });
+                pool = self.pools.iter_mut().find(|it| it.days == days);
+            }
+            pool.unwrap().add_share(time, share, time_burned);
         }
+
+        Ok(())
+    }
+
+    pub fn deduct_share(&mut self, days: u64, share: Uint128, time: Option<u64>) -> StdResult<u64> {
+        if days == 0u64 {
+            self.share -= share;
+            Ok(0u64)
+        } else {
+            let pool = self.pools.iter_mut().find(|it| it.days == days).ok_or_else(|| StdError::not_found("pool"))?;
+            if time.is_some() && pool.unlock > time.unwrap() {
+                return Err(StdError::generic_err("Pool is locked"));
+            }
+            pool.share -= share;
+            Ok(pool.unlock)
+        }
+    }
+
+    pub fn calc_balance(&self, days: u64, state: &State) -> StdResult<Uint128> {
+        if days == 0u64 {
+            state.calc_balance(0u64, self.share)
+        } else {
+            let pool = self.pools.iter().find(|it| it.days == days);
+            if let Some(pool) = pool {
+                state.calc_balance(pool.days, pool.share)
+            } else {
+                Ok(Uint128::zero())
+            }
+        }
+    }
+
+    pub fn calc_total_balance(&self, state: &State) -> StdResult<Uint128> {
+        let init: StdResult<Uint128> = Ok(Uint128::zero());
+        let sum = state.calc_balance(0u64, self.share)? +
+            self.pools.iter().fold(init, |acc, it| Ok(acc? + state.calc_balance(it.days, it.share)?))?;
+        Ok(sum)
     }
 }
 

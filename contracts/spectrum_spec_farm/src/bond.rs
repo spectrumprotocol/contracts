@@ -72,6 +72,7 @@ pub fn deposit_reward(
             share: Uint128::zero(),
             balance: Uint128::zero(),
             locked_balance: vec![],
+            pools: vec![],
         });
     }
 
@@ -203,6 +204,7 @@ pub fn withdraw(
                 contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
                 msg: to_binary(&ExecuteMsg::withdraw {
                     amount: Some(amount),
+                    days: None,
                 })?,
                 funds: vec![],
             }),
@@ -260,7 +262,7 @@ fn withdraw_reward(
 
         let withdraw_share = reward_info.spec_share;
         share += withdraw_share;
-        amount += calc_spec_balace(withdraw_share, staked);
+        amount += calc_spec_balance(withdraw_share, staked);
         reward_info.spec_share = Uint128::zero();
 
         // Update rewards info
@@ -275,7 +277,7 @@ fn withdraw_reward(
     Ok((amount, share))
 }
 
-fn calc_spec_balace(share: Uint128, staked: &BalanceResponse) -> Uint128 {
+fn calc_spec_balance(share: Uint128, staked: &BalanceResponse) -> Uint128 {
     if staked.share.is_zero() {
         Uint128::zero()
     } else {
@@ -330,7 +332,7 @@ fn read_reward_infos(
                 asset_token: asset_token.clone(),
                 bond_amount: reward_info.bond_amount,
                 spec_share: reward_info.spec_share,
-                pending_spec_reward: calc_spec_balace(reward_info.spec_share, staked),
+                pending_spec_reward: calc_spec_balance(reward_info.spec_share, staked),
                 spec_share_index,
             }]
         } else {
@@ -354,7 +356,7 @@ fn read_reward_infos(
                     asset_token: deps.api.addr_humanize(&asset_token_raw)?.to_string(),
                     bond_amount: reward_info.bond_amount,
                     spec_share: reward_info.spec_share,
-                    pending_spec_reward: calc_spec_balace(reward_info.spec_share, staked),
+                    pending_spec_reward: calc_spec_balance(reward_info.spec_share, staked),
                     spec_share_index,
                 })
             })
