@@ -221,6 +221,7 @@ fn test_bond(mut deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 funds: vec![],
                 msg: to_binary(&GovExecuteMsg::withdraw {
                     amount: Some(Uint128::from(200u128)),
+                    days: None,
                 })
                 .unwrap(),
             }),

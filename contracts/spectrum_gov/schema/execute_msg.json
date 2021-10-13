@@ -211,6 +211,64 @@
     {
       "type": "object",
       "required": [
+        "update_stake"
+      ],
+      "properties": {
+        "update_stake": {
+          "type": "object",
+          "required": [
+            "amount",
+            "from_days",
+            "to_days"
+          ],
+          "properties": {
+            "amount": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "from_days": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "to_days": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "upsert_pool"
+      ],
+      "properties": {
+        "upsert_pool": {
+          "type": "object",
+          "required": [
+            "active",
+            "days"
+          ],
+          "properties": {
+            "active": {
+              "type": "boolean"
+            },
+            "days": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "upsert_vault"
       ],
       "properties": {
@@ -252,6 +310,14 @@
                   "type": "null"
                 }
               ]
+            },
+            "days": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
             }
           }
         }

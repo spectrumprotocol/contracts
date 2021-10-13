@@ -48,6 +48,14 @@
         "stake_tokens": {
           "type": "object",
           "properties": {
+            "days": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
             "staker_addr": {
               "type": [
                 "string",

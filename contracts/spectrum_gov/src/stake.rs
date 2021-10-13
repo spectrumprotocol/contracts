@@ -1,14 +1,91 @@
-use crate::state::{
-    account_store, poll_voter_store, read_account, read_config, read_poll, read_state, read_vault,
-    read_vaults, state_store, vault_store, Account, Config, State,
-};
+use crate::state::{account_store, poll_voter_store, read_account, read_config, read_poll, read_state, read_vault, read_vaults, state_store, vault_store, Account, Config, State, StatePool, SEC_IN_DAY};
 use cosmwasm_std::{
     attr, to_binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
     StdError, StdResult, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
-use spectrum_protocol::gov::{BalanceResponse, PollStatus, VaultInfo, VaultsResponse};
+use spectrum_protocol::gov::{BalanceResponse, PollStatus, VaultInfo, VaultsResponse, BalancePoolInfo};
 use terraswap::querier::query_token_balance;
+
+#[allow(clippy::needless_range_loop)]
+pub fn reconcile_balance(state: &mut State, balance: Uint128) -> StdResult<()> {
+    if balance >= state.prev_balance {
+        let diff = balance.checked_sub(state.prev_balance)?;
+        if diff.is_zero() {
+            return Ok(());
+        }
+
+        // if amount grow, distribute reward to each pool equally
+        // however higher lock pool also earn from lower lock pool
+
+        let mut pools: Vec<&StatePool> = state.pools.iter().filter(|it| it.active).rev().collect();
+        let pool_0 = StatePool {
+            days: 0u64,
+            total_balance: state.total_balance,
+            total_share: state.total_share,
+            active: true,
+        };
+        pools.push(&pool_0);
+
+        let len: u128 = (pools.len() as u64).into();
+        let mut denom = 0u128;
+        let mut changes = vec![Uint128::zero(); pools.len()];
+        let mut total = Uint128::zero();
+        for i in 0..pools.len() {
+            let pool = pools.get(i).unwrap();
+            denom += pool.total_balance.u128() * len;
+            if denom != 0u128 {
+                for j in 0..=i {
+                    let inner_pool = pools.get(j).unwrap();
+                    let change = diff.multiply_ratio(inner_pool.total_balance, denom);
+                    total += change;
+                    changes[j] += change;
+                }
+            }
+        }
+
+        changes[0] += diff.checked_sub(total)?;
+
+        state.total_balance += changes.pop().unwrap();
+        for pool in state.pools.iter_mut() {
+            if !pool.active {
+                continue;
+            }
+            pool.total_balance += changes.pop().unwrap();
+        }
+    } else {
+        // if amount is reduced, decrease balance proportionally
+
+        let diff = state.prev_balance.checked_sub(balance)?;
+        let total_balance = state.total_balance + state.pools.iter().fold(Uint128::zero(), |a, b| a + b.total_balance);
+        let mut remain = diff;
+        let deduct_0 = diff.multiply_ratio(state.total_balance, total_balance);
+        state.total_balance -= deduct_0;
+        remain -= deduct_0;
+        for pool in state.pools.iter_mut() {
+            let deduct = diff.multiply_ratio(pool.total_balance, total_balance);
+            pool.total_balance -= deduct;
+            remain -= deduct;
+        }
+        if !remain.is_zero() {
+            let deduct_0 = if remain > state.total_balance { state.total_balance } else { remain };
+            state.total_balance -= deduct_0;
+            remain -= deduct_0;
+            for pool in state.pools.iter_mut() {
+                if remain.is_zero() {
+                    break;
+                }
+                let deduct = if remain > pool.total_balance { pool.total_balance } else { remain };
+                pool.total_balance -= deduct;
+                remain -= deduct;
+            }
+        }
+    }
+
+    state.prev_balance = balance;
+
+    Ok(())
+}
 
 /// mint should be done before
 /// - deposit_reward
@@ -30,23 +107,21 @@ pub fn mint(deps: DepsMut, env: Env) -> StdResult<Response> {
     }
 
     // mint to warchest
-    let total_balance = if state.total_share.is_zero() {
-        Uint128::zero()
-    } else {
-        query_token_balance(
-            &deps.querier,
-            deps.api.addr_humanize(&config.spec_token)?,
-            deps.api.addr_humanize(&state.contract_addr)?,
-        )?
-        .checked_sub(state.poll_deposit)?
-    };
+    let total_balance = query_token_balance(
+        &deps.querier,
+        deps.api.addr_humanize(&config.spec_token)?,
+        deps.api.addr_humanize(&state.contract_addr)?,
+    )?
+    .checked_sub(state.poll_deposit)?;
+    reconcile_balance(&mut state, total_balance)?;
+
     let mut mint_share = Uint128::zero();
     let mut to_warchest = Uint128::zero();
     if config.warchest_address != CanonicalAddr::from(vec![])
         && config.warchest_ratio != Decimal::zero()
     {
         to_warchest = mintable * config.warchest_ratio;
-        let share = state.calc_share(to_warchest, total_balance);
+        let share = state.calc_share(0u64, to_warchest)?;
         let key = config.warchest_address.as_slice();
         let mut account = account_store(deps.storage)
             .may_load(key)?
@@ -58,7 +133,7 @@ pub fn mint(deps: DepsMut, env: Env) -> StdResult<Response> {
 
     // mint to vault
     let vaults = read_vaults(deps.storage)?;
-    let share = state.calc_share(mintable.checked_sub(to_warchest)?, total_balance);
+    let share = state.calc_share(0u64, mintable.checked_sub(to_warchest)?)?;
     for (addr, vault) in vaults.into_iter() {
         let key = addr.as_slice();
         let mut account = account_store(deps.storage)
@@ -69,7 +144,7 @@ pub fn mint(deps: DepsMut, env: Env) -> StdResult<Response> {
         mint_share += vault_share;
         account_store(deps.storage).save(key, &account)?;
     }
-    state.total_share += mint_share;
+    state.add_share(0u64, mint_share, mintable)?;
     state.last_mint = env.block.height;
     state_store(deps.storage).save(&state)?;
 
@@ -85,7 +160,13 @@ pub fn mint(deps: DepsMut, env: Env) -> StdResult<Response> {
         .add_attributes(vec![attr("action", "mint"), attr("amount", mintable)]))
 }
 
-pub fn stake_tokens(deps: DepsMut, sender: String, amount: Uint128) -> StdResult<Response> {
+pub fn stake_tokens(
+    deps: DepsMut,
+    env: Env,
+    sender: String,
+    amount: Uint128,
+    days: u64,
+) -> StdResult<Response> {
     if amount.is_zero() {
         return Err(StdError::generic_err("Insufficient funds sent"));
     }
@@ -106,10 +187,11 @@ pub fn stake_tokens(deps: DepsMut, sender: String, amount: Uint128) -> StdResult
         deps.api.addr_humanize(&state.contract_addr)?,
     )?;
     let total_balance = current_balance.checked_sub(state.poll_deposit + amount)?;
+    reconcile_balance(&mut state, total_balance)?;
 
-    let share = state.calc_share(amount, total_balance);
-    account.share += share;
-    state.total_share += share;
+    let share = state.calc_share(days, amount)?;
+    account.add_share(days, env.block.time.seconds(), share, 0u64)?;
+    state.add_share(days, share, amount)?;
 
     state_store(deps.storage).save(&state)?;
     account_store(deps.storage).save(key, &account)?;
@@ -119,75 +201,125 @@ pub fn stake_tokens(deps: DepsMut, sender: String, amount: Uint128) -> StdResult
         attr("sender", sender),
         attr("share", share),
         attr("amount", amount),
+        attr("days", days.to_string()),
     ]))
+}
+
+pub fn update_stake(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    amount: Uint128,
+    from_days: u64,
+    to_days: u64
+) -> StdResult<Response> {
+    if from_days >= to_days {
+        return Err(StdError::generic_err("must move to higher lock"));
+    }
+
+    let sender_address_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let key = sender_address_raw.as_slice();
+
+    let mut account = account_store(deps.storage).load(key)?;
+    let config = read_config(deps.storage)?;
+    let mut state = state_store(deps.storage).load()?;
+
+    // Load total share & total balance except proposal deposit amount
+    let total_balance = query_token_balance(
+        &deps.querier,
+        deps.api.addr_humanize(&config.spec_token)?,
+        deps.api.addr_humanize(&state.contract_addr)?,
+    )?.checked_sub(state.poll_deposit)?;
+    reconcile_balance(&mut state, total_balance)?;
+
+    let mut from_share = state.calc_share(from_days, amount)?;
+    if state.calc_balance(from_days, from_share)? < amount {
+        from_share += Uint128::from(1u128);
+    }
+
+    let unlock = account.deduct_share(from_days, from_share, None)?;
+    state.deduct_share(from_days, from_share, amount)?;
+
+    let to_share = state.calc_share(to_days, amount)?;
+    let time = env.block.time.seconds();
+    let time_remain = if unlock < time { 0u64 } else { unlock - time };
+    account.add_share(to_days, time, to_share, from_days * SEC_IN_DAY - time_remain)?;
+    state.add_share(to_days, to_share, amount)?;
+
+    account_store(deps.storage).save(key, &account)?;
+    state_store(deps.storage).save(&state)?;
+
+    Ok(Response::new()
+        .add_attributes(vec![
+            attr("action", "update_stake"),
+            attr("amount", amount),
+            attr("from_days", from_days.to_string()),
+            attr("to_days", to_days.to_string()),
+        ]))
 }
 
 // Withdraw amount if not staked. By default all funds will be withdrawn.
 pub fn withdraw(
     mut deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     amount: Option<Uint128>,
+    days: u64,
 ) -> StdResult<Response> {
     let sender_address_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
     let key = sender_address_raw.as_slice();
 
-    if let Some(mut account) = account_store(deps.storage).may_load(key)? {
-        let config = read_config(deps.storage)?;
-        let mut state = state_store(deps.storage).load()?;
+    let mut account = account_store(deps.storage).load(key)?;
+    let config = read_config(deps.storage)?;
+    let mut state = state_store(deps.storage).load()?;
 
-        // Load total share & total balance except proposal deposit amount
-        let total_share = state.total_share.u128();
-        let total_balance = query_token_balance(
-            &deps.querier,
-            deps.api.addr_humanize(&config.spec_token)?,
-            deps.api.addr_humanize(&state.contract_addr)?,
-        )?
-        .checked_sub(state.poll_deposit)?
-        .u128();
+    // Load total share & total balance except proposal deposit amount
+    let total_balance = query_token_balance(
+        &deps.querier,
+        deps.api.addr_humanize(&config.spec_token)?,
+        deps.api.addr_humanize(&state.contract_addr)?,
+    )?
+    .checked_sub(state.poll_deposit)?;
+    reconcile_balance(&mut state, total_balance)?;
 
-        let locked_balance =
-            compute_locked_balance(deps.branch(), &mut account, &sender_address_raw)?;
-        let locked_share = locked_balance * total_share / total_balance;
-        let user_share = account.share.u128();
-
-        let withdraw_share = amount
-            .map(|v| std::cmp::max(v.multiply_ratio(total_share, total_balance).u128(), 1u128))
-            .unwrap_or_else(|| user_share - locked_share);
-        let withdraw_amount = amount
-            .map(|v| v.u128())
-            .unwrap_or_else(|| withdraw_share * total_balance / total_share);
-
-        if locked_share + withdraw_share > user_share {
-            Err(StdError::generic_err(
-                "User is trying to withdraw too many tokens.",
-            ))
-        } else {
-            let share = user_share - withdraw_share;
-            account.share = Uint128::from(share);
-
-            account_store(deps.storage).save(key, &account)?;
-
-            state.total_share = Uint128::from(total_share - withdraw_share);
-            state_store(deps.storage).save(&state)?;
-
-            send_tokens(
-                deps,
-                &config.spec_token,
-                &sender_address_raw,
-                withdraw_amount,
-                "withdraw",
-            )
-        }
-    } else {
-        Err(StdError::generic_err("Nothing staked"))
+    let locked_balance = compute_locked_balance(deps.branch(), &mut account, &sender_address_raw)?;
+    let user_balance = account.calc_total_balance(&state)?;
+    let amount = amount.unwrap_or_else(|| {
+        let max_withdraw = user_balance.checked_sub(locked_balance).unwrap();
+        let pool_balance = account.calc_balance(days, &state).unwrap();
+        if max_withdraw < pool_balance { max_withdraw } else { pool_balance }
+    });
+    if locked_balance + amount > user_balance {
+        return Err(StdError::generic_err(
+            "User is trying to withdraw too many tokens.",
+        ));
     }
+
+    let mut withdraw_share = state.calc_share(days, amount)?;
+    if state.calc_balance(days, withdraw_share)? < amount {
+        withdraw_share += Uint128::from(1u128);
+    }
+
+    account.deduct_share(days, withdraw_share, Some(env.block.time.seconds()))?;
+    state.deduct_share(days, withdraw_share, amount)?;
+
+    account_store(deps.storage).save(key, &account)?;
+    state_store(deps.storage).save(&state)?;
+
+    send_tokens(
+        deps,
+        &config.spec_token,
+        &sender_address_raw,
+        amount,
+        "withdraw",
+    )
 }
 
 fn send_tokens(
     deps: DepsMut,
     asset_token: &CanonicalAddr,
     recipient: &CanonicalAddr,
-    amount: u128,
+    amount: Uint128,
     action: &str,
 ) -> StdResult<Response> {
     let contract_human = deps.api.addr_humanize(asset_token)?.to_string();
@@ -198,14 +330,14 @@ fn send_tokens(
             contract_addr: contract_human,
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: recipient_human.clone(),
-                amount: Uint128::from(amount),
+                amount,
             })?,
             funds: vec![],
         })])
         .add_attributes(vec![
             attr("action", action),
             attr("recipient", recipient_human),
-            attr("amount", amount.to_string()),
+            attr("amount", amount),
         ]))
 }
 
@@ -215,7 +347,7 @@ fn compute_locked_balance(
     deps: DepsMut,
     account: &mut Account,
     voter: &CanonicalAddr,
-) -> StdResult<u128> {
+) -> StdResult<Uint128> {
     // filter out not in-progress polls
     account.locked_balance.retain(|(poll_id, _)| {
         let poll = read_poll(deps.storage, &poll_id.to_be_bytes())
@@ -233,9 +365,44 @@ fn compute_locked_balance(
     Ok(account
         .locked_balance
         .iter()
-        .map(|(_, v)| v.balance.u128())
+        .map(|(_, v)| v.balance)
         .max()
         .unwrap_or_default())
+}
+
+pub fn upsert_pool(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    days: u64,
+    active: bool,
+) -> StdResult<Response> {
+    let config = read_config(deps.storage)?;
+    if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+    let mut state = state_store(deps.storage).load()?;
+    validate_minted(&state, &config, env.block.height)?;
+
+    let pool = state.pools.iter_mut().find(|it| it.days == days);
+    if let Some(pool) = pool {
+        pool.active = active;
+    } else if active {
+        state.pools.push(StatePool {
+            days,
+            active,
+            total_balance: Uint128::zero(),
+            total_share: Uint128::zero(),
+        });
+        state.pools.sort_by(|a, b| a.days.partial_cmp(&b.days).unwrap());
+    }
+
+    state_store(deps.storage).save(&state)?;
+
+    Ok(Response::new().add_attributes(vec![
+        attr("days", days.to_string()),
+        attr("active", active.to_string()),
+    ]))
 }
 
 pub fn upsert_vault(
@@ -273,14 +440,10 @@ pub fn upsert_vault(
     )]))
 }
 
-pub fn query_balances(
-    deps: Deps,
-    address: String,
-    height: u64,
-) -> StdResult<BalanceResponse> {
+pub fn query_balances(deps: Deps, address: String, height: u64) -> StdResult<BalanceResponse> {
     let addr_raw = deps.api.addr_canonicalize(&address).unwrap();
     let config = read_config(deps.storage)?;
-    let state = read_state(deps.storage)?;
+    let mut state = read_state(deps.storage)?;
     let mut account = read_account(deps.storage, addr_raw.as_slice())?.unwrap_or_default();
 
     // filter out not in-progress polls
@@ -292,38 +455,46 @@ pub fn query_balances(
         poll.status == PollStatus::in_progress
     });
 
-    let total_balance = if state.total_share.is_zero() {
-        Uint128::zero()
-    } else {
-        query_token_balance(
-            &deps.querier,
-            deps.api.addr_humanize(&config.spec_token)?,
-            deps.api.addr_humanize(&state.contract_addr)?,
-        )?
-        .checked_sub(state.poll_deposit)?
-    };
-
-    let mut balance = account.calc_balance(total_balance, state.total_share);
-    let mut share = account.share;
+    let total_balance = query_token_balance(
+        &deps.querier,
+        deps.api.addr_humanize(&config.spec_token)?,
+        deps.api.addr_humanize(&state.contract_addr)?,
+    )?
+    .checked_sub(state.poll_deposit)?;
+    reconcile_balance(&mut state, total_balance)?;
 
     if addr_raw == config.warchest_address {
         let mintable = calc_mintable(&state, &config, height);
         let to_warchest = mintable * config.warchest_ratio;
-        share += state.calc_share(to_warchest, total_balance);
-        balance += to_warchest;
+        account.share += state.calc_share(0u64, to_warchest)?;
     } else if let Some(vault) = read_vault(deps.storage, addr_raw.as_slice())? {
         let mintable = calc_mintable(&state, &config, height);
         let to_warchest = mintable * config.warchest_ratio;
         let mintable = mintable.checked_sub(to_warchest)?;
-        let vaults_share = state.calc_share(mintable, total_balance);
-        share += vaults_share.multiply_ratio(vault.weight, state.total_weight);
-        balance += mintable.multiply_ratio(vault.weight, state.total_weight);
+        let vaults_share = state.calc_share(0u64, mintable)?;
+        account.share += vaults_share.multiply_ratio(vault.weight, state.total_weight);
     }
 
     Ok(BalanceResponse {
-        balance,
-        share,
+        balance: account.calc_total_balance(&state)?,
+        share: account.share,
         locked_balance: account.locked_balance,
+        pools: vec![
+            vec![
+                BalancePoolInfo {
+                    days: 0u64,
+                    share: account.share,
+                    balance: state.calc_balance(0u64, account.share)?,
+                    unlock: 0u64,
+                },
+            ],
+            account.pools.into_iter().map(|it| BalancePoolInfo {
+                days: it.days,
+                share: it.share,
+                unlock: it.unlock,
+                balance: state.calc_balance(it.days, it.share).unwrap(),
+            }).collect()
+        ].concat()
     })
 }
 

@@ -178,6 +178,7 @@ pub fn deposit_spec_reward(
             share: Uint128::zero(),
             balance: Uint128::zero(),
             locked_balance: vec![],
+            pools: vec![],
         });
     }
 
@@ -553,6 +554,7 @@ pub fn withdraw(
             contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
             msg: to_binary(&SpecExecuteMsg::withdraw {
                 amount: Some(spec_amount),
+                days: None,
             })?,
             funds: vec![],
         }));
