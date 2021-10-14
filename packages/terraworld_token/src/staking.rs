@@ -36,13 +36,6 @@ pub enum QueryMsg {
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
-    pub height: Option<u64>,
-    pub result: ConfigResponseResult,
-}
-
-// We define a custom struct for each query response
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct ConfigResponseResult {
     pub twd_token: String,
     pub staking_token: String,
     pub distribution_schedule: Vec<(u64, u64, Uint128)>,
@@ -51,18 +44,10 @@ pub struct ConfigResponseResult {
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StateResponse {
-    pub height: Option<u64>,
-    pub result: StateResponseResult,
-}
-
-// We define a custom struct for each query response
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct StateResponseResult {
     pub last_distributed: u64,
     pub total_bond_amount: Uint128,
     pub global_reward_index: Decimal,
 }
-
 
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
