@@ -723,6 +723,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "spectrum-terraworld-farm"
+version = "0.2.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
+ "terraswap",
+ "terraworld-token",
+]
+
+[[package]]
 name = "spectrum-token"
 version = "0.2.0"
 dependencies = [
@@ -800,6 +816,19 @@ version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96f2c2a6371e9ddf2c942368e64645cc3e8fc2855da70c8c6bed238dcdd5522f"
 dependencies = [
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+]
+
+[[package]]
+name = "terraworld-token"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-bignumber",
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw20",
