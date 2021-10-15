@@ -139,9 +139,6 @@ enum MockQueryMsg {
     balance {
         address: String,
     },
-    Staker {
-        address: String,
-    },
     StakerInfo {
         staker: String,
         block_height: Option<u64>,
@@ -193,20 +190,10 @@ impl WasmMockQuerier {
                             locked_balance: vec![],
                         })))
                     }
-                    MockQueryMsg::Staker { address } => {
-                        let balance = self.read_token_balance(contract_addr, address.clone());
-                        SystemResult::Ok(ContractResult::from(to_binary(&TerraworldGovStakerInfoResponse {
-                              staker: address.clone(),
-                              reward_index: Default::default(),
-                              bond_amount: balance,
-                              pending_reward: Uint128::new(123456)
-                            })))
-                    }
                     MockQueryMsg::StakerInfo {
                         staker,
                         block_height,
                     } => {
-                        let contract_addr = &TWD_STAKING.to_string();
                         let balance = self.read_token_balance(contract_addr, staker.clone());
                         SystemResult::Ok(ContractResult::from(to_binary(
                             &TerraworldStakerInfoResponse {

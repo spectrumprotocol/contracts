@@ -4,7 +4,10 @@ use crate::state::{pool_info_read, pool_info_store, read_config, read_state, sta
 use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{from_binary, to_binary, CosmosMsg, Decimal, OwnedDeps, Uint128, WasmMsg};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use terraworld_token::gov::ExecuteMsg as TerraworldGovExecuteMsg;
+use terraworld_token::gov::{
+    ExecuteMsg as TerraworldGovExecuteMsg,
+    StakerInfoResponse as TerraworldGovStakerInfoResponse
+};
 use terraworld_token::staking::ExecuteMsg as TerraworldStakingExecuteMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -27,6 +30,7 @@ const USER2: &str = "user2";
 const TWD_LP: &str = "twd_lp";
 const SPY_TOKEN: &str = "spy_token";
 const SPY_LP: &str = "spy_lp";
+const TWD_FARM_CONTRACT: &str = "twd_farm_contract";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfoResponse {
@@ -218,14 +222,19 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let mut pool_info = pool_info_read(deps_ref.storage)
         .load(config.terraworld_token.as_slice())
         .unwrap();
-    // deposit_farm_share(
-    //     deps_ref,
-    //     &mut state,
-    //     &mut pool_info,
-    //     &config,
-    //     Uint128::from(500u128),
-    // )
-    // .unwrap();
+    let gov_bond_amount = Uint128::from(1000u128);
+    let staked = TerraworldGovStakerInfoResponse {
+        staker: TWD_FARM_CONTRACT.to_string(),
+        reward_index: Default::default(),
+        bond_amount: gov_bond_amount,
+        pending_reward: Default::default()
+    };
+    deposit_farm_share(
+        &staked,
+        &mut state,
+        &mut pool_info,
+        Uint128::from(500u128)
+    ).unwrap();
     state_store(deps.as_mut().storage).save(&state).unwrap();
     pool_info_store(deps.as_mut().storage)
         .save(config.terraworld_token.as_slice(), &pool_info)
@@ -237,7 +246,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         ),
         (
             &TWD_GOV.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(1000u128))],
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &gov_bond_amount)],
         ),
         (
             &SPEC_GOV.to_string(),
@@ -421,14 +430,19 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let mut pool_info = pool_info_read(deps_ref.storage)
         .load(config.terraworld_token.as_slice())
         .unwrap();
-    // deposit_farm_share(
-    //     deps_ref,
-    //     &mut state,
-    //     &mut pool_info,
-    //     &config,
-    //     Uint128::from(10000u128),
-    // )
-    // .unwrap();
+    let gov_bond_amount = Uint128::from(5000u128);
+    let staked = TerraworldGovStakerInfoResponse {
+        staker: TWD_FARM_CONTRACT.to_string(),
+        reward_index: Default::default(),
+        bond_amount: gov_bond_amount,
+        pending_reward: Default::default()
+    };
+    deposit_farm_share(
+        &staked,
+        &mut state,
+        &mut pool_info,
+        Uint128::from(10000u128)
+    ).unwrap();
     state_store(deps.as_mut().storage).save(&state).unwrap();
     pool_info_store(deps.as_mut().storage)
         .save(config.terraworld_token.as_slice(), &pool_info)
@@ -440,7 +454,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         ),
         (
             &TWD_GOV.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(5000u128))],
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &gov_bond_amount)],
         ),
         (
             &SPEC_GOV.to_string(),

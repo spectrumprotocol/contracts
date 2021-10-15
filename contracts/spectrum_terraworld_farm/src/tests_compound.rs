@@ -43,7 +43,7 @@ const FAIL_TOKEN: &str = "fail_token";
 const FAIL_LP: &str = "fail_lp";
 const USER1: &str = "user1";
 const USER2: &str = "user2";
-const HEIGHT: u64 = 1234;
+const TWD_FARM_CONTRACT: &str = "twd_farm_contract";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfoResponse {
@@ -65,10 +65,7 @@ pub struct RewardInfoResponseItem {
     pub auto_bond_share: Uint128,
     pub stake_bond_share: Uint128,
     pub pending_farm_reward: Uint128,
-    pub pending_spec_reward: Uint128,
-    pub accum_spec_share: Uint128,
-    pub locked_spec_share: Uint128,
-    pub locked_spec_reward: Uint128,
+    pub pending_spec_reward: Uint128
 }
 
 #[test]
@@ -120,6 +117,7 @@ fn test() {
     test_bond(&mut deps);
     test_compound_twd(&mut deps);
     test_compound_twd_with_fees(&mut deps);
+    test_compound_twd_with_fees_but_not_compound_gov(&mut deps);
 }
 
 fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> ConfigInfo {
@@ -258,17 +256,12 @@ fn test_compound_unauthorized(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMoc
     assert!(res.is_err());
 }
 
-//TODO test_compound_gov_
-
 fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // reinvest zero
     let env = mock_env();
     let info = mock_info(TEST_CONTROLLER, &[]);
     let msg = ExecuteMsg::compound { threshold_compound_gov:Uint128::from(10000u128)};
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
-
-    print!("kaw test");
-    // print!("{}", res.messages.get(0).unwrap().msg);
 
     assert_eq!(
         res.messages
@@ -280,51 +273,7 @@ fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                 contract_addr: TWD_STAKING.to_string(),
                 funds: vec![],
                 msg: to_binary(&TerraworldStakingExecuteMsg::Withdraw {}).unwrap(),
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: TWD_TOKEN.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-                    spender: TWD_POOL.to_string(),
-                    amount: Uint128::zero(),
-                    expires: None,
-                })
-                .unwrap(),
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: TWD_POOL.to_string(),
-                msg: to_binary(&TerraswapExecuteMsg::ProvideLiquidity {
-                    assets: [
-                        Asset {
-                            info: AssetInfo::Token {
-                                contract_addr: TWD_TOKEN.to_string(),
-                            },
-                            amount: Uint128::zero(),
-                        },
-                        Asset {
-                            info: AssetInfo::NativeToken {
-                                denom: "uusd".to_string(),
-                            },
-                            amount: Uint128::zero(),
-                        },
-                    ],
-                    slippage_tolerance: None,
-                    receiver: None
-                })
-                .unwrap(),
-                funds: vec![Coin {
-                    denom: "uusd".to_string(),
-                    amount: Uint128::zero(),
-                }],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: env.contract.address.to_string(),
-                msg: to_binary(&ExecuteMsg::stake {
-                    asset_token: TWD_TOKEN.to_string(),
-                })
-                .unwrap(),
-                funds: vec![],
-            }),
+            })
         ]
     );
 }
@@ -453,11 +402,11 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let mut pool_info = pool_info_read(deps_ref.storage)
         .load(config.terraworld_token.as_slice())
         .unwrap();
-    //TODO
+    let gov_bond_amount = Uint128::from(1000u128);
     let staked = TerraworldGovStakerInfoResponse {
-        staker: "".to_string(),
+        staker: TWD_FARM_CONTRACT.to_string(),
         reward_index: Default::default(),
-        bond_amount: Uint128::from(500u128),
+        bond_amount: gov_bond_amount,
         pending_reward: Uint128::from(500u128)
     };
     deposit_farm_share(
@@ -478,7 +427,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         ),
         (
             &TWD_GOV.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(1000u128))],
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &gov_bond_amount)],
         ),
         (
             &SPEC_GOV.to_string(),
@@ -501,16 +450,13 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             bond_amount: Uint128::from(10000u128),
             auto_bond_amount: Uint128::from(6000u128),
             stake_bond_amount: Uint128::from(4000u128),
-            accum_spec_share: Uint128::from(2700u128),
             farm_share_index: Decimal::zero(),
             auto_spec_share_index: Decimal::zero(),
             stake_spec_share_index: Decimal::zero(),
             farm_share: Uint128::from(500u128),
             spec_share: Uint128::from(2700u128),
             auto_bond_share: Uint128::from(6000u128),
-            stake_bond_share: Uint128::from(4000u128),
-            locked_spec_share: Uint128::zero(),
-            locked_spec_reward: Uint128::zero(),
+            stake_bond_share: Uint128::from(4000u128)
         },]
     );
 
@@ -635,7 +581,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             bond_amount: Uint128::from(7000u128),
             auto_bond_amount: Uint128::from(4200u128),
             stake_bond_amount: Uint128::from(2800u128),
-            accum_spec_share: Uint128::from(2700u128),
             farm_share_index: Decimal::from_ratio(125u128, 1000u128),
             auto_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
             stake_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
@@ -643,8 +588,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             spec_share: Uint128::from(0u128),
             auto_bond_share: Uint128::from(4200u128),
             stake_bond_share: Uint128::from(2800u128),
-            locked_spec_share: Uint128::zero(),
-            locked_spec_reward: Uint128::zero(),
         },]
     );
 
@@ -668,11 +611,11 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let mut pool_info = pool_info_read(deps_ref.storage)
         .load(config.terraworld_token.as_slice())
         .unwrap();
-    //TODO
+    let gov_bond_amount = Uint128::from(5000u128);
     let staked = TerraworldGovStakerInfoResponse {
-        staker: "".to_string(),
+        staker: TWD_FARM_CONTRACT.to_string(),
         reward_index: Default::default(),
-        bond_amount: Uint128::from(500u128),
+        bond_amount: gov_bond_amount,
         pending_reward: Uint128::from(500u128)
     };
 
@@ -694,7 +637,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         ),
         (
             &TWD_GOV.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(5000u128))],
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &gov_bond_amount)],
         ),
         (
             &SPEC_GOV.to_string(),
@@ -733,7 +676,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             bond_amount: Uint128::from(7000u128),
             auto_bond_amount: Uint128::from(4200u128),
             stake_bond_amount: Uint128::from(2800u128),
-            accum_spec_share: Uint128::from(3282u128),
             farm_share_index: Decimal::from_ratio(125u128, 1000u128),
             auto_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
             stake_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
@@ -741,8 +683,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             spec_share: Uint128::from(582u128),
             auto_bond_share: Uint128::from(4200u128),
             stake_bond_share: Uint128::from(2800u128),
-            locked_spec_share: Uint128::zero(),
-            locked_spec_reward: Uint128::zero(),
         },]
     );
 
@@ -760,16 +700,13 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             bond_amount: Uint128::from(5000u128),
             auto_bond_amount: Uint128::from(0u128),
             stake_bond_amount: Uint128::from(5000u128),
-            accum_spec_share: Uint128::from(416u128),
             farm_share_index: Decimal::from_ratio(125u128, 1000u128),
             auto_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
             stake_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
             farm_share: Uint128::from(6410u128),
             spec_share: Uint128::from(416u128),
             auto_bond_share: Uint128::from(0u128),
-            stake_bond_share: Uint128::from(5000u128),
-            locked_spec_share: Uint128::zero(),
-            locked_spec_reward: Uint128::zero(),
+            stake_bond_share: Uint128::from(5000u128)
         },]
     );
 }
@@ -921,7 +858,6 @@ fn test_compound_twd(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
             bond_amount: Uint128::from(7100u128),
             auto_bond_amount: Uint128::from(4300u128),
             stake_bond_amount: Uint128::from(2800u128),
-            accum_spec_share: Uint128::from(3286u128),
             farm_share_index: Decimal::from_ratio(125u128, 1000u128),
             auto_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
             stake_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
@@ -929,8 +865,6 @@ fn test_compound_twd(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
             spec_share: Uint128::from(586u128),
             auto_bond_share: Uint128::from(4200u128),
             stake_bond_share: Uint128::from(2800u128),
-            locked_spec_share: Uint128::zero(),
-            locked_spec_reward: Uint128::zero(),
         },]
     );
 
@@ -948,7 +882,6 @@ fn test_compound_twd(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
             bond_amount: Uint128::from(5000u128),
             auto_bond_amount: Uint128::from(0u128),
             stake_bond_amount: Uint128::from(5000u128),
-            accum_spec_share: Uint128::from(413u128),
             farm_share_index: Decimal::from_ratio(125u128, 1000u128),
             auto_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
             stake_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
@@ -956,8 +889,6 @@ fn test_compound_twd(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
             spec_share: Uint128::from(413u128),
             auto_bond_share: Uint128::from(0u128),
             stake_bond_share: Uint128::from(5000u128),
-            locked_spec_share: Uint128::zero(),
-            locked_spec_reward: Uint128::zero(),
         },]
     );
 }
@@ -987,6 +918,175 @@ fn test_compound_twd_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMo
         .save(asset_token_raw.as_slice(), &pool_info)
         .unwrap();
 
+    let msg = ExecuteMsg::compound { threshold_compound_gov: Uint128::from(10000u128)};
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
+
+    let pool_info = pool_info_read(deps.as_ref().storage)
+        .load(asset_token_raw.as_slice())
+        .unwrap();
+
+    assert_eq!(Uint128::from(46u128), pool_info.reinvest_allowance);
+
+    assert_eq!(
+        res.messages
+            .into_iter()
+            .map(|it| it.msg)
+            .collect::<Vec<CosmosMsg>>(),
+        vec![
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: TWD_GOV.to_string(),
+                funds: vec![],
+                msg: to_binary(&TerraworldGovExecuteMsg::Withdraw {}).unwrap(),
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: TWD_STAKING.to_string(),
+                funds: vec![],
+                msg: to_binary(&TerraworldStakingExecuteMsg::Withdraw {}).unwrap(),
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: TWD_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: TWD_POOL.to_string(),
+                    amount: Uint128::from(3287u128), //was 2647, diff 640
+                    msg: to_binary(&TerraswapCw20HookMsg::Swap {
+                        max_spread: None,
+                        belief_price: None,
+                        to: None,
+                    })
+                    .unwrap()
+                })
+                .unwrap(),
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: SPEC_POOL.to_string(),
+                msg: to_binary(&TerraswapExecuteMsg::Swap {
+                    offer_asset: Asset {
+                        info: AssetInfo::NativeToken {
+                            denom: "uusd".to_string(),
+                        },
+                        amount: Uint128::from(1216u128),
+                    },
+                    max_spread: None,
+                    belief_price: None,
+                    to: None,
+                })
+                .unwrap(),
+                funds: vec![Coin {
+                    denom: "uusd".to_string(),
+                    amount: Uint128::from(1216u128),
+                }],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: SPEC_GOV.to_string(),
+                msg: to_binary(&GovExecuteMsg::mint {}).unwrap(),
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: SPEC_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: SPEC_GOV.to_string(),
+                    amount: Uint128::from(727u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute { //KO
+                contract_addr: SPEC_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: SPEC_GOV.to_string(),
+                    amount: Uint128::from(242u128),
+                    msg: to_binary(&GovCw20HookMsg::stake_tokens {
+                        staker_addr: Some(SPEC_PLATFORM.to_string()),
+                    })
+                    .unwrap()
+                })
+                .unwrap(),
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: SPEC_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: SPEC_GOV.to_string(),
+                    amount: Uint128::from(244u128),
+                    msg: to_binary(&GovCw20HookMsg::stake_tokens {
+                        staker_addr: Some(TEST_CONTROLLER.to_string()),
+                    })
+                    .unwrap()
+                })
+                .unwrap(),
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: TWD_TOKEN.to_string(),
+                funds: vec![],
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: TWD_GOV.to_string(),
+                    amount: Uint128::from(19570u128), //was 7410, 12160 increase (12800*0.95 gov pending reward)
+                    msg: to_binary(&TerraworldGovCw20HookMsg::Bond {}).unwrap(),
+                })
+                .unwrap(),
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: TWD_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+                    spender: TWD_POOL.to_string(),
+                    amount: Uint128::from(1996u128),
+                    expires: None
+                })
+                .unwrap(),
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: TWD_POOL.to_string(),
+                msg: to_binary(&TerraswapExecuteMsg::ProvideLiquidity {
+                    assets: [
+                        Asset {
+                            info: AssetInfo::Token {
+                                contract_addr: TWD_TOKEN.to_string(),
+                            },
+                            amount: Uint128::from(1996u128),
+                        },
+                        Asset {
+                            info: AssetInfo::NativeToken {
+                                denom: "uusd".to_string(),
+                            },
+                            amount: Uint128::from(1996u128),
+                        },
+                    ],
+                    slippage_tolerance: None,
+                    receiver: None
+                })
+                .unwrap(),
+                funds: vec![Coin {
+                    denom: "uusd".to_string(),
+                    amount: Uint128::from(1996u128),
+                }],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: env.contract.address.to_string(),
+                msg: to_binary(&ExecuteMsg::stake {
+                    asset_token: TWD_TOKEN.to_string(),
+                })
+                .unwrap(),
+                funds: vec![],
+            }),
+        ]
+    );
+}
+
+fn test_compound_twd_with_fees_but_not_compound_gov(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>){
+    let env = mock_env();
+    let info = mock_info(TEST_CONTROLLER, &[]);
+    let asset_token_raw = deps.api.addr_canonicalize(&TWD_TOKEN.to_string()).unwrap();
+    let mut pool_info = pool_info_read(deps.as_ref().storage)
+        .load(asset_token_raw.as_slice())
+        .unwrap();
+    pool_info.reinvest_allowance = Uint128::from(0u128);
+    pool_info_store(deps.as_mut().storage)
+        .save(asset_token_raw.as_slice(), &pool_info)
+        .unwrap();
+
     /*
     pending rewards 12100 TWD
     USER1 7100 (auto 4300, stake 2800)
@@ -1006,7 +1106,7 @@ fn test_compound_twd_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMo
     controller fee = 121 / 605 * 590 = 118
     total swap amount 2647 TWD
     */
-    let msg = ExecuteMsg::compound { threshold_compound_gov: Uint128::from(10000u128)};
+    let msg = ExecuteMsg::compound { threshold_compound_gov: Uint128::from(9999999999u128)};
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
     let pool_info = pool_info_read(deps.as_ref().storage)
