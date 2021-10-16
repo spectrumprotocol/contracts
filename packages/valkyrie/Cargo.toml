@@ -1,0 +1,38 @@
+[package]
+name = "valkyrie"
+version = "1.0.3"
+authors = ["Valkyrie Protocol"]
+edition = "2018"
+description = "Definition and types for the Valkyrie"
+license = "Apache-2.0"
+repository = "https://github.com/valkyrieprotocol/valkyrie-contracts.git"
+homepage = "https://valkyrieprotocol.com"
+documentation = "https://docs.valkyrieprotocol.com"
+
+[features]
+# for quicker tests, cargo test --lib
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+
+[profile.release]
+opt-level = 3
+debug = false
+rpath = false
+lto = true
+debug-assertions = false
+codegen-units = 1
+panic = 'abort'
+incremental = false
+overflow-checks = true
+
+[dependencies]
+serde = { version = "1.0.126", default-features = false, features = ["derive"] }
+schemars = { version = "0.8.3" }
+cosmwasm-std = { version = "0.16.0" }
+cosmwasm-storage = { version = "0.16.0", features = ["iterator"] }
+cw20 = { version = "0.8.1" }
+terra-cosmwasm = { version = "2.2.0" }
+
+[dev-dependencies]
+cosmwasm-schema = { version = "0.16.0" }
+#cosmwasm-storage = { version = "0.15.2" }
