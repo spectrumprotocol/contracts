@@ -7,8 +7,8 @@ use cosmwasm_std::{
     from_binary, to_binary, Api, Coin, CosmosMsg, Decimal, OwnedDeps, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use nexus_token::gov::Cw20HookMsg as NexusGovCw20HookMsg;
-use nexus_token::gov::ExecuteMsg as NexusGovExecuteMsg;
+use nexus_token::governance::Cw20HookMsg as NexusGovCw20HookMsg;
+use nexus_token::governance::ExecuteMsg as NexusGovExecuteMsg;
 use nexus_token::staking::ExecuteMsg as NexusStakingExecuteMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

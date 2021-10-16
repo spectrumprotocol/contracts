@@ -11,10 +11,7 @@ use crate::state::{
 use cw20::Cw20ExecuteMsg;
 
 use crate::querier::query_nexus_pool_balance;
-use nexus_token::governance::{
-    ExecuteMsg as NexusGovExecuteMsg, QueryMsg as NexusGovQueryMsg,
-    StakerResponse as NexusStakerResponse,
-};
+use nexus_token::governance::{AnyoneMsg, ExecuteMsg as NexusGovExecuteMsg, QueryMsg as NexusGovQueryMsg, StakerResponse as NexusStakerResponse};
 use nexus_token::staking::{Cw20HookMsg as NexusCw20HookMsg, ExecuteMsg as NexusStakingExecuteMsg};
 use spectrum_protocol::gov::{
     BalanceResponse as SpecBalanceResponse, ExecuteMsg as SpecExecuteMsg, QueryMsg as SpecQueryMsg,
@@ -505,6 +502,7 @@ pub fn withdraw(
     asset_token: Option<String>,
     spec_amount: Option<Uint128>,
     farm_amount: Option<Uint128>,
+    env: Env
 ) -> StdResult<Response> {
     let staker_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
     let asset_token = asset_token.map(|a| deps.api.addr_canonicalize(&a).unwrap());
@@ -524,6 +522,7 @@ pub fn withdraw(
         &spec_staked,
         spec_amount,
         farm_amount,
+        env
     )?;
 
     state.previous_spec_share = state.previous_spec_share.checked_sub(spec_share)?;
@@ -554,8 +553,10 @@ pub fn withdraw(
     if !farm_amount.is_zero() {
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.nexus_gov)?.to_string(),
-            msg: to_binary(&NexusGovExecuteMsg::AnyoneMsg::WithdrawVotingTokens {
-                amount: Some(farm_amount),
+            msg: to_binary(&NexusGovExecuteMsg::Anyone {
+                anyone_msg: AnyoneMsg::WithdrawVotingTokens {
+                    amount: Some(farm_amount),
+                },
             })?,
             funds: vec![],
         }));
@@ -586,6 +587,7 @@ fn withdraw_reward(
     spec_staked: &SpecBalanceResponse,
     mut request_spec_amount: Option<Uint128>,
     mut request_farm_amount: Option<Uint128>,
+    env: Env
 ) -> StdResult<(Uint128, Uint128, Uint128, Uint128)> {
     let rewards_bucket = rewards_read(deps.storage, staker_addr);
 
@@ -737,6 +739,7 @@ fn calc_spec_share(amount: Uint128, stated: &SpecBalanceResponse) -> Uint128 {
 pub fn query_reward_info(
     deps: Deps,
     staker_addr: String,
+    env: Env
 ) -> StdResult<RewardInfoResponse> {
     let staker_addr_raw = deps.api.addr_canonicalize(&staker_addr)?;
     let mut state = read_state(deps.storage)?;
@@ -749,6 +752,7 @@ pub fn query_reward_info(
         &state,
         &staker_addr_raw,
         &spec_staked,
+        env
     )?;
 
     Ok(RewardInfoResponse {
@@ -763,6 +767,7 @@ fn read_reward_infos(
     state: &State,
     staker_addr: &CanonicalAddr,
     spec_staked: &SpecBalanceResponse,
+    env: Env
 ) -> StdResult<Vec<RewardInfoResponseItem>> {
     let rewards_bucket = rewards_read(deps.storage, staker_addr);
 
@@ -783,7 +788,7 @@ fn read_reward_infos(
         }))?;
 
     let lp_balance =
-        query_nexus_pool_balance(deps, &config.nexus_staking, &state.contract_addr)?;
+        query_nexus_pool_balance(deps, &config.nexus_staking, &state.contract_addr, env.block.time.seconds())?;
 
     let bucket = pool_info_read(deps.storage);
     let reward_infos: Vec<RewardInfoResponseItem> = reward_pair
