@@ -148,6 +148,26 @@
                 "string",
                 "null"
               ]
+            },
+            "farm_amount": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Uint128"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "spec_amount": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Uint128"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           }
         }

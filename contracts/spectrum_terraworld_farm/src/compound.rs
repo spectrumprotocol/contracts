@@ -248,15 +248,16 @@ pub fn compound(
             amount: commission.deduct_tax(&deps.querier)?.amount,
         };
 
-        let mut state = read_state(deps.storage)?;
-        state.earning += net_commission.amount;
-        state_store(deps.storage).save(&state)?;
-
         let spec_swap_rate: SimulationResponse = simulate(
             &deps.querier,
             deps.api.addr_validate(&spec_pair_info.contract_addr)?,
             &net_commission,
         )?;
+
+        let mut state = read_state(deps.storage)?;
+        state.earning += net_commission.amount;
+        state.earning_spec += spec_swap_rate.return_amount;
+        state_store(deps.storage).save(&state)?;
 
         attributes.push(attr("net_commission", net_commission.amount));
         attributes.push(attr("spec_commission", spec_swap_rate.return_amount));

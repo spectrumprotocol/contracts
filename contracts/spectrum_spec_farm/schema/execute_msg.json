@@ -102,6 +102,16 @@
                 "string",
                 "null"
               ]
+            },
+            "spec_amount": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Uint128"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           }
         }

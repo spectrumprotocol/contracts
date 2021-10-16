@@ -107,6 +107,8 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
             total_farm_share: Uint128::zero(),
             total_weight: 0u32,
             spec_share_index: Decimal::zero(),
+            earning: Uint128::zero(),
+            earning_spec: Uint128::zero(),
         }
     );
 
@@ -144,7 +146,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
         asset_token: TWD_TOKEN.to_string(),
         staking_token: TWD_LP.to_string(),
         weight: 1u32,
-        auto_compound: true,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
@@ -164,7 +165,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
                 asset_token: TWD_TOKEN.to_string(),
                 staking_token: TWD_LP.to_string(),
                 weight: 1u32,
-                auto_compound: true,
                 farm_share: Uint128::zero(),
                 state_spec_share_index: Decimal::zero(),
                 stake_spec_share_index: Decimal::zero(),
@@ -183,7 +183,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
         asset_token: SPY_TOKEN.to_string(),
         staking_token: SPY_LP.to_string(),
         weight: 1u32,
-        auto_compound: true,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_err());
@@ -315,7 +314,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     );
 
     // withdraw rewards
-    let msg = ExecuteMsg::withdraw { asset_token: None };
+    let msg = ExecuteMsg::withdraw { asset_token: None, spec_amount: None, farm_amount: None };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
     assert_eq!(

@@ -43,12 +43,13 @@ pub enum ExecuteMsg {
         asset_token: String,
         staking_token: String,
         weight: u32,
-        auto_compound: bool,
     },
     // Withdraw rewards
     withdraw {
         // If the asset token is not given, then all rewards are withdrawn
         asset_token: Option<String>,
+        spec_amount: Option<Uint128>,
+        farm_amount: Option<Uint128>,
     },
     stake {
         asset_token: String,
@@ -95,7 +96,6 @@ pub struct PoolItem {
     pub total_stake_bond_share: Uint128,
     pub total_stake_bond_amount: Uint128, // amount stake
     pub weight: u32,
-    pub auto_compound: bool,
     pub farm_share: Uint128, // MINE share
     pub state_spec_share_index: Decimal,
     pub farm_share_index: Decimal,       // per stake bond share
@@ -134,7 +134,11 @@ pub struct StateInfo {
     pub spec_share_index: Decimal, // per weight
     pub total_farm_share: Uint128,
     pub total_weight: u32,
+    pub earning: Uint128,
+    pub earning_spec: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub earning_spec: Uint128,
+}

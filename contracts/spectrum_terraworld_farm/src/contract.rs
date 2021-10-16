@@ -67,6 +67,7 @@ pub fn instantiate(
         total_farm_share: Uint128::zero(),
         total_weight: 0u32,
         earning: Uint128::zero(),
+        earning_spec: Uint128::zero(),
     })?;
 
     Ok(Response::default())
@@ -97,20 +98,18 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             asset_token,
             staking_token,
             weight,
-            auto_compound,
         } => register_asset(
             deps,
             info,
             asset_token,
             staking_token,
             weight,
-            auto_compound,
         ),
         ExecuteMsg::unbond {
             asset_token,
             amount,
         } => unbond(deps, env, info, asset_token, amount),
-        ExecuteMsg::withdraw { asset_token } => withdraw(deps, env, info, asset_token),
+        ExecuteMsg::withdraw { asset_token, spec_amount, farm_amount } => withdraw(deps, env, info, asset_token, spec_amount, farm_amount),
         ExecuteMsg::stake { asset_token } => stake(deps, env, info, asset_token),
         ExecuteMsg::compound { threshold_compound_gov} => compound(deps, env, info, threshold_compound_gov),
         ExecuteMsg::update_bond { asset_token, amount_to_auto, amount_to_stake } => update_bond(deps, env, info, asset_token, amount_to_auto, amount_to_stake),
@@ -200,7 +199,6 @@ fn register_asset(
     asset_token: String,
     staking_token: String,
     weight: u32,
-    auto_compound: bool,
 ) -> StdResult<Response> {
     let config: Config = read_config(deps.storage)?;
     let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
@@ -228,7 +226,6 @@ fn register_asset(
             total_stake_bond_share: Uint128::zero(),
             total_stake_bond_amount: Uint128::zero(),
             weight: 0u32,
-            auto_compound: false,
             farm_share: Uint128::zero(),
             farm_share_index: Decimal::zero(),
             state_spec_share_index: state.spec_share_index,
@@ -238,7 +235,6 @@ fn register_asset(
         });
     state.total_weight = state.total_weight + weight - pool_info.weight;
     pool_info.weight = weight;
-    pool_info.auto_compound = auto_compound;
 
     pool_info_store(deps.storage).save(asset_token_raw.as_slice(), &pool_info)?;
     state_store(deps.storage).save(&state)?;
@@ -300,7 +296,6 @@ fn query_pools(deps: Deps) -> StdResult<PoolsResponse> {
                     .addr_humanize(&pool_info.staking_token)?
                     .to_string(),
                 weight: pool_info.weight,
-                auto_compound: pool_info.auto_compound,
                 total_auto_bond_share: pool_info.total_auto_bond_share,
                 total_stake_bond_share: pool_info.total_stake_bond_share,
                 total_stake_bond_amount: pool_info.total_stake_bond_amount,
@@ -323,10 +318,15 @@ fn query_state(deps: Deps) -> StdResult<StateInfo> {
         previous_spec_share: state.previous_spec_share,
         total_farm_share: state.total_farm_share,
         total_weight: state.total_weight,
+        earning: state.earning,
+        earning_spec: state.earning_spec,
     })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
+    let mut state = read_state(deps.storage)?;
+    state.earning_spec = msg.earning_spec;
+    state_store(deps.storage).save(&state)?;
     Ok(Response::default())
 }
