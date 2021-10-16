@@ -1130,7 +1130,7 @@ fn test_pools(
     let mut env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
     let msg = ExecuteMsg::upsert_pool { days: 45u64, active: true };
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+    let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
 
     // owner can add pool
@@ -1146,7 +1146,7 @@ fn test_pools(
 
     // pool will always sorted
     let msg = ExecuteMsg::upsert_pool { days: 30u64, active: true };
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     // query, must show 3 pools
@@ -1171,7 +1171,7 @@ fn test_pools(
         amount: new_amount,
         msg: to_binary(&Cw20HookMsg::stake_tokens { staker_addr: None, days: Some(1u64) }).unwrap(),
     });
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_err());
 
     // stake correct pool
@@ -1180,7 +1180,7 @@ fn test_pools(
         amount: new_amount,
         msg: to_binary(&Cw20HookMsg::stake_tokens { staker_addr: None, days: Some(30u64) }).unwrap(),
     });
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
 
     // query, staker 1
@@ -1217,7 +1217,7 @@ fn test_pools(
         amount: new_amount,
         msg: to_binary(&Cw20HookMsg::stake_tokens { staker_addr: None, days: Some(45u64) }).unwrap(),
     });
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
 
     // query, staker 1
@@ -1254,7 +1254,7 @@ fn test_pools(
         amount: new_amount,
         msg: to_binary(&Cw20HookMsg::stake_tokens { staker_addr: None, days: Some(30u64) }).unwrap(),
     });
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
 
     // query, staker 1
@@ -1276,7 +1276,7 @@ fn test_pools(
         amount: new_amount,
         msg: to_binary(&Cw20HookMsg::stake_tokens { staker_addr: None, days: Some(30u64) }).unwrap(),
     });
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     // query, staker 1
@@ -1315,7 +1315,7 @@ fn test_pools(
 
     // move up
     let msg = ExecuteMsg::update_stake { amount: Uint128::from(524u128), from_days: 30u64, to_days: 45u64 };
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     // query staker 1

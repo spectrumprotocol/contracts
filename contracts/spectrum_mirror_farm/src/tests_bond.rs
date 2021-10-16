@@ -1082,7 +1082,7 @@ fn test_partial_withdraw(mut deps: &mut OwnedDeps<MockStorage, MockApi, WasmMock
         farm_amount: Some(Uint128::from(9000u128)),
         spec_amount: Some(Uint128::zero()),
     };
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
     assert_eq!(
@@ -1139,7 +1139,7 @@ fn test_partial_withdraw(mut deps: &mut OwnedDeps<MockStorage, MockApi, WasmMock
         asset_token: None,
     };
     let res: RewardInfoResponse =
-        from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+        from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(
         res.reward_infos,
         vec![

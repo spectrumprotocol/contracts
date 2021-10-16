@@ -222,6 +222,7 @@ pub fn withdraw(
         .add_attributes(vec![attr("action", "withdraw"), attr("amount", amount)]))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn withdraw_reward(
     storage: &mut dyn Storage,
     state: &State,

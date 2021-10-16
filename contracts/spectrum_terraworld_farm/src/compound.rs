@@ -97,7 +97,7 @@ pub fn compound(
     }
 
     // calculate auto-compound, auto-Stake, and commission in TWD
-    let mut pool_info = pool_info_read(deps.storage).load(&config.terraworld_token.as_slice())?;
+    let mut pool_info = pool_info_read(deps.storage).load(config.terraworld_token.as_slice())?;
     let reward = terraworld_reward_info.pending_reward;
     if !reward.is_zero() && !terraworld_reward_info.bond_amount.is_zero() {
         let commission = reward * total_fee;
@@ -192,7 +192,7 @@ pub fn compound(
     let provide_twd = swap_twd_rate.return_amount + swap_twd_rate.commission_amount;
 
     pool_info.reinvest_allowance = swap_amount.checked_sub(provide_twd)?;
-    pool_info_store(deps.storage).save(&config.terraworld_token.as_slice(), &pool_info)?;
+    pool_info_store(deps.storage).save(config.terraworld_token.as_slice(), &pool_info)?;
 
     attributes.push(attr("total_ust_return_amount", total_ust_return_amount));
 
@@ -310,6 +310,7 @@ pub fn compound(
                     amount: platform_amount,
                     msg: to_binary(&GovCw20HookMsg::stake_tokens {
                         staker_addr: Some(deps.api.addr_humanize(&config.platform)?.to_string()),
+                        days: None,
                     })?,
                 })?,
                 funds: vec![],
@@ -328,6 +329,7 @@ pub fn compound(
                     amount: controller_amount,
                     msg: to_binary(&GovCw20HookMsg::stake_tokens {
                         staker_addr: Some(deps.api.addr_humanize(&config.controller)?.to_string()),
+                        days: None,
                     })?,
                 })?,
                 funds: vec![],

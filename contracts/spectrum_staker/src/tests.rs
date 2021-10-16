@@ -500,7 +500,7 @@ fn test_zap_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
 
 fn test_zap_unbond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let env = mock_env();
-    let info = mock_info(USER1, &vec![]);
+    let info = mock_info(USER1, &[]);
 
     // unauthorized
     let msg = ExecuteMsg::zap_to_unbond_hook {
@@ -520,7 +520,7 @@ fn test_zap_unbond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) 
         belief_price: Some(Decimal::from_ratio(1u128, 1u128)),
         max_spread: Decimal::percent(1u64),
     };
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert_eq!(res, Err(StdError::generic_err("unauthorized")));
 
     // slippage too high
@@ -546,7 +546,7 @@ fn test_zap_unbond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) 
         Err(StdError::generic_err("invalid lp token"))
     );
 
-    let info = mock_info(LP, &vec![]);
+    let info = mock_info(LP, &[]);
 
     // slippage too high
     let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
@@ -633,7 +633,7 @@ fn test_zap_unbond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) 
         .unwrap(),
     });
 
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     assert_eq!(
         res.messages
             .into_iter()

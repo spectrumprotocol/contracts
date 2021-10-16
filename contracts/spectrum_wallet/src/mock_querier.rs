@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity)]
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

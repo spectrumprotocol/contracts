@@ -593,6 +593,7 @@ pub fn withdraw(
     ]))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn withdraw_reward(
     deps: DepsMut,
     config: &Config,
