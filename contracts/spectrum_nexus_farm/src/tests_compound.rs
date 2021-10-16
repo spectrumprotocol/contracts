@@ -7,7 +7,7 @@ use cosmwasm_std::{
     from_binary, to_binary, Api, Coin, CosmosMsg, Decimal, OwnedDeps, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use nexus_token::governance::Cw20HookMsg as NexusGovCw20HookMsg;
+use nexus_token::governance::{AnyoneMsg, Cw20HookMsg as NexusGovCw20HookMsg};
 use nexus_token::governance::ExecuteMsg as NexusGovExecuteMsg;
 use nexus_token::staking::ExecuteMsg as NexusStakingExecuteMsg;
 use schemars::JsonSchema;
@@ -512,10 +512,11 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: PSI_GOV.to_string(),
                 funds: vec![],
-                msg: to_binary(&NexusGovExecuteMsg::WithdrawVotingTokens {
-                    amount: Some(Uint128::from(1000u128)),
-                })
-                .unwrap(),
+                msg: to_binary(&NexusGovExecuteMsg::Anyone {
+                    anyone_msg: AnyoneMsg::WithdrawVotingTokens {
+                        amount: Some(Uint128::from(1000u128)),
+                    },
+                }).unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: PSI_TOKEN.to_string(),

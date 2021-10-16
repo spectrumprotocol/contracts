@@ -12,7 +12,7 @@ use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrap
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
 use terraswap::pair::SimulationResponse;
 
-use nexus_token::gov::StakerResponse as NexusStakerResponse;
+use nexus_token::governance::StakerResponse as NexusStakerResponse;
 use nexus_token::staking::StakerInfoResponse as NexusStakerInfoResponse;
 use spectrum_protocol::gov::BalanceResponse as SpecBalanceResponse;
 
@@ -207,7 +207,6 @@ impl WasmMockQuerier {
                         staker,
                         block_height: _,
                     } => {
-                        let contract_addr = &PSI_STAKING.to_string();
                         let balance = self.read_token_balance(contract_addr, staker.clone());
                         SystemResult::Ok(ContractResult::from(to_binary(
                             &NexusStakerInfoResponse {

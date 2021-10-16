@@ -12,7 +12,7 @@ pub fn query_nexus_reward_info(
         contract_addr: deps.api.addr_humanize(nexus_staking)?.to_string(),
         msg: to_binary(&NexusStakingQueryMsg::StakerInfo {
             staker: deps.api.addr_humanize(staker)?.to_string(),
-            time_seconds: None //TODO
+            time_seconds
         })?,
     }))?;
 
