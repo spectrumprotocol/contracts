@@ -12,3 +12,4 @@ pub mod anchor_farm;
 pub mod pylon_farm;
 pub mod terraworld_farm;
 pub mod valkyrie_farm;
+pub mod terrafloki_farm;
