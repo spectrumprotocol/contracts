@@ -45,7 +45,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         deps.as_ref(),
         &config.nexus_staking,
         &deps.api.addr_canonicalize(env.contract.address.as_str())?,
-        Some(env.block.height),
+        Some(env.block.time.seconds()),
     )?;
 
     let mut total_psi_swap_amount = Uint128::zero();
