@@ -3,9 +3,6 @@
   "title": "ConfigInfo",
   "type": "object",
   "required": [
-    "valkyrie_gov",
-    "valkyrie_staking",
-    "valkyrie_token",
     "base_denom",
     "community_fee",
     "controller",
@@ -16,18 +13,12 @@
     "platform_fee",
     "spectrum_gov",
     "spectrum_token",
-    "terraswap_factory"
+    "terraswap_factory",
+    "valkyrie_gov",
+    "valkyrie_staking",
+    "valkyrie_token"
   ],
   "properties": {
-    "valkyrie_gov": {
-      "type": "string"
-    },
-    "valkyrie_staking": {
-      "type": "string"
-    },
-    "valkyrie_token": {
-      "type": "string"
-    },
     "base_denom": {
       "type": "string"
     },
@@ -59,6 +50,15 @@
       "type": "string"
     },
     "terraswap_factory": {
+      "type": "string"
+    },
+    "valkyrie_gov": {
+      "type": "string"
+    },
+    "valkyrie_staking": {
+      "type": "string"
+    },
+    "valkyrie_token": {
       "type": "string"
     }
   },
