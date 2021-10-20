@@ -55,12 +55,11 @@ pub enum ExecuteMsg {
         asset_token: String,
     },
     compound {},
-    // TODO change once farm gov is functional
-    // update_bond {
-    //     asset_token: String,
-    //     amount_to_stake: Uint128,
-    //     amount_to_auto: Uint128,
-    // },
+    update_bond {
+        asset_token: String,
+        amount_to_stake: Uint128,
+        amount_to_auto: Uint128,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

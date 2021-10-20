@@ -82,7 +82,7 @@ pub fn bond(
 ) -> StdResult<Response> {
 
     // TODO change once farm gov is functional
-    if compound_rate.unwrap() != Decimal::one(){
+    if compound_rate.is_none() || compound_rate.unwrap_or_else(|| Decimal::zero()) != Decimal::one(){
         return Err(StdError::generic_err("auto-stake is disabled"));
     }
 
@@ -98,8 +98,7 @@ pub fn bond(
 
     let config = read_config(deps.storage)?;
 
-    // TODO change once farm gov is functional
-    let compound_rate = compound_rate.unwrap_or_else(Decimal::one);
+    let compound_rate = compound_rate.unwrap_or_else(Decimal::zero);
     let amount_to_auto = amount * compound_rate;
     let amount_to_stake = amount.checked_sub(amount_to_auto)?;
 
@@ -452,56 +451,58 @@ pub fn unbond(
             attr("amount", amount),
         ]))
 }
-// TODO change once farm gov is functional
-// pub fn update_bond(
-//     mut deps: DepsMut,
-//     env: Env,
-//     info: MessageInfo,
-//     asset_token: String,
-//     amount_to_auto: Uint128,
-//     amount_to_stake: Uint128,
-// ) -> StdResult<Response> {
 
-//     let config = read_config(deps.storage)?;
+pub fn update_bond(
+    mut deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    asset_token: String,
+    amount_to_auto: Uint128,
+    amount_to_stake: Uint128,
+) -> StdResult<Response> {
+    // TODO change once farm gov is functional
+    return Err(StdError::generic_err("update_bond is disabled"));
 
-//     let staker_addr_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
-//     let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
+    let config = read_config(deps.storage)?;
 
-//     let amount = amount_to_auto + amount_to_stake;
-//     let lp_balance = query_nexus_pool_balance(
-//         deps.as_ref(),
-//         &config.nexus_staking,
-//         &deps.api.addr_canonicalize(env.contract.address.as_str())?,
-//         env.block.time.seconds()
-//     )?;
+    let staker_addr_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
 
-//     unbond_internal(
-//         deps.branch(),
-//         staker_addr_raw.clone(),
-//         asset_token_raw.clone(),
-//         amount,
-//         lp_balance,
-//         &config,
-//     )?;
+    let amount = amount_to_auto + amount_to_stake;
+    let lp_balance = query_nexus_pool_balance(
+        deps.as_ref(),
+        &config.nexus_staking,
+        &deps.api.addr_canonicalize(env.contract.address.as_str())?,
+        env.block.time.seconds()
+    )?;
 
-//     bond_internal(
-//         deps,
-//         staker_addr_raw,
-//         asset_token_raw,
-//         amount_to_auto,
-//         amount_to_stake,
-//         Decimal::zero(),
-//         lp_balance.checked_sub(amount)?,
-//         &config,
-//     )?;
+    unbond_internal(
+        deps.branch(),
+        staker_addr_raw.clone(),
+        asset_token_raw.clone(),
+        amount,
+        lp_balance,
+        &config,
+    )?;
 
-//     Ok(Response::new().add_attributes(vec![
-//         attr("action", "update_bond"),
-//         attr("asset_token", asset_token),
-//         attr("amount_to_auto", amount_to_auto),
-//         attr("amount_to_stake", amount_to_stake),
-//     ]))
-// }
+    bond_internal(
+        deps,
+        staker_addr_raw,
+        asset_token_raw,
+        amount_to_auto,
+        amount_to_stake,
+        Decimal::zero(),
+        lp_balance.checked_sub(amount)?,
+        &config,
+    )?;
+
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "update_bond"),
+        attr("asset_token", asset_token),
+        attr("amount_to_auto", amount_to_auto),
+        attr("amount_to_stake", amount_to_stake),
+    ]))
+}
 
 pub fn withdraw(
     mut deps: DepsMut,
