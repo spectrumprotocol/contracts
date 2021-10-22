@@ -166,7 +166,7 @@ pub struct BalanceResponse {
     pub balance: Uint128,
     pub share: Uint128,
     pub locked_balance: Vec<(u64, VoterInfo)>,
-    pub pools: Vec<BalancePoolInfo>,
+    #[serde(default)] pub pools: Vec<BalancePoolInfo>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -205,8 +205,8 @@ pub struct StateInfo {
     pub last_mint: u64,
     pub total_weight: u32,
     pub total_staked: Uint128,
-    pub prev_balance: Uint128,
-    pub pools: Vec<StatePoolInfo>,
+    #[serde(default)] pub prev_balance: Uint128,
+    #[serde(default)] pub pools: Vec<StatePoolInfo>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]

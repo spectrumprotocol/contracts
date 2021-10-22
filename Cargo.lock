@@ -781,6 +781,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "spectrum-valkyrie-farm"
+version = "0.2.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
+ "terraswap",
+ "valkyrie",
+]
+
+[[package]]
 name = "spectrum-wallet"
 version = "0.2.0"
 dependencies = [
@@ -907,6 +923,19 @@ name = "unicode-xid"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ccb82d61f80a663efe1f787a51b16b5a51e3314d6ac365b08639f52387b33f3"
+
+[[package]]
+name = "valkyrie"
+version = "1.0.3"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+]
 
 [[package]]
 name = "version_check"

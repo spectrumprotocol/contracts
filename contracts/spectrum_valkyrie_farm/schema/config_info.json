@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ConfigInfo",
+  "type": "object",
+  "required": [
+    "base_denom",
+    "community_fee",
+    "controller",
+    "controller_fee",
+    "deposit_fee",
+    "owner",
+    "platform",
+    "platform_fee",
+    "spectrum_gov",
+    "spectrum_token",
+    "terraswap_factory",
+    "valkyrie_gov",
+    "valkyrie_staking",
+    "valkyrie_token"
+  ],
+  "properties": {
+    "base_denom": {
+      "type": "string"
+    },
+    "community_fee": {
+      "$ref": "#/definitions/Decimal"
+    },
+    "controller": {
+      "type": "string"
+    },
+    "controller_fee": {
+      "$ref": "#/definitions/Decimal"
+    },
+    "deposit_fee": {
+      "$ref": "#/definitions/Decimal"
+    },
+    "owner": {
+      "type": "string"
+    },
+    "platform": {
+      "type": "string"
+    },
+    "platform_fee": {
+      "$ref": "#/definitions/Decimal"
+    },
+    "spectrum_gov": {
+      "type": "string"
+    },
+    "spectrum_token": {
+      "type": "string"
+    },
+    "terraswap_factory": {
+      "type": "string"
+    },
+    "valkyrie_gov": {
+      "type": "string"
+    },
+    "valkyrie_staking": {
+      "type": "string"
+    },
+    "valkyrie_token": {
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "Decimal": {
+      "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
+      "type": "string"
+    }
+  }
+}
