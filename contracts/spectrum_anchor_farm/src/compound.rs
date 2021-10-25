@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env,
+    attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, Deps, DepsMut, Env,
     MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
 };
 
@@ -55,20 +55,12 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
 
     let mut attributes: Vec<Attribute> = vec![];
     let community_fee = config.community_fee;
-    let platform_fee = if config.platform == CanonicalAddr::from(vec![]) {
-        Decimal::zero()
-    } else {
-        config.platform_fee
-    };
-    let controller_fee = if config.controller == CanonicalAddr::from(vec![]) {
-        Decimal::zero()
-    } else {
-        config.controller_fee
-    };
+    let platform_fee = config.platform_fee;
+    let controller_fee = config.controller_fee;
     let total_fee = community_fee + platform_fee + controller_fee;
 
     // calculate auto-compound, auto-Stake, and commission in ANC
-    let mut pool_info = pool_info_read(deps.storage).load(&config.anchor_token.as_slice())?;
+    let mut pool_info = pool_info_read(deps.storage).load(config.anchor_token.as_slice())?;
     let reward = anchor_reward_info.pending_reward;
     if !reward.is_zero() && !anchor_reward_info.bond_amount.is_zero() {
         let commission = reward * total_fee;
@@ -169,7 +161,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let provide_anc = swap_anc_rate.return_amount + swap_anc_rate.commission_amount;
 
     pool_info.reinvest_allowance = swap_amount.checked_sub(provide_anc)?;
-    pool_info_store(deps.storage).save(&config.anchor_token.as_slice(), &pool_info)?;
+    pool_info_store(deps.storage).save(config.anchor_token.as_slice(), &pool_info)?;
 
     attributes.push(attr("total_ust_return_amount", total_ust_return_amount));
 
@@ -226,15 +218,16 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
             amount: commission.deduct_tax(&deps.querier)?.amount,
         };
 
-        let mut state = read_state(deps.storage)?;
-        state.earning += net_commission.amount;
-        state_store(deps.storage).save(&state)?;
-
         let spec_swap_rate: SimulationResponse = simulate(
             &deps.querier,
             deps.api.addr_validate(&spec_pair_info.contract_addr)?,
             &net_commission,
         )?;
+
+        let mut state = read_state(deps.storage)?;
+        state.earning += net_commission.amount;
+        state.earning_spec += spec_swap_rate.return_amount;
+        state_store(deps.storage).save(&state)?;
 
         attributes.push(attr("net_commission", net_commission.amount));
         attributes.push(attr("spec_commission", spec_swap_rate.return_amount));
@@ -288,6 +281,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
                     amount: platform_amount,
                     msg: to_binary(&GovCw20HookMsg::stake_tokens {
                         staker_addr: Some(deps.api.addr_humanize(&config.platform)?.to_string()),
+                        days: None,
                     })?,
                 })?,
                 funds: vec![],
@@ -306,6 +300,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
                     amount: controller_amount,
                     msg: to_binary(&GovCw20HookMsg::stake_tokens {
                         staker_addr: Some(deps.api.addr_humanize(&config.controller)?.to_string()),
+                        days: None,
                     })?,
                 })?,
                 funds: vec![],
@@ -327,49 +322,54 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         messages.push(stake_anc);
     }
 
-    let increase_allowance = CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: anchor_token.to_string(),
-        msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-            spender: anc_pair_info.contract_addr.to_string(),
-            amount: provide_anc,
-            expires: None,
-        })?,
-        funds: vec![],
-    });
+    if !provide_anc.is_zero() {
+        let increase_allowance = CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: anchor_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+                spender: anc_pair_info.contract_addr.to_string(),
+                amount: provide_anc,
+                expires: None,
+            })?,
+            funds: vec![],
+        });
+        messages.push(increase_allowance);
 
-    let provide_liquidity = CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: anc_pair_info.contract_addr,
-        msg: to_binary(&TerraswapExecuteMsg::ProvideLiquidity {
-            assets: [
-                Asset {
-                    info: AssetInfo::Token {
-                        contract_addr: anchor_token.to_string(),
+        let provide_liquidity = CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: anc_pair_info.contract_addr,
+            msg: to_binary(&TerraswapExecuteMsg::ProvideLiquidity {
+                assets: [
+                    Asset {
+                        info: AssetInfo::Token {
+                            contract_addr: anchor_token.to_string(),
+                        },
+                        amount: provide_anc,
                     },
-                    amount: provide_anc,
-                },
-                Asset {
-                    info: AssetInfo::NativeToken {
-                        denom: config.base_denom.clone(),
+                    Asset {
+                        info: AssetInfo::NativeToken {
+                            denom: config.base_denom.clone(),
+                        },
+                        amount: net_reinvest_ust,
                     },
-                    amount: net_reinvest_ust,
-                },
-            ],
-            slippage_tolerance: None,
-            receiver: None,
-        })?,
-        funds: vec![Coin {
-            denom: config.base_denom,
-            amount: net_reinvest_ust,
-        }],
-    });
+                ],
+                slippage_tolerance: None,
+                receiver: None,
+            })?,
+            funds: vec![Coin {
+                denom: config.base_denom,
+                amount: net_reinvest_ust,
+            }],
+        });
+        messages.push(provide_liquidity);
 
-    let stake = CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: env.contract.address.to_string(),
-        msg: to_binary(&ExecuteMsg::stake {
-            asset_token: anchor_token.to_string(),
-        })?,
-        funds: vec![],
-    });
+        let stake = CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: env.contract.address.to_string(),
+            msg: to_binary(&ExecuteMsg::stake {
+                asset_token: anchor_token.to_string(),
+            })?,
+            funds: vec![],
+        });
+        messages.push(stake);
+    }
 
     attributes.push(attr("action", "compound"));
     attributes.push(attr("asset_token", anchor_token));
@@ -381,9 +381,6 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         pool_info.reinvest_allowance,
     ));
 
-    messages.push(increase_allowance);
-    messages.push(provide_liquidity);
-    messages.push(stake);
     Ok(Response::new()
         .add_messages(messages)
         .add_attributes(attributes))

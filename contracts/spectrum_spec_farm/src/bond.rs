@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    attr, to_binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Order,
+    attr, to_binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, MessageInfo, Order,
     QueryRequest, Response, StdError, StdResult, Storage, Uint128, WasmMsg, WasmQuery,
 };
 
@@ -44,15 +44,14 @@ pub fn bond(
             spec_share_index: pool_info.spec_share_index,
             bond_amount: Uint128::zero(),
             spec_share: Uint128::zero(),
-            accum_spec_share: Uint128::zero(),
         });
     before_share_change(&pool_info, &mut reward_info)?;
 
     pool_info.total_bond_amount += amount;
     reward_info.bond_amount += amount;
     rewards_store(deps.storage, &staker_addr_raw)
-        .save(&asset_token_raw.as_slice(), &reward_info)?;
-    pool_info_store(deps.storage).save(&asset_token_raw.as_slice(), &pool_info)?;
+        .save(asset_token_raw.as_slice(), &reward_info)?;
+    pool_info_store(deps.storage).save(asset_token_raw.as_slice(), &pool_info)?;
     state_store(deps.storage).save(&state)?;
     Ok(Response::new().add_attributes(vec![
         attr("action", "bond"),
@@ -73,6 +72,7 @@ pub fn deposit_reward(
             share: Uint128::zero(),
             balance: Uint128::zero(),
             locked_balance: vec![],
+            pools: vec![],
         });
     }
 
@@ -113,7 +113,6 @@ fn before_share_change(pool_info: &PoolInfo, reward_info: &mut RewardInfo) -> St
     let share =
         reward_info.bond_amount * (pool_info.spec_share_index - reward_info.spec_share_index);
     reward_info.spec_share += share;
-    reward_info.accum_spec_share += share;
     reward_info.spec_share_index = pool_info.spec_share_index;
     Ok(())
 }
@@ -181,9 +180,9 @@ pub fn unbond(
 
 pub fn withdraw(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     asset_token: Option<String>,
+    spec_amount: Option<Uint128>,
 ) -> StdResult<Response> {
     let staker_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
     let asset_token = asset_token.map(|a| deps.api.addr_canonicalize(&a).unwrap());
@@ -193,12 +192,11 @@ pub fn withdraw(
     let staked = deposit_reward(deps.as_ref(), &mut state, &config, false)?;
     let (amount, share) = withdraw_reward(
         deps.storage,
-        &config,
-        env.block.height,
         &state,
         &staker_addr,
         &asset_token,
         &staked,
+        spec_amount,
     )?;
     state.previous_spec_share = state.previous_spec_share.checked_sub(share)?;
     state_store(deps.storage).save(&state)?;
@@ -208,6 +206,7 @@ pub fn withdraw(
                 contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
                 msg: to_binary(&ExecuteMsg::withdraw {
                     amount: Some(amount),
+                    days: None,
                 })?,
                 funds: vec![],
             }),
@@ -223,16 +222,16 @@ pub fn withdraw(
         .add_attributes(vec![attr("action", "withdraw"), attr("amount", amount)]))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn withdraw_reward(
     storage: &mut dyn Storage,
-    config: &Config,
-    height: u64,
     state: &State,
     staker_addr: &CanonicalAddr,
     asset_token: &Option<CanonicalAddr>,
     staked: &BalanceResponse,
+    mut request_spec_amount: Option<Uint128>,
 ) -> StdResult<(Uint128, Uint128)> {
-    let rewards_bucket = rewards_read(storage, &staker_addr);
+    let rewards_bucket = rewards_read(storage, staker_addr);
 
     // single reward withdraw
     let reward_pairs: Vec<(CanonicalAddr, RewardInfo)>;
@@ -265,29 +264,41 @@ fn withdraw_reward(
         reward_to_pool(state, &mut pool_info)?;
         before_share_change(&pool_info, &mut reward_info)?;
 
-        let locked_share = config.calc_locked_reward(reward_info.accum_spec_share, height);
-        let withdraw_share = if locked_share >= reward_info.spec_share {
-            Uint128::zero()
+        let (asset_spec_share, asset_spec_amount) = if let Some(request_amount) = request_spec_amount {
+            let avail_amount = calc_spec_balance(reward_info.spec_share, staked);
+            let asset_spec_amount = if request_amount > avail_amount { avail_amount } else { request_amount };
+            let mut asset_spec_share = calc_spec_share(asset_spec_amount, staked);
+            if calc_spec_balance(asset_spec_share, staked) < asset_spec_amount {
+                asset_spec_share += Uint128::new(1u128);
+            }
+            request_spec_amount = Some(request_amount.checked_sub(asset_spec_amount)?);
+            (asset_spec_share, asset_spec_amount)
         } else {
-            reward_info.spec_share.checked_sub(locked_share)?
+            (reward_info.spec_share, calc_spec_balance(reward_info.spec_share, staked))
         };
-        share += withdraw_share;
-        amount += calc_spec_balace(withdraw_share, staked);
-        reward_info.spec_share = locked_share;
+        share += asset_spec_share;
+        amount += asset_spec_amount;
+        reward_info.spec_share = reward_info.spec_share.checked_sub(asset_spec_share)?;
 
         // Update rewards info
         pool_info_store(storage).save(key, &pool_info)?;
         if reward_info.spec_share.is_zero() && reward_info.bond_amount.is_zero() {
-            rewards_store(storage, &staker_addr).remove(key);
+            rewards_store(storage, staker_addr).remove(key);
         } else {
-            rewards_store(storage, &staker_addr).save(key, &reward_info)?;
+            rewards_store(storage, staker_addr).save(key, &reward_info)?;
+        }
+    }
+
+    if let Some(request_amount) = request_spec_amount {
+        if !request_amount.is_zero() {
+            return Err(StdError::generic_err("Cannot withdraw more than remaining amount"));
         }
     }
 
     Ok((amount, share))
 }
 
-fn calc_spec_balace(share: Uint128, staked: &BalanceResponse) -> Uint128 {
+fn calc_spec_balance(share: Uint128, staked: &BalanceResponse) -> Uint128 {
     if staked.share.is_zero() {
         Uint128::zero()
     } else {
@@ -295,11 +306,18 @@ fn calc_spec_balace(share: Uint128, staked: &BalanceResponse) -> Uint128 {
     }
 }
 
+fn calc_spec_share(amount: Uint128, stated: &BalanceResponse) -> Uint128 {
+    if stated.balance.is_zero() {
+        amount
+    } else {
+        amount.multiply_ratio(stated.share, stated.balance)
+    }
+}
+
 pub fn query_reward_info(
     deps: Deps,
     staker_addr: String,
     asset_token: Option<String>,
-    height: u64,
 ) -> StdResult<RewardInfoResponse> {
     let staker_addr_raw = deps.api.addr_canonicalize(&staker_addr)?;
     let mut state = read_state(deps.storage)?;
@@ -308,8 +326,6 @@ pub fn query_reward_info(
     let staked = deposit_reward(deps, &mut state, &config, true)?;
     let reward_infos = read_reward_infos(
         deps,
-        &config,
-        height,
         &state,
         &staker_addr_raw,
         &asset_token,
@@ -324,35 +340,29 @@ pub fn query_reward_info(
 
 fn read_reward_infos(
     deps: Deps,
-    config: &Config,
-    height: u64,
     state: &State,
     staker_addr: &CanonicalAddr,
     asset_token: &Option<String>,
     staked: &BalanceResponse,
 ) -> StdResult<Vec<RewardInfoResponseItem>> {
-    let rewards_bucket = rewards_read(deps.storage, &staker_addr);
+    let rewards_bucket = rewards_read(deps.storage, staker_addr);
     let reward_infos: Vec<RewardInfoResponseItem>;
     if let Some(asset_token) = asset_token {
-        let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
+        let asset_token_raw = deps.api.addr_canonicalize(asset_token)?;
         let key = asset_token_raw.as_slice();
         reward_infos = if let Some(mut reward_info) = rewards_bucket.may_load(key)? {
             let spec_share_index = reward_info.spec_share_index;
             let mut pool_info = pool_info_read(deps.storage).load(key)?;
 
-            reward_to_pool(&state, &mut pool_info)?;
+            reward_to_pool(state, &mut pool_info)?;
             before_share_change(&pool_info, &mut reward_info)?;
 
-            let locked_spec_share = config.calc_locked_reward(reward_info.accum_spec_share, height);
             vec![RewardInfoResponseItem {
                 asset_token: asset_token.clone(),
                 bond_amount: reward_info.bond_amount,
                 spec_share: reward_info.spec_share,
-                pending_spec_reward: calc_spec_balace(reward_info.spec_share, staked),
-                accum_spec_share: reward_info.accum_spec_share,
+                pending_spec_reward: calc_spec_balance(reward_info.spec_share, staked),
                 spec_share_index,
-                locked_spec_share,
-                locked_spec_reward: calc_spec_balace(locked_spec_share, staked),
             }]
         } else {
             vec![]
@@ -368,20 +378,15 @@ fn read_reward_infos(
                 let spec_share_index = reward_info.spec_share_index;
                 let mut pool_info =
                     pool_info_read(deps.storage).load(asset_token_raw.as_slice())?;
-                reward_to_pool(&state, &mut pool_info)?;
+                reward_to_pool(state, &mut pool_info)?;
                 before_share_change(&pool_info, &mut reward_info)?;
 
-                let locked_spec_share =
-                    config.calc_locked_reward(reward_info.accum_spec_share, height);
                 Ok(RewardInfoResponseItem {
                     asset_token: deps.api.addr_humanize(&asset_token_raw)?.to_string(),
                     bond_amount: reward_info.bond_amount,
                     spec_share: reward_info.spec_share,
-                    pending_spec_reward: calc_spec_balace(reward_info.spec_share, staked),
-                    accum_spec_share: reward_info.accum_spec_share,
+                    pending_spec_reward: calc_spec_balance(reward_info.spec_share, staked),
                     spec_share_index,
-                    locked_spec_share,
-                    locked_spec_reward: calc_spec_balace(locked_spec_share, staked),
                 })
             })
             .collect::<StdResult<Vec<RewardInfoResponseItem>>>()?;

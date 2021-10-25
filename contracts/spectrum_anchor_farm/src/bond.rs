@@ -40,7 +40,7 @@ fn bond_internal(
 
     // update reward index; before changing share
     if !pool_info.total_auto_bond_share.is_zero() || !pool_info.total_stake_bond_share.is_zero() {
-        deposit_spec_reward(deps.as_ref(), &mut state, &config, false)?;
+        deposit_spec_reward(deps.as_ref(), &mut state, config, false)?;
         spec_reward_to_pool(&state, &mut pool_info, lp_balance)?;
     }
 
@@ -54,7 +54,6 @@ fn bond_internal(
             auto_bond_share: Uint128::zero(),
             stake_bond_share: Uint128::zero(),
             spec_share: Uint128::zero(),
-            accum_spec_share: Uint128::zero(),
             farm_share: Uint128::zero(),
         });
     before_share_change(&pool_info, &mut reward_info)?;
@@ -70,7 +69,7 @@ fn bond_internal(
     )?;
 
     rewards_store(deps.storage, &sender_addr_raw)
-        .save(&asset_token_raw.as_slice(), &reward_info)?;
+        .save(asset_token_raw.as_slice(), &reward_info)?;
     pool_info_store(deps.storage).save(asset_token_raw.as_slice(), &pool_info)?;
     state_store(deps.storage).save(&state)?;
 
@@ -168,6 +167,7 @@ pub fn deposit_spec_reward(
             share: Uint128::zero(),
             balance: Uint128::zero(),
             locked_balance: vec![],
+            pools: vec![],
         });
     }
 
@@ -240,7 +240,6 @@ fn before_share_change(pool_info: &PoolInfo, reward_info: &mut RewardInfo) -> St
         * (pool_info.auto_spec_share_index - reward_info.auto_spec_share_index);
     let spec_share = stake_spec_share + auto_spec_share;
     reward_info.spec_share += spec_share;
-    reward_info.accum_spec_share += spec_share;
     reward_info.stake_spec_share_index = pool_info.stake_spec_share_index;
     reward_info.auto_spec_share_index = pool_info.auto_spec_share_index;
 
@@ -343,7 +342,7 @@ fn unbond_internal(
     }
 
     // distribute reward to pending reward; before changing share
-    deposit_spec_reward(deps.as_ref(), &mut state, &config, false)?;
+    deposit_spec_reward(deps.as_ref(), &mut state, config, false)?;
     spec_reward_to_pool(&state, &mut pool_info, lp_balance)?;
     before_share_change(&pool_info, &mut reward_info)?;
 
@@ -461,7 +460,7 @@ pub fn update_bond(
 
     let config = read_config(deps.storage)?;
 
-    let staker_addr_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
+    let staker_addr_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
     let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
 
     let amount = amount_to_auto + amount_to_stake;
@@ -501,9 +500,10 @@ pub fn update_bond(
 
 pub fn withdraw(
     mut deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     asset_token: Option<String>,
+    spec_amount: Option<Uint128>,
+    farm_amount: Option<Uint128>,
 ) -> StdResult<Response> {
     let staker_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
     let asset_token = asset_token.map(|a| deps.api.addr_canonicalize(&a).unwrap());
@@ -517,11 +517,12 @@ pub fn withdraw(
     let (spec_amount, spec_share, farm_amount, farm_share) = withdraw_reward(
         deps.branch(),
         &config,
-        env.block.height,
         &state,
         &staker_addr,
         &asset_token,
         &spec_staked,
+        spec_amount,
+        farm_amount,
     )?;
 
     state.previous_spec_share = state.previous_spec_share.checked_sub(spec_share)?;
@@ -535,6 +536,7 @@ pub fn withdraw(
             contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
             msg: to_binary(&SpecExecuteMsg::withdraw {
                 amount: Some(spec_amount),
+                days: None,
             })?,
             funds: vec![],
         }));
@@ -573,16 +575,18 @@ pub fn withdraw(
     ]))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn withdraw_reward(
     deps: DepsMut,
     config: &Config,
-    height: u64,
     state: &State,
     staker_addr: &CanonicalAddr,
     asset_token: &Option<CanonicalAddr>,
     spec_staked: &SpecBalanceResponse,
+    mut request_spec_amount: Option<Uint128>,
+    mut request_farm_amount: Option<Uint128>,
 ) -> StdResult<(Uint128, Uint128, Uint128, Uint128)> {
-    let rewards_bucket = rewards_read(deps.storage, &staker_addr);
+    let rewards_bucket = rewards_read(deps.storage, staker_addr);
 
     // single reward withdraw; or all rewards
     let reward_pairs: Vec<(CanonicalAddr, RewardInfo)>;
@@ -632,24 +636,42 @@ fn withdraw_reward(
         before_share_change(&pool_info, &mut reward_info)?;
 
         // update withdraw
-        farm_share += reward_info.farm_share;
-        farm_amount += calc_farm_balance(
-            reward_info.farm_share,
-            farm_staked.balance,
-            state.total_farm_share,
-        );
-
-        let locked_share = config.calc_locked_reward(reward_info.accum_spec_share, height);
-        let withdraw_share = if locked_share >= reward_info.spec_share {
-            Uint128::zero()
+        let (asset_farm_share, asset_farm_amount) = if let Some(request_amount) = request_farm_amount {
+            let avail_amount = calc_farm_balance(reward_info.farm_share, farm_staked.balance, state.total_farm_share);
+            let asset_farm_amount = if request_amount > avail_amount { avail_amount } else { request_amount };
+            let mut asset_farm_share = calc_farm_share(asset_farm_amount, farm_staked.balance, state.total_farm_share);
+            if calc_farm_balance(asset_farm_share, farm_staked.balance, state.total_farm_share) < asset_farm_amount {
+                asset_farm_share += Uint128::new(1u128);
+            }
+            request_farm_amount = Some(request_amount.checked_sub(asset_farm_amount)?);
+            (asset_farm_share, asset_farm_amount)
         } else {
-            reward_info.spec_share.checked_sub(locked_share)?
+            (reward_info.farm_share, calc_farm_balance(
+                reward_info.farm_share,
+                farm_staked.balance,
+                state.total_farm_share,
+            ))
         };
-        spec_share += withdraw_share;
-        spec_amount += calc_spec_balance(withdraw_share, spec_staked);
-        pool_info.farm_share = pool_info.farm_share.checked_sub(reward_info.farm_share)?;
-        reward_info.farm_share = Uint128::zero();
-        reward_info.spec_share = locked_share;
+        farm_share += asset_farm_share;
+        farm_amount += asset_farm_amount;
+
+        let (asset_spec_share, asset_spec_amount) = if let Some(request_amount) = request_spec_amount {
+            let avail_amount = calc_spec_balance(reward_info.spec_share, spec_staked);
+            let asset_spec_amount = if request_amount > avail_amount { avail_amount } else { request_amount };
+            let mut asset_spec_share = calc_spec_share(asset_spec_amount, spec_staked);
+            if calc_spec_balance(asset_spec_share, spec_staked) < asset_spec_amount {
+                asset_spec_share += Uint128::new(1u128);
+            }
+            request_spec_amount = Some(request_amount.checked_sub(asset_spec_amount)?);
+            (asset_spec_share, asset_spec_amount)
+        } else {
+            (reward_info.spec_share, calc_spec_balance(reward_info.spec_share, spec_staked))
+        };
+        spec_share += asset_spec_share;
+        spec_amount += asset_spec_amount;
+        pool_info.farm_share = pool_info.farm_share.checked_sub(asset_farm_share)?;
+        reward_info.farm_share = reward_info.farm_share.checked_sub(asset_farm_share)?;
+        reward_info.spec_share = reward_info.spec_share.checked_sub(asset_spec_share)?;
 
         // update rewards info
         pool_info_store(deps.storage).save(key, &pool_info)?;
@@ -658,9 +680,20 @@ fn withdraw_reward(
             && reward_info.auto_bond_share.is_zero()
             && reward_info.stake_bond_share.is_zero()
         {
-            rewards_store(deps.storage, &staker_addr).remove(key);
+            rewards_store(deps.storage, staker_addr).remove(key);
         } else {
-            rewards_store(deps.storage, &staker_addr).save(key, &reward_info)?;
+            rewards_store(deps.storage, staker_addr).save(key, &reward_info)?;
+        }
+    }
+
+    if let Some(request_amount) = request_farm_amount {
+        if !request_amount.is_zero() {
+            return Err(StdError::generic_err("Cannot withdraw more than remaining amount"));
+        }
+    }
+    if let Some(request_amount) = request_spec_amount {
+        if !request_amount.is_zero() {
+            return Err(StdError::generic_err("Cannot withdraw more than remaining amount"));
         }
     }
 
@@ -675,6 +708,14 @@ fn calc_farm_balance(share: Uint128, total_balance: Uint128, total_farm_share: U
     }
 }
 
+fn calc_farm_share(amount: Uint128, total_balance: Uint128, total_farm_share: Uint128) -> Uint128 {
+    if total_balance.is_zero() {
+        amount
+    } else {
+        amount.multiply_ratio(total_farm_share, total_balance)
+    }
+}
+
 fn calc_spec_balance(share: Uint128, staked: &SpecBalanceResponse) -> Uint128 {
     if staked.share.is_zero() {
         Uint128::zero()
@@ -683,10 +724,17 @@ fn calc_spec_balance(share: Uint128, staked: &SpecBalanceResponse) -> Uint128 {
     }
 }
 
+fn calc_spec_share(amount: Uint128, stated: &SpecBalanceResponse) -> Uint128 {
+    if stated.balance.is_zero() {
+        amount
+    } else {
+        amount.multiply_ratio(stated.share, stated.balance)
+    }
+}
+
 pub fn query_reward_info(
     deps: Deps,
     staker_addr: String,
-    height: u64,
 ) -> StdResult<RewardInfoResponse> {
     let staker_addr_raw = deps.api.addr_canonicalize(&staker_addr)?;
     let mut state = read_state(deps.storage)?;
@@ -696,7 +744,6 @@ pub fn query_reward_info(
     let reward_infos = read_reward_infos(
         deps,
         &config,
-        height,
         &state,
         &staker_addr_raw,
         &spec_staked,
@@ -711,12 +758,11 @@ pub fn query_reward_info(
 fn read_reward_infos(
     deps: Deps,
     config: &Config,
-    height: u64,
     state: &State,
     staker_addr: &CanonicalAddr,
     spec_staked: &SpecBalanceResponse,
 ) -> StdResult<Vec<RewardInfoResponseItem>> {
-    let rewards_bucket = rewards_read(deps.storage, &staker_addr);
+    let rewards_bucket = rewards_read(deps.storage, staker_addr);
 
     let reward_pair = rewards_bucket
         .range(None, None, Order::Ascending)
@@ -755,7 +801,6 @@ fn read_reward_infos(
             let auto_bond_amount =
                 pool_info.calc_user_auto_balance(lp_balance, reward_info.auto_bond_share);
             let stake_bond_amount = pool_info.calc_user_stake_balance(reward_info.stake_bond_share);
-            let locked_spec_share = config.calc_locked_reward(reward_info.accum_spec_share, height);
             Ok(RewardInfoResponseItem {
                 asset_token: deps.api.addr_humanize(&asset_token_raw)?.to_string(),
                 farm_share_index,
@@ -774,9 +819,6 @@ fn read_reward_infos(
                     farm_staked.balance,
                     state.total_farm_share,
                 ),
-                accum_spec_share: reward_info.accum_spec_share,
-                locked_spec_share,
-                locked_spec_reward: calc_spec_balance(locked_spec_share, spec_staked),
             })
         })
         .collect::<StdResult<Vec<RewardInfoResponseItem>>>()?;

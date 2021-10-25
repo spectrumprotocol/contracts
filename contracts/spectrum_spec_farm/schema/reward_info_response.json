@@ -25,29 +25,17 @@
     "RewardInfoResponseItem": {
       "type": "object",
       "required": [
-        "accum_spec_share",
         "asset_token",
         "bond_amount",
-        "locked_spec_reward",
-        "locked_spec_share",
         "pending_spec_reward",
         "spec_share",
         "spec_share_index"
       ],
       "properties": {
-        "accum_spec_share": {
-          "$ref": "#/definitions/Uint128"
-        },
         "asset_token": {
           "type": "string"
         },
         "bond_amount": {
-          "$ref": "#/definitions/Uint128"
-        },
-        "locked_spec_reward": {
-          "$ref": "#/definitions/Uint128"
-        },
-        "locked_spec_share": {
           "$ref": "#/definitions/Uint128"
         },
         "pending_spec_reward": {

@@ -174,7 +174,7 @@ impl WasmMockQuerier {
                 }
             }
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
-                match from_binary(&msg).unwrap() {
+                match from_binary(msg).unwrap() {
                     MockQueryMsg::balance { address } => {
                         let balance = self.read_token_balance(contract_addr, address);
                         SystemResult::Ok(ContractResult::from(to_binary(&SpecBalanceResponse {
@@ -182,6 +182,7 @@ impl WasmMockQuerier {
                             share: balance
                                 .multiply_ratio(100u128, self.token_querier.balance_percent),
                             locked_balance: vec![],
+                            pools: vec![],
                         })))
                     }
                     MockQueryMsg::Pair { asset_infos } => {

@@ -3,9 +3,7 @@ use crate::contract::{execute, instantiate, query};
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
 use crate::state::read_config;
 use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{
-    from_binary, to_binary, CosmosMsg, Decimal, OwnedDeps, StdError, Uint128, WasmMsg,
-};
+use cosmwasm_std::{from_binary, to_binary, CosmosMsg, Decimal, OwnedDeps, StdError, Uint128, WasmMsg, Storage};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use mirror_protocol::gov::ExecuteMsg as MirrorGovExecuteMsg;
 use schemars::JsonSchema;
@@ -46,7 +44,6 @@ pub struct RewardInfoResponseItem {
     pub stake_bond_amount: Uint128,
     pub pending_farm_reward: Uint128,
     pub pending_spec_reward: Uint128,
-    pub accum_spec_share: Uint128,
 }
 
 #[test]
@@ -60,6 +57,7 @@ fn test() {
     test_deposit_fee(&mut deps);
     test_staked_reward(&mut deps);
     test_reallocate(&mut deps);
+    test_partial_withdraw(&mut deps);
 }
 
 fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> ConfigInfo {
@@ -81,8 +79,6 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         platform_fee: Decimal::zero(),
         controller_fee: Decimal::zero(),
         deposit_fee: Decimal::zero(),
-        lock_start: 0u64,
-        lock_end: 0u64,
     };
 
     // success instantiate
@@ -104,6 +100,8 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
             total_farm_share: Uint128::zero(),
             total_weight: 0u32,
             spec_share_index: Decimal::zero(),
+            earning: Uint128::zero(),
+            earning_spec: Uint128::zero(),
         }
     );
 
@@ -141,7 +139,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
         asset_token: MIR_TOKEN.to_string(),
         staking_token: INVALID_LP.to_string(),
         weight: 1u32,
-        auto_compound: true,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
@@ -161,7 +158,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
                 asset_token: MIR_TOKEN.to_string(),
                 staking_token: INVALID_LP.to_string(),
                 weight: 1u32,
-                auto_compound: true,
                 farm_share: Uint128::zero(),
                 state_spec_share_index: Decimal::zero(),
                 stake_spec_share_index: Decimal::zero(),
@@ -180,7 +176,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
         asset_token: MIR_TOKEN.to_string(),
         staking_token: MIR_LP.to_string(),
         weight: 1u32,
-        auto_compound: true,
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert!(res.is_ok());
@@ -195,7 +190,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
                 asset_token: MIR_TOKEN.to_string(),
                 staking_token: MIR_LP.to_string(),
                 weight: 1u32,
-                auto_compound: true,
                 farm_share: Uint128::zero(),
                 state_spec_share_index: Decimal::zero(),
                 stake_spec_share_index: Decimal::zero(),
@@ -214,7 +208,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
         asset_token: SPY_TOKEN.to_string(),
         staking_token: SPY_LP.to_string(),
         weight: 2u32,
-        auto_compound: true,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
@@ -288,7 +281,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             bond_amount: Uint128::from(12000u128),
             auto_bond_amount: Uint128::from(8000u128),
             stake_bond_amount: Uint128::from(4000u128),
-            accum_spec_share: Uint128::from(900u128),
         },]
     );
 
@@ -297,7 +289,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         asset_token: MIR_TOKEN.to_string(),
         staking_token: INVALID_LP.to_string(),
         weight: 1u32,
-        auto_compound: true,
     };
     let info = mock_info(SPEC_GOV, &[]);
     let res = execute(deps.as_mut(), env.clone(), info, msg);
@@ -355,7 +346,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     );
 
     // withdraw
-    let msg = ExecuteMsg::withdraw { asset_token: None };
+    let msg = ExecuteMsg::withdraw { asset_token: None, spec_amount: None, farm_amount: None };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
     assert_eq!(
@@ -370,6 +361,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 funds: vec![],
                 msg: to_binary(&GovExecuteMsg::withdraw {
                     amount: Some(Uint128::from(2700u128)),
+                    days: None,
                 })
                 .unwrap(),
             }),
@@ -446,7 +438,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 bond_amount: Uint128::from(6000u128),
                 auto_bond_amount: Uint128::from(4000u128),
                 stake_bond_amount: Uint128::from(2000u128),
-                accum_spec_share: Uint128::from(3000u128),
             },
             RewardInfoResponseItem {
                 asset_token: MIR_TOKEN.to_string(),
@@ -455,7 +446,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 bond_amount: Uint128::from(10000u128),
                 auto_bond_amount: Uint128::from(7000u128),
                 stake_bond_amount: Uint128::from(3000u128),
-                accum_spec_share: Uint128::from(1499u128),
             },
         ]
     );
@@ -555,7 +545,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 bond_amount: Uint128::from(8000u128),
                 auto_bond_amount: Uint128::from(6000u128),
                 stake_bond_amount: Uint128::from(2000u128),
-                accum_spec_share: Uint128::from(9400u128),
             },
             RewardInfoResponseItem {
                 asset_token: MIR_TOKEN.to_string(),
@@ -564,7 +553,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 bond_amount: Uint128::from(11000u128),
                 auto_bond_amount: Uint128::from(8000u128),
                 stake_bond_amount: Uint128::from(3000u128),
-                accum_spec_share: Uint128::from(4799u128),
             },
         ]
     );
@@ -585,7 +573,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 bond_amount: Uint128::from(4000u128),
                 auto_bond_amount: Uint128::from(0u128),
                 stake_bond_amount: Uint128::from(4000u128),
-                accum_spec_share: Uint128::from(3200u128),
             },
             RewardInfoResponseItem {
                 asset_token: MIR_TOKEN.to_string(),
@@ -594,7 +581,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 bond_amount: Uint128::from(5000u128),
                 auto_bond_amount: Uint128::from(0u128),
                 stake_bond_amount: Uint128::from(5000u128),
-                accum_spec_share: Uint128::from(1500u128),
             },
         ]
     );
@@ -679,7 +665,6 @@ fn test_deposit_fee(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
                 bond_amount: Uint128::from(9600u128),
                 auto_bond_amount: Uint128::from(7200u128),
                 stake_bond_amount: Uint128::from(2400u128),
-                accum_spec_share: Uint128::from(9400u128),
             },
             RewardInfoResponseItem {
                 asset_token: MIR_TOKEN.to_string(),
@@ -688,7 +673,6 @@ fn test_deposit_fee(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
                 bond_amount: Uint128::from(13200u128),
                 auto_bond_amount: Uint128::from(9600u128),
                 stake_bond_amount: Uint128::from(3600u128),
-                accum_spec_share: Uint128::from(4799u128),
             },
         ]
     );
@@ -710,7 +694,6 @@ fn test_deposit_fee(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
                 bond_amount: Uint128::from(4800u128),
                 auto_bond_amount: Uint128::from(0u128),
                 stake_bond_amount: Uint128::from(4800u128),
-                accum_spec_share: Uint128::from(3200u128),
             },
             RewardInfoResponseItem {
                 asset_token: MIR_TOKEN.to_string(),
@@ -719,7 +702,6 @@ fn test_deposit_fee(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
                 bond_amount: Uint128::from(6000u128),
                 auto_bond_amount: Uint128::from(0u128),
                 stake_bond_amount: Uint128::from(6000u128),
-                accum_spec_share: Uint128::from(1500u128),
             },
         ]
     );
@@ -740,7 +722,6 @@ fn test_deposit_fee(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
                 bond_amount: Uint128::from(57600u128),
                 auto_bond_amount: Uint128::from(28800u128),
                 stake_bond_amount: Uint128::from(28800u128),
-                accum_spec_share: Uint128::zero(),
             },
             RewardInfoResponseItem {
                 asset_token: MIR_TOKEN.to_string(),
@@ -749,7 +730,6 @@ fn test_deposit_fee(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
                 bond_amount: Uint128::from(76800u128),
                 auto_bond_amount: Uint128::from(38400u128),
                 stake_bond_amount: Uint128::from(38400u128),
-                accum_spec_share: Uint128::zero(),
             },
         ]
     );
@@ -795,7 +775,7 @@ fn test_staked_reward(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
 
     // withdraw for user2
     let info = mock_info(USER2, &[]);
-    let msg = ExecuteMsg::withdraw { asset_token: None };
+    let msg = ExecuteMsg::withdraw { asset_token: None, spec_amount: None, farm_amount: None };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
     assert_eq!(
@@ -810,6 +790,7 @@ fn test_staked_reward(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                 funds: vec![],
                 msg: to_binary(&GovExecuteMsg::withdraw {
                     amount: Some(Uint128::from(4700u128)),
+                    days: None,
                 })
                 .unwrap(),
             }),
@@ -880,7 +861,6 @@ fn test_staked_reward(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                 bond_amount: Uint128::from(9600u128),
                 auto_bond_amount: Uint128::from(7200u128),
                 stake_bond_amount: Uint128::from(2400u128),
-                accum_spec_share: Uint128::from(10200u128),
             },
             RewardInfoResponseItem {
                 asset_token: MIR_TOKEN.to_string(),
@@ -889,7 +869,6 @@ fn test_staked_reward(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                 bond_amount: Uint128::from(0u128),
                 auto_bond_amount: Uint128::from(0u128),
                 stake_bond_amount: Uint128::from(0u128),
-                accum_spec_share: Uint128::from(4799u128),
             },
         ]
     );
@@ -911,7 +890,6 @@ fn test_staked_reward(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                 bond_amount: Uint128::from(4800u128),
                 auto_bond_amount: Uint128::from(0u128),
                 stake_bond_amount: Uint128::from(4800u128),
-                accum_spec_share: Uint128::from(3600u128),
             },
             RewardInfoResponseItem {
                 asset_token: MIR_TOKEN.to_string(),
@@ -920,7 +898,6 @@ fn test_staked_reward(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                 bond_amount: Uint128::from(6000u128),
                 auto_bond_amount: Uint128::from(0u128),
                 stake_bond_amount: Uint128::from(6000u128),
-                accum_spec_share: Uint128::from(1700u128),
             },
         ]
     );
@@ -941,7 +918,6 @@ fn test_staked_reward(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                 bond_amount: Uint128::from(57600u128),
                 auto_bond_amount: Uint128::from(28800u128),
                 stake_bond_amount: Uint128::from(28800u128),
-                accum_spec_share: Uint128::from(4800u128),
             },
             RewardInfoResponseItem {
                 asset_token: MIR_TOKEN.to_string(),
@@ -950,7 +926,6 @@ fn test_staked_reward(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                 bond_amount: Uint128::from(84000u128),
                 auto_bond_amount: Uint128::from(45600u128),
                 stake_bond_amount: Uint128::from(38400u128),
-                accum_spec_share: Uint128::from(2799u128),
             },
         ]
     );
@@ -996,7 +971,6 @@ fn test_reallocate(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) 
                 bond_amount: Uint128::from(9598u128),
                 auto_bond_amount: Uint128::from(4798u128),
                 stake_bond_amount: Uint128::from(4800u128),
-                accum_spec_share: Uint128::from(10200u128),
             },
             RewardInfoResponseItem {
                 asset_token: MIR_TOKEN.to_string(),
@@ -1005,7 +979,6 @@ fn test_reallocate(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) 
                 bond_amount: Uint128::from(0u128),
                 auto_bond_amount: Uint128::from(0u128),
                 stake_bond_amount: Uint128::from(0u128),
-                accum_spec_share: Uint128::from(4799u128),
             },
         ]
     );
@@ -1027,7 +1000,6 @@ fn test_reallocate(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) 
                 bond_amount: Uint128::from(4800u128),
                 auto_bond_amount: Uint128::from(0u128),
                 stake_bond_amount: Uint128::from(4800u128),
-                accum_spec_share: Uint128::from(3600u128),
             },
             RewardInfoResponseItem {
                 asset_token: MIR_TOKEN.to_string(),
@@ -1036,7 +1008,6 @@ fn test_reallocate(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) 
                 bond_amount: Uint128::from(6000u128),
                 auto_bond_amount: Uint128::from(0u128),
                 stake_bond_amount: Uint128::from(6000u128),
-                accum_spec_share: Uint128::from(1700u128),
             },
         ]
     );
@@ -1057,7 +1028,6 @@ fn test_reallocate(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) 
                 bond_amount: Uint128::from(57601u128),
                 auto_bond_amount: Uint128::from(28801u128),
                 stake_bond_amount: Uint128::from(28800u128),
-                accum_spec_share: Uint128::from(4800u128),
             },
             RewardInfoResponseItem {
                 asset_token: MIR_TOKEN.to_string(),
@@ -1066,7 +1036,128 @@ fn test_reallocate(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) 
                 bond_amount: Uint128::from(84000u128),
                 auto_bond_amount: Uint128::from(45600u128),
                 stake_bond_amount: Uint128::from(38400u128),
-                accum_spec_share: Uint128::from(2799u128),
+            },
+        ]
+    );
+}
+
+fn clone_storage(storage: &MockStorage) -> MockStorage {
+    let range = storage.range(None, None, cosmwasm_std::Order::Ascending);
+    let mut cloned = MockStorage::new();
+    for item in range {
+        cloned.set(item.0.as_slice(), item.1.as_slice());
+    }
+    cloned
+}
+
+fn test_partial_withdraw(mut deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+    let env = mock_env();
+    let info = mock_info(USER1, &[]);
+
+    // withdraw more than available
+    let old_storage = clone_storage(&deps.storage);
+    let msg = ExecuteMsg::withdraw {
+        asset_token: None,
+        farm_amount: Some(Uint128::from(9197u128)),
+        spec_amount: None,
+    };
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    assert_eq!(res, Err(StdError::generic_err("Cannot withdraw more than remaining amount")));
+    deps.storage = old_storage;
+
+    // withdraw more than available2
+    let old_storage = clone_storage(&deps.storage);
+    let msg = ExecuteMsg::withdraw {
+        asset_token: None,
+        farm_amount: None,
+        spec_amount: Some(Uint128::from(14759u128)),
+    };
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    assert_eq!(res, Err(StdError::generic_err("Cannot withdraw more than remaining amount")));
+    deps.storage = old_storage;
+
+    // withdraw partial
+    let msg = ExecuteMsg::withdraw {
+        asset_token: None,
+        farm_amount: Some(Uint128::from(9000u128)),
+        spec_amount: Some(Uint128::zero()),
+    };
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
+    assert!(res.is_ok());
+
+    assert_eq!(
+        res.unwrap()
+            .messages
+            .into_iter()
+            .map(|it| it.msg)
+            .collect::<Vec<CosmosMsg>>(),
+        vec![
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: MIR_GOV.to_string(),
+                funds: vec![],
+                msg: to_binary(&MirrorGovExecuteMsg::WithdrawVotingTokens {
+                    amount: Some(Uint128::from(9000u128)),
+                })
+                    .unwrap(),
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: MIR_TOKEN.to_string(),
+                funds: vec![],
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: USER1.to_string(),
+                    amount: Uint128::from(9000u128),
+                })
+                    .unwrap(),
+            }),
+        ]
+    );
+
+    deps.querier.with_token_balances(&[
+        (
+            &MIR_STAKING.to_string(),
+            &[
+                (&MIR_TOKEN.to_string(), &Uint128::from(90000u128)),
+                (&SPY_TOKEN.to_string(), &Uint128::from(72000u128)),
+            ],
+        ),
+        (
+            &MIR_GOV.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(199u128))],
+        ),
+        (
+            &SPEC_GOV.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from(24600u128), //+9000 +20%
+            )],
+        ),
+    ]);
+
+    // query balance1
+    let msg = QueryMsg::reward_info {
+        staker_addr: USER1.to_string(),
+        asset_token: None,
+    };
+    let res: RewardInfoResponse =
+        from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
+    assert_eq!(
+        res.reward_infos,
+        vec![
+            RewardInfoResponseItem {
+                asset_token: SPY_TOKEN.to_string(),
+                pending_farm_reward: Uint128::zero(),
+                pending_spec_reward: Uint128::from(10080u128),
+                bond_amount: Uint128::from(9598u128),
+                auto_bond_amount: Uint128::from(4798u128),
+                stake_bond_amount: Uint128::from(4800u128),
+            },
+            RewardInfoResponseItem {
+                asset_token: MIR_TOKEN.to_string(),
+                pending_farm_reward: Uint128::from(196u128),
+                pending_spec_reward: Uint128::from(4678u128),
+                bond_amount: Uint128::from(0u128),
+                auto_bond_amount: Uint128::from(0u128),
+                stake_bond_amount: Uint128::from(0u128),
             },
         ]
     );

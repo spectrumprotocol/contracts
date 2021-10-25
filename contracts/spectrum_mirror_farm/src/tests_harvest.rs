@@ -51,7 +51,6 @@ pub struct RewardInfoResponseItem {
     pub stake_bond_amount: Uint128,
     pub pending_farm_reward: Uint128,
     pub pending_spec_reward: Uint128,
-    pub accum_spec_share: Uint128,
 }
 
 #[test]
@@ -121,8 +120,6 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         platform_fee: Decimal::percent(1u64),
         controller_fee: Decimal::percent(1u64),
         deposit_fee: Decimal::zero(),
-        lock_start: 0u64,
-        lock_end: 0u64,
     };
 
     // success instantiate
@@ -144,6 +141,8 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
             total_farm_share: Uint128::zero(),
             total_weight: 0u32,
             spec_share_index: Decimal::zero(),
+            earning: Uint128::zero(),
+            earning_spec: Uint128::zero(),
         }
     );
 
@@ -181,7 +180,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
         asset_token: MIR_TOKEN.to_string(),
         staking_token: MIR_LP.to_string(),
         weight: 1u32,
-        auto_compound: true,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
@@ -201,7 +199,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
                 asset_token: MIR_TOKEN.to_string(),
                 staking_token: MIR_LP.to_string(),
                 weight: 1u32,
-                auto_compound: true,
                 farm_share: Uint128::zero(),
                 state_spec_share_index: Decimal::zero(),
                 stake_spec_share_index: Decimal::zero(),
@@ -220,7 +217,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
         asset_token: SPY_TOKEN.to_string(),
         staking_token: SPY_LP.to_string(),
         weight: 2u32,
-        auto_compound: true,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
@@ -294,7 +290,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             bond_amount: Uint128::from(12000u128),
             auto_bond_amount: Uint128::from(8000u128),
             stake_bond_amount: Uint128::from(4000u128),
-            accum_spec_share: Uint128::from(900u128),
         },]
     );
 
@@ -350,7 +345,11 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     );
 
     // withdraw
-    let msg = ExecuteMsg::withdraw { asset_token: None };
+    let msg = ExecuteMsg::withdraw {
+        asset_token: None,
+        spec_amount: None,
+        farm_amount: None,
+    };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
     assert_eq!(
@@ -365,6 +364,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 funds: vec![],
                 msg: to_binary(&GovExecuteMsg::withdraw {
                     amount: Some(Uint128::from(2700u128)),
+                    days: None,
                 })
                 .unwrap(),
             }),
@@ -441,7 +441,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 bond_amount: Uint128::from(6000u128),
                 auto_bond_amount: Uint128::from(4000u128),
                 stake_bond_amount: Uint128::from(2000u128),
-                accum_spec_share: Uint128::from(3000u128),
             },
             RewardInfoResponseItem {
                 asset_token: MIR_TOKEN.to_string(),
@@ -450,7 +449,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 bond_amount: Uint128::from(10000u128),
                 auto_bond_amount: Uint128::from(7000u128),
                 stake_bond_amount: Uint128::from(3000u128),
-                accum_spec_share: Uint128::from(1499u128),
             },
         ]
     );
@@ -550,7 +548,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 bond_amount: Uint128::from(8000u128),
                 auto_bond_amount: Uint128::from(6000u128),
                 stake_bond_amount: Uint128::from(2000u128),
-                accum_spec_share: Uint128::from(9400u128),
             },
             RewardInfoResponseItem {
                 asset_token: MIR_TOKEN.to_string(),
@@ -559,7 +556,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 bond_amount: Uint128::from(11000u128),
                 auto_bond_amount: Uint128::from(8000u128),
                 stake_bond_amount: Uint128::from(3000u128),
-                accum_spec_share: Uint128::from(4799u128),
             },
         ]
     );
@@ -580,7 +576,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 bond_amount: Uint128::from(4000u128),
                 auto_bond_amount: Uint128::from(0u128),
                 stake_bond_amount: Uint128::from(4000u128),
-                accum_spec_share: Uint128::from(3200u128),
             },
             RewardInfoResponseItem {
                 asset_token: MIR_TOKEN.to_string(),
@@ -589,7 +584,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 bond_amount: Uint128::from(5000u128),
                 auto_bond_amount: Uint128::from(0u128),
                 stake_bond_amount: Uint128::from(5000u128),
-                accum_spec_share: Uint128::from(1500u128),
             },
         ]
     );
@@ -677,6 +671,7 @@ fn test_harvest_all(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
                     amount: Uint128::from(272u128),
                     msg: to_binary(&GovCw20HookMsg::stake_tokens {
                         staker_addr: Some(TEST_PLATFORM.to_string()),
+                        days: None,
                     })
                     .unwrap()
                 })
@@ -690,6 +685,7 @@ fn test_harvest_all(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
                     amount: Uint128::from(274u128),
                     msg: to_binary(&GovCw20HookMsg::stake_tokens {
                         staker_addr: Some(TEST_CONTROLLER.to_string()),
+                        days: None,
                     })
                     .unwrap()
                 })

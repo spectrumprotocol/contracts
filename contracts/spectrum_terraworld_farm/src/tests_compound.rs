@@ -8,8 +8,7 @@ use cosmwasm_std::{
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use terraworld_token::gov::Cw20HookMsg as TerraworldGovCw20HookMsg;
 use terraworld_token::staking::{
-    ExecuteMsg as TerraworldStakingExecuteMsg,
-    StakerInfoResponse as TerraworldStakerInfoResponse
+    ExecuteMsg as TerraworldStakingExecuteMsg
 };
 use terraworld_token::gov::{
     ExecuteMsg as TerraworldGovExecuteMsg,
@@ -160,6 +159,8 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
             total_farm_share: Uint128::zero(),
             total_weight: 0u32,
             spec_share_index: Decimal::zero(),
+            earning: Uint128::zero(),
+            earning_spec: Uint128::zero(),
         }
     );
 
@@ -197,7 +198,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
         asset_token: TWD_TOKEN.to_string(),
         staking_token: TWD_LP.to_string(),
         weight: 1u32,
-        auto_compound: true,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
@@ -217,7 +217,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
                 asset_token: TWD_TOKEN.to_string(),
                 staking_token: TWD_LP.to_string(),
                 weight: 1u32,
-                auto_compound: true,
                 farm_share: Uint128::zero(),
                 state_spec_share_index: Decimal::zero(),
                 stake_spec_share_index: Decimal::zero(),
@@ -236,7 +235,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
         asset_token: FAIL_TOKEN.to_string(),
         staking_token: FAIL_LP.to_string(),
         weight: 2u32,
-        auto_compound: true,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_err());
@@ -261,7 +259,7 @@ fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
     let env = mock_env();
     let info = mock_info(TEST_CONTROLLER, &[]);
     let msg = ExecuteMsg::compound { threshold_compound_gov:Uint128::from(10000u128)};
-    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
+    let res = execute(deps.as_mut(), env, info, msg).unwrap();
 
     assert_eq!(
         res.messages
@@ -496,7 +494,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     );
 
     // withdraw rewards
-    let msg = ExecuteMsg::withdraw { asset_token: None };
+    let msg = ExecuteMsg::withdraw { asset_token: None, spec_amount: None, farm_amount: None };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
     assert_eq!(
@@ -511,6 +509,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 funds: vec![],
                 msg: to_binary(&GovExecuteMsg::withdraw {
                     amount: Some(Uint128::from(2700u128)),
+                    days: None,
                 })
                 .unwrap(),
             }),
@@ -998,6 +997,7 @@ fn test_compound_twd_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMo
                     amount: Uint128::from(242u128),
                     msg: to_binary(&GovCw20HookMsg::stake_tokens {
                         staker_addr: Some(SPEC_PLATFORM.to_string()),
+                        days: None,
                     })
                     .unwrap()
                 })
@@ -1011,6 +1011,7 @@ fn test_compound_twd_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMo
                     amount: Uint128::from(244u128),
                     msg: to_binary(&GovCw20HookMsg::stake_tokens {
                         staker_addr: Some(TEST_CONTROLLER.to_string()),
+                        days: None,
                     })
                     .unwrap()
                 })
@@ -1181,6 +1182,7 @@ fn test_compound_twd_with_fees_but_not_compound_gov(deps: &mut OwnedDeps<MockSto
                     amount: Uint128::from(118u128),
                     msg: to_binary(&GovCw20HookMsg::stake_tokens {
                         staker_addr: Some(SPEC_PLATFORM.to_string()),
+                        days: None,
                     })
                     .unwrap()
                 })
@@ -1194,6 +1196,7 @@ fn test_compound_twd_with_fees_but_not_compound_gov(deps: &mut OwnedDeps<MockSto
                     amount: Uint128::from(118u128),
                     msg: to_binary(&GovCw20HookMsg::stake_tokens {
                         staker_addr: Some(TEST_CONTROLLER.to_string()),
+                        days: None,
                     })
                     .unwrap()
                 })

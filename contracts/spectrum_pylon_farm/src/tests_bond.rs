@@ -49,9 +49,6 @@ pub struct RewardInfoResponseItem {
     pub stake_bond_share: Uint128,
     pub pending_farm_reward: Uint128,
     pub pending_spec_reward: Uint128,
-    pub accum_spec_share: Uint128,
-    pub locked_spec_share: Uint128,
-    pub locked_spec_reward: Uint128,
 }
 
 #[test]
@@ -85,8 +82,6 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         platform_fee: Decimal::zero(),
         controller_fee: Decimal::zero(),
         deposit_fee: Decimal::zero(),
-        lock_start: 0u64,
-        lock_end: 0u64,
     };
 
     // success init
@@ -108,6 +103,8 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
             total_farm_share: Uint128::zero(),
             total_weight: 0u32,
             spec_share_index: Decimal::zero(),
+            earning: Uint128::zero(),
+            earning_spec: Uint128::zero(),
         }
     );
 
@@ -145,7 +142,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
         asset_token: MINE_TOKEN.to_string(),
         staking_token: MINE_LP.to_string(),
         weight: 1u32,
-        auto_compound: true,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
@@ -165,7 +161,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
                 asset_token: MINE_TOKEN.to_string(),
                 staking_token: MINE_LP.to_string(),
                 weight: 1u32,
-                auto_compound: true,
                 farm_share: Uint128::zero(),
                 state_spec_share_index: Decimal::zero(),
                 stake_spec_share_index: Decimal::zero(),
@@ -184,7 +179,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
         asset_token: SPY_TOKEN.to_string(),
         staking_token: SPY_LP.to_string(),
         weight: 1u32,
-        auto_compound: true,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_err());
@@ -265,7 +259,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             bond_amount: Uint128::from(10000u128),
             auto_bond_amount: Uint128::from(6000u128),
             stake_bond_amount: Uint128::from(4000u128),
-            accum_spec_share: Uint128::from(2700u128),
             farm_share_index: Decimal::zero(),
             auto_spec_share_index: Decimal::zero(),
             stake_spec_share_index: Decimal::zero(),
@@ -273,8 +266,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             spec_share: Uint128::from(2700u128),
             auto_bond_share: Uint128::from(6000u128),
             stake_bond_share: Uint128::from(4000u128),
-            locked_spec_share: Uint128::zero(),
-            locked_spec_reward: Uint128::zero(),
         },]
     );
 
@@ -314,7 +305,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     );
 
     // withdraw rewards
-    let msg = ExecuteMsg::withdraw { asset_token: None };
+    let msg = ExecuteMsg::withdraw { asset_token: None, spec_amount: None, farm_amount: None };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
     assert_eq!(
@@ -329,6 +320,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 funds: vec![],
                 msg: to_binary(&GovExecuteMsg::withdraw {
                     amount: Some(Uint128::from(2700u128)),
+                    days: None,
                 })
                 .unwrap(),
             }),
@@ -399,7 +391,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             bond_amount: Uint128::from(7000u128),
             auto_bond_amount: Uint128::from(4200u128),
             stake_bond_amount: Uint128::from(2800u128),
-            accum_spec_share: Uint128::from(2700u128),
             farm_share_index: Decimal::from_ratio(125u128, 1000u128),
             auto_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
             stake_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
@@ -407,8 +398,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             spec_share: Uint128::from(0u128),
             auto_bond_share: Uint128::from(4200u128),
             stake_bond_share: Uint128::from(2800u128),
-            locked_spec_share: Uint128::zero(),
-            locked_spec_reward: Uint128::zero(),
         },]
     );
 
@@ -490,7 +479,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             bond_amount: Uint128::from(7000u128),
             auto_bond_amount: Uint128::from(4200u128),
             stake_bond_amount: Uint128::from(2800u128),
-            accum_spec_share: Uint128::from(3282u128),
             farm_share_index: Decimal::from_ratio(125u128, 1000u128),
             auto_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
             stake_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
@@ -498,8 +486,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             spec_share: Uint128::from(582u128),
             auto_bond_share: Uint128::from(4200u128),
             stake_bond_share: Uint128::from(2800u128),
-            locked_spec_share: Uint128::zero(),
-            locked_spec_reward: Uint128::zero(),
         },]
     );
 
@@ -517,7 +503,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             bond_amount: Uint128::from(5000u128),
             auto_bond_amount: Uint128::from(0u128),
             stake_bond_amount: Uint128::from(5000u128),
-            accum_spec_share: Uint128::from(416u128),
             farm_share_index: Decimal::from_ratio(125u128, 1000u128),
             auto_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
             stake_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
@@ -525,8 +510,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             spec_share: Uint128::from(416u128),
             auto_bond_share: Uint128::from(0u128),
             stake_bond_share: Uint128::from(5000u128),
-            locked_spec_share: Uint128::zero(),
-            locked_spec_reward: Uint128::zero(),
         },]
     );
 }

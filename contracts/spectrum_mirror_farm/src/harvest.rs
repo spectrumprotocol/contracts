@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use cosmwasm_std::{
-    attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, Decimal, DepsMut, Env, MessageInfo,
+    attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, DepsMut, Env, MessageInfo,
     Response, StdError, StdResult, Uint128, WasmMsg,
 };
 
@@ -55,16 +55,8 @@ pub fn harvest_all(mut deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<
 
     let mut attributes: Vec<Attribute> = vec![];
     let community_fee = config.community_fee;
-    let platform_fee = if config.platform == CanonicalAddr::from(vec![]) {
-        Decimal::zero()
-    } else {
-        config.platform_fee
-    };
-    let controller_fee = if config.controller == CanonicalAddr::from(vec![]) {
-        Decimal::zero()
-    } else {
-        config.controller_fee
-    };
+    let platform_fee = config.platform_fee;
+    let controller_fee = config.controller_fee;
     let total_fee = community_fee + platform_fee + controller_fee;
     for mirror_reward_info in mirror_reward_infos.reward_infos.iter() {
         let reward = mirror_reward_info.pending_reward;
@@ -214,15 +206,16 @@ pub fn harvest_all(mut deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<
             amount: commission.deduct_tax(&deps.querier)?.amount,
         };
 
-        let mut state = read_state(deps.storage)?;
-        state.earning += net_commission.amount;
-        state_store(deps.storage).save(&state)?;
-
         let spec_swap_rate: SimulationResponse = simulate(
             &deps.querier,
             deps.api.addr_validate(&spec_pair_info.contract_addr)?,
             &net_commission,
         )?;
+
+        let mut state = read_state(deps.storage)?;
+        state.earning += net_commission.amount;
+        state.earning_spec += spec_swap_rate.return_amount;
+        state_store(deps.storage).save(&state)?;
 
         attributes.push(attr("net_commission", net_commission.amount));
         attributes.push(attr("spec_commission", spec_swap_rate.return_amount));
@@ -276,6 +269,7 @@ pub fn harvest_all(mut deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<
                     amount: platform_amount,
                     msg: to_binary(&GovCw20HookMsg::stake_tokens {
                         staker_addr: Some(deps.api.addr_humanize(&config.platform)?.to_string()),
+                        days: None,
                     })?,
                 })?,
                 funds: vec![],
@@ -294,6 +288,7 @@ pub fn harvest_all(mut deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<
                     amount: controller_amount,
                     msg: to_binary(&GovCw20HookMsg::stake_tokens {
                         staker_addr: Some(deps.api.addr_humanize(&config.controller)?.to_string()),
+                        days: None,
                     })?,
                 })?,
                 funds: vec![],

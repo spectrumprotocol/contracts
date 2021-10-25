@@ -3,23 +3,11 @@
   "title": "ConfigInfo",
   "type": "object",
   "required": [
-    "lock_end",
-    "lock_start",
     "owner",
     "spectrum_gov",
     "spectrum_token"
   ],
   "properties": {
-    "lock_end": {
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
-    },
-    "lock_start": {
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
-    },
     "owner": {
       "type": "string"
     },

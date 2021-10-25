@@ -25,7 +25,6 @@
     "RewardInfoResponseItem": {
       "type": "object",
       "required": [
-        "accum_spec_share",
         "asset_token",
         "auto_bond_amount",
         "auto_bond_share",
@@ -33,8 +32,6 @@
         "bond_amount",
         "farm_share",
         "farm_share_index",
-        "locked_spec_reward",
-        "locked_spec_share",
         "pending_farm_reward",
         "pending_spec_reward",
         "spec_share",
@@ -43,9 +40,6 @@
         "stake_spec_share_index"
       ],
       "properties": {
-        "accum_spec_share": {
-          "$ref": "#/definitions/Uint128"
-        },
         "asset_token": {
           "type": "string"
         },
@@ -66,12 +60,6 @@
         },
         "farm_share_index": {
           "$ref": "#/definitions/Decimal"
-        },
-        "locked_spec_reward": {
-          "$ref": "#/definitions/Uint128"
-        },
-        "locked_spec_share": {
-          "$ref": "#/definitions/Uint128"
         },
         "pending_farm_reward": {
           "$ref": "#/definitions/Uint128"

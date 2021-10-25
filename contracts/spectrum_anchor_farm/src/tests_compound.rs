@@ -59,9 +59,6 @@ pub struct RewardInfoResponseItem {
     pub stake_bond_share: Uint128,
     pub pending_farm_reward: Uint128,
     pub pending_spec_reward: Uint128,
-    pub accum_spec_share: Uint128,
-    pub locked_spec_share: Uint128,
-    pub locked_spec_reward: Uint128,
 }
 
 #[test]
@@ -134,8 +131,6 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         platform_fee: Decimal::zero(),
         controller_fee: Decimal::zero(),
         deposit_fee: Decimal::zero(),
-        lock_start: 0u64,
-        lock_end: 0u64,
     };
 
     // success init
@@ -157,6 +152,8 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
             total_farm_share: Uint128::zero(),
             total_weight: 0u32,
             spec_share_index: Decimal::zero(),
+            earning: Uint128::zero(),
+            earning_spec: Uint128::zero(),
         }
     );
 
@@ -194,7 +191,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
         asset_token: ANC_TOKEN.to_string(),
         staking_token: ANC_LP.to_string(),
         weight: 1u32,
-        auto_compound: true,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
@@ -214,7 +210,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
                 asset_token: ANC_TOKEN.to_string(),
                 staking_token: ANC_LP.to_string(),
                 weight: 1u32,
-                auto_compound: true,
                 farm_share: Uint128::zero(),
                 state_spec_share_index: Decimal::zero(),
                 stake_spec_share_index: Decimal::zero(),
@@ -233,7 +228,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
         asset_token: FAIL_TOKEN.to_string(),
         staking_token: FAIL_LP.to_string(),
         weight: 2u32,
-        auto_compound: true,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_err());
@@ -258,7 +252,7 @@ fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
     let env = mock_env();
     let info = mock_info(TEST_CONTROLLER, &[]);
     let msg = ExecuteMsg::compound {};
-    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
+    let res = execute(deps.as_mut(), env, info, msg).unwrap();
 
     assert_eq!(
         res.messages
@@ -270,50 +264,6 @@ fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                 contract_addr: ANC_STAKING.to_string(),
                 funds: vec![],
                 msg: to_binary(&AnchorStakingExecuteMsg::Withdraw {}).unwrap(),
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: ANC_TOKEN.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-                    spender: ANC_POOL.to_string(),
-                    amount: Uint128::zero(),
-                    expires: None,
-                })
-                .unwrap(),
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: ANC_POOL.to_string(),
-                msg: to_binary(&TerraswapExecuteMsg::ProvideLiquidity {
-                    assets: [
-                        Asset {
-                            info: AssetInfo::Token {
-                                contract_addr: ANC_TOKEN.to_string(),
-                            },
-                            amount: Uint128::zero(),
-                        },
-                        Asset {
-                            info: AssetInfo::NativeToken {
-                                denom: "uusd".to_string(),
-                            },
-                            amount: Uint128::zero(),
-                        },
-                    ],
-                    slippage_tolerance: None,
-                    receiver: None
-                })
-                .unwrap(),
-                funds: vec![Coin {
-                    denom: "uusd".to_string(),
-                    amount: Uint128::zero(),
-                }],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: env.contract.address.to_string(),
-                msg: to_binary(&ExecuteMsg::stake {
-                    asset_token: ANC_TOKEN.to_string(),
-                })
-                .unwrap(),
-                funds: vec![],
             }),
         ]
     );
@@ -485,7 +435,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             bond_amount: Uint128::from(10000u128),
             auto_bond_amount: Uint128::from(6000u128),
             stake_bond_amount: Uint128::from(4000u128),
-            accum_spec_share: Uint128::from(2700u128),
             farm_share_index: Decimal::zero(),
             auto_spec_share_index: Decimal::zero(),
             stake_spec_share_index: Decimal::zero(),
@@ -493,8 +442,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             spec_share: Uint128::from(2700u128),
             auto_bond_share: Uint128::from(6000u128),
             stake_bond_share: Uint128::from(4000u128),
-            locked_spec_share: Uint128::zero(),
-            locked_spec_reward: Uint128::zero(),
         },]
     );
 
@@ -534,7 +481,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     );
 
     // withdraw rewards
-    let msg = ExecuteMsg::withdraw { asset_token: None };
+    let msg = ExecuteMsg::withdraw { asset_token: None, spec_amount: None, farm_amount: None };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
     assert_eq!(
@@ -549,6 +496,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 funds: vec![],
                 msg: to_binary(&GovExecuteMsg::withdraw {
                     amount: Some(Uint128::from(2700u128)),
+                    days: None,
                 })
                 .unwrap(),
             }),
@@ -619,7 +567,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             bond_amount: Uint128::from(7000u128),
             auto_bond_amount: Uint128::from(4200u128),
             stake_bond_amount: Uint128::from(2800u128),
-            accum_spec_share: Uint128::from(2700u128),
             farm_share_index: Decimal::from_ratio(125u128, 1000u128),
             auto_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
             stake_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
@@ -627,8 +574,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             spec_share: Uint128::from(0u128),
             auto_bond_share: Uint128::from(4200u128),
             stake_bond_share: Uint128::from(2800u128),
-            locked_spec_share: Uint128::zero(),
-            locked_spec_reward: Uint128::zero(),
         },]
     );
 
@@ -710,7 +655,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             bond_amount: Uint128::from(7000u128),
             auto_bond_amount: Uint128::from(4200u128),
             stake_bond_amount: Uint128::from(2800u128),
-            accum_spec_share: Uint128::from(3282u128),
             farm_share_index: Decimal::from_ratio(125u128, 1000u128),
             auto_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
             stake_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
@@ -718,8 +662,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             spec_share: Uint128::from(582u128),
             auto_bond_share: Uint128::from(4200u128),
             stake_bond_share: Uint128::from(2800u128),
-            locked_spec_share: Uint128::zero(),
-            locked_spec_reward: Uint128::zero(),
         },]
     );
 
@@ -737,7 +679,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             bond_amount: Uint128::from(5000u128),
             auto_bond_amount: Uint128::from(0u128),
             stake_bond_amount: Uint128::from(5000u128),
-            accum_spec_share: Uint128::from(416u128),
             farm_share_index: Decimal::from_ratio(125u128, 1000u128),
             auto_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
             stake_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
@@ -745,8 +686,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             spec_share: Uint128::from(416u128),
             auto_bond_share: Uint128::from(0u128),
             stake_bond_share: Uint128::from(5000u128),
-            locked_spec_share: Uint128::zero(),
-            locked_spec_reward: Uint128::zero(),
         },]
     );
 }
@@ -898,7 +837,6 @@ fn test_compound_anc(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
             bond_amount: Uint128::from(7100u128),
             auto_bond_amount: Uint128::from(4300u128),
             stake_bond_amount: Uint128::from(2800u128),
-            accum_spec_share: Uint128::from(3286u128),
             farm_share_index: Decimal::from_ratio(125u128, 1000u128),
             auto_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
             stake_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
@@ -906,8 +844,6 @@ fn test_compound_anc(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
             spec_share: Uint128::from(586u128),
             auto_bond_share: Uint128::from(4200u128),
             stake_bond_share: Uint128::from(2800u128),
-            locked_spec_share: Uint128::zero(),
-            locked_spec_reward: Uint128::zero(),
         },]
     );
 
@@ -925,7 +861,6 @@ fn test_compound_anc(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
             bond_amount: Uint128::from(5000u128),
             auto_bond_amount: Uint128::from(0u128),
             stake_bond_amount: Uint128::from(5000u128),
-            accum_spec_share: Uint128::from(413u128),
             farm_share_index: Decimal::from_ratio(125u128, 1000u128),
             auto_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
             stake_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
@@ -933,8 +868,6 @@ fn test_compound_anc(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
             spec_share: Uint128::from(413u128),
             auto_bond_share: Uint128::from(0u128),
             stake_bond_share: Uint128::from(5000u128),
-            locked_spec_share: Uint128::zero(),
-            locked_spec_reward: Uint128::zero(),
         },]
     );
 }
@@ -1058,6 +991,7 @@ fn test_compound_anc_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMo
                     amount: Uint128::from(118u128),
                     msg: to_binary(&GovCw20HookMsg::stake_tokens {
                         staker_addr: Some(SPEC_PLATFORM.to_string()),
+                        days: None,
                     })
                     .unwrap()
                 })
@@ -1071,6 +1005,7 @@ fn test_compound_anc_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMo
                     amount: Uint128::from(118u128),
                     msg: to_binary(&GovCw20HookMsg::stake_tokens {
                         staker_addr: Some(TEST_CONTROLLER.to_string()),
+                        days: None,
                     })
                     .unwrap()
                 })

@@ -515,6 +515,7 @@ fn update_config(
     Ok(Response::new().add_attributes(vec![attr("action", "update_config")]))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn zap_to_unbond(
     deps: DepsMut,
     env: Env,
@@ -542,7 +543,7 @@ fn zap_to_unbond(
     let asset_infos = [target_asset.clone(), sell_asset.clone()];
     let terraswap_pair = query_pair_info(&deps.querier, terraswap_factory, &asset_infos)?;
 
-    if terraswap_pair.liquidity_token != info.sender.to_string() {
+    if terraswap_pair.liquidity_token != info.sender {
         return Err(StdError::generic_err("invalid lp token"));
     }
 
@@ -587,6 +588,7 @@ fn zap_to_unbond(
     ]))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn zap_to_unbond_hook(
     deps: DepsMut,
     env: Env,

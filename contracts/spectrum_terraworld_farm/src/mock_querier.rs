@@ -1,4 +1,5 @@
 #![allow(non_camel_case_types)]
+#![allow(clippy::type_complexity)]
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -12,11 +13,9 @@ use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrap
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
 use terraswap::pair::SimulationResponse;
 
-use terraworld_token::gov::{StakerInfoResponse as TerraworldGovStakerInfoResponse};
+
 use terraworld_token::staking::{StakerInfoResponse as TerraworldStakerInfoResponse};
 use spectrum_protocol::gov::BalanceResponse as SpecBalanceResponse;
-
-const TWD_STAKING: &str = "twd_staking";
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
@@ -180,7 +179,7 @@ impl WasmMockQuerier {
                 }
             }
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
-                match from_binary(&msg).unwrap() {
+                match from_binary(msg).unwrap() {
                     MockQueryMsg::balance { address } => {
                         let balance = self.read_token_balance(contract_addr, address);
                         SystemResult::Ok(ContractResult::from(to_binary(&SpecBalanceResponse {
@@ -188,11 +187,12 @@ impl WasmMockQuerier {
                             share: balance
                                 .multiply_ratio(100u128, self.token_querier.balance_percent),
                             locked_balance: vec![],
+                            pools: vec![],
                         })))
                     }
                     MockQueryMsg::StakerInfo {
                         staker,
-                        block_height,
+                        block_height: _,
                     } => {
                         let balance = self.read_token_balance(contract_addr, staker.clone());
                         SystemResult::Ok(ContractResult::from(to_binary(

@@ -22,7 +22,6 @@
       "type": "object",
       "required": [
         "asset_token",
-        "auto_compound",
         "auto_spec_share_index",
         "farm_share",
         "farm_share_index",
@@ -38,9 +37,6 @@
       "properties": {
         "asset_token": {
           "type": "string"
-        },
-        "auto_compound": {
-          "type": "boolean"
         },
         "auto_spec_share_index": {
           "$ref": "#/definitions/Decimal"
