@@ -437,6 +437,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "nexus-token"
+version = "1.0.0"
+dependencies = [
+ "cosmwasm-std",
+ "cw20",
+ "schemars",
+ "serde",
+ "terraswap",
+]
+
+[[package]]
 name = "opaque-debug"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -644,6 +655,22 @@ dependencies = [
  "cosmwasm-storage",
  "cw20",
  "mirror-protocol",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
+ "terraswap",
+]
+
+[[package]]
+name = "spectrum-nexus-farm"
+version = "0.2.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "nexus-token",
  "schemars",
  "serde",
  "spectrum-protocol",
