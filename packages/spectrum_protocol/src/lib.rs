@@ -10,3 +10,4 @@ pub mod staker;
 pub mod wallet;
 pub mod anchor_farm;
 pub mod pylon_farm;
+pub mod terraworld_farm;
