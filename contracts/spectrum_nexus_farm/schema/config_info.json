@@ -11,12 +11,12 @@
     "owner",
     "platform",
     "platform_fee",
+    "nexus_gov",
+    "nexus_staking",
+    "nexus_token",
     "spectrum_gov",
     "spectrum_token",
-    "terraswap_factory",
-    "valkyrie_gov",
-    "valkyrie_staking",
-    "valkyrie_token"
+    "terraswap_factory"
   ],
   "properties": {
     "base_denom": {
@@ -43,6 +43,15 @@
     "platform_fee": {
       "$ref": "#/definitions/Decimal"
     },
+    "nexus_gov": {
+      "type": "string"
+    },
+    "nexus_staking": {
+      "type": "string"
+    },
+    "nexus_token": {
+      "type": "string"
+    },
     "spectrum_gov": {
       "type": "string"
     },
@@ -50,15 +59,6 @@
       "type": "string"
     },
     "terraswap_factory": {
-      "type": "string"
-    },
-    "valkyrie_gov": {
-      "type": "string"
-    },
-    "valkyrie_staking": {
-      "type": "string"
-    },
-    "valkyrie_token": {
       "type": "string"
     }
   },
