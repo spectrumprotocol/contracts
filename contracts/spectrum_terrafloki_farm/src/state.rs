@@ -81,6 +81,8 @@ pub struct PoolInfo {
     pub auto_spec_share_index: Decimal,
     pub stake_spec_share_index: Decimal,
     pub reinvest_allowance: Uint128,
+    pub prev_farm2_amount: Uint128,
+    pub farm2_index: Decimal,
 }
 
 impl PoolInfo {
@@ -144,6 +146,8 @@ pub struct RewardInfo {
     pub stake_bond_share: Uint128,
     pub farm_share: Uint128,
     pub spec_share: Uint128,
+    pub farm2_amount: Uint128,
+    pub farm2_index: Decimal,
 }
 
 /// returns a bucket with all rewards owned by this owner (query it by owner)
