@@ -61,7 +61,7 @@ pub struct RewardInfoResponseItem {
     pub pending_spec_reward: Uint128,
 }
 
-// #[test]
+#[test]
 fn test() {
     let mut deps = mock_dependencies(&[]);
     deps.querier.with_balance_percent(100);

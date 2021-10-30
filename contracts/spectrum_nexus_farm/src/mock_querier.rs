@@ -207,6 +207,7 @@ impl WasmMockQuerier {
                         staker,
                         block_height: _,
                     } => {
+                        let contract_addr = &PSI_STAKING.to_string();
                         let balance = self.read_token_balance(contract_addr, staker.clone());
                         SystemResult::Ok(ContractResult::from(to_binary(
                             &NexusStakerInfoResponse {

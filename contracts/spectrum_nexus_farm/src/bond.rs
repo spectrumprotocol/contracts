@@ -80,12 +80,6 @@ pub fn bond(
     amount: Uint128,
     compound_rate: Option<Decimal>,
 ) -> StdResult<Response> {
-
-    // TODO change once farm gov is functional
-    if compound_rate.is_none() || compound_rate.unwrap_or_else(|| Decimal::zero()) != Decimal::one(){
-        return Err(StdError::generic_err("auto-stake is disabled"));
-    }
-
     let staker_addr_raw = deps.api.addr_canonicalize(&sender_addr)?;
     let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
 
@@ -460,8 +454,6 @@ pub fn update_bond(
     amount_to_auto: Uint128,
     amount_to_stake: Uint128,
 ) -> StdResult<Response> {
-    // TODO change once farm gov is functional
-    return Err(StdError::generic_err("update_bond is disabled"));
 
     let config = read_config(deps.storage)?;
 
