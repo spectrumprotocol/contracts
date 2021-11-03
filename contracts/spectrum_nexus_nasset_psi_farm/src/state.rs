@@ -12,6 +12,7 @@ static KEY_CONFIG: &[u8] = b"config";
 pub struct Config {
     pub owner: CanonicalAddr,
     pub terraswap_factory: CanonicalAddr,
+    pub terraswap_router: CanonicalAddr,
     pub spectrum_token: CanonicalAddr,
     pub spectrum_gov: CanonicalAddr,
     pub nexus_token: CanonicalAddr,
@@ -19,7 +20,6 @@ pub struct Config {
     pub nexus_gov: CanonicalAddr,
     pub controller: CanonicalAddr,
     pub platform: CanonicalAddr,
-    pub base_denom: String,
     pub community_fee: Decimal,
     pub platform_fee: Decimal,
     pub controller_fee: Decimal,

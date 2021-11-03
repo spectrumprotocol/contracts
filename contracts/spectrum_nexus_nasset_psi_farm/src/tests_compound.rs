@@ -13,7 +13,7 @@ use nexus_token::staking::ExecuteMsg as NexusStakingExecuteMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use spectrum_protocol::gov::{Cw20HookMsg as GovCw20HookMsg, ExecuteMsg as GovExecuteMsg};
-use spectrum_protocol::nexus_farm::{
+use spectrum_protocol::nexus_nasset_psi_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
 use std::fmt::Debug;

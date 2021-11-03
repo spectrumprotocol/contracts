@@ -14,7 +14,7 @@ use crate::{
 use cw20::Cw20ReceiveMsg;
 use crate::bond::{deposit_spec_reward, query_reward_info, unbond, withdraw, update_bond};
 use crate::state::{pool_info_read, pool_info_store, read_state};
-use spectrum_protocol::nexus_farm::{
+use spectrum_protocol::nexus_nasset_psi_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
 
@@ -44,6 +44,7 @@ pub fn instantiate(
         &Config {
             owner: deps.api.addr_canonicalize(&msg.owner)?,
             terraswap_factory: deps.api.addr_canonicalize(&msg.terraswap_factory)?,
+            terraswap_router: deps.api.addr_canonicalize(&msg.terraswap_router)?,
             spectrum_token: deps.api.addr_canonicalize(&msg.spectrum_token)?,
             spectrum_gov: deps.api.addr_canonicalize(&msg.spectrum_gov)?,
             nexus_token: deps.api.addr_canonicalize(&msg.nexus_token)?,
@@ -51,7 +52,6 @@ pub fn instantiate(
             nexus_gov: deps.api.addr_canonicalize(&msg.nexus_gov)?,
             platform: deps.api.addr_canonicalize(&msg.platform)?,
             controller: deps.api.addr_canonicalize(&msg.controller)?,
-            base_denom: msg.base_denom,
             community_fee: msg.community_fee,
             platform_fee: msg.platform_fee,
             controller_fee: msg.controller_fee,
@@ -263,6 +263,10 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
             .api
             .addr_humanize(&config.terraswap_factory)?
             .to_string(),
+        terraswap_router: deps
+            .api
+            .addr_humanize(&config.terraswap_router)?
+            .to_string(),
         spectrum_token: deps.api.addr_humanize(&config.spectrum_token)?.to_string(),
         nexus_token: deps.api.addr_humanize(&config.nexus_token)?.to_string(),
         nasset_staking: deps.api.addr_humanize(&config.nasset_staking)?.to_string(),
@@ -270,7 +274,6 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         nexus_gov: deps.api.addr_humanize(&config.nexus_gov)?.to_string(),
         platform: deps.api.addr_humanize(&config.platform)?.to_string(),
         controller: deps.api.addr_humanize(&config.controller)?.to_string(),
-        base_denom: config.base_denom,
         community_fee: config.community_fee,
         platform_fee: config.platform_fee,
         controller_fee: config.controller_fee,

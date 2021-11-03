@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 pub struct ConfigInfo {
     pub owner: String,
     pub terraswap_factory: String,
+    pub terraswap_router: String,
     pub spectrum_token: String,
     pub spectrum_gov: String,
     pub nexus_token: String,
@@ -15,7 +16,6 @@ pub struct ConfigInfo {
     pub nexus_gov: String,
     pub platform: String,
     pub controller: String,
-    pub base_denom: String,
     pub community_fee: Decimal,
     pub platform_fee: Decimal,
     pub controller_fee: Decimal,

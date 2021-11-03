@@ -17,7 +17,7 @@ use spectrum_protocol::gov::{
     BalanceResponse as SpecBalanceResponse, ExecuteMsg as SpecExecuteMsg, QueryMsg as SpecQueryMsg,
 };
 use spectrum_protocol::math::UDec128;
-use spectrum_protocol::nexus_farm::{RewardInfoResponse, RewardInfoResponseItem};
+use spectrum_protocol::nexus_nasset_psi_farm::{RewardInfoResponse, RewardInfoResponseItem};
 
 #[allow(clippy::too_many_arguments)]
 fn bond_internal(
