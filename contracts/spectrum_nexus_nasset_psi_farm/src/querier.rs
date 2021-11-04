@@ -38,7 +38,6 @@ pub fn simulate_swap_operations(
     offer_amount: Uint128
 ) -> StdResult<SimulateSwapOperationsResponse>{
     let config = read_config(deps.storage)?;
-    let uusd = "uusd".to_string();
     let res: SimulateSwapOperationsResponse = 
     deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: config.terraswap_router.to_string(),
@@ -50,12 +49,12 @@ pub fn simulate_swap_operations(
                         contract_addr: config.nexus_token.to_string() 
                     }, 
                     ask_asset_info: AssetInfo::NativeToken{
-                        denom: uusd
+                        denom: config.base_denom.clone(),
                     } 
                 },
                 SwapOperation::TerraSwap{
                     offer_asset_info: AssetInfo::NativeToken{
-                        denom: uusd
+                        denom: config.base_denom.clone(),
                     },
                     ask_asset_info: AssetInfo::Token{
                         contract_addr: config.spectrum_token.to_string() 

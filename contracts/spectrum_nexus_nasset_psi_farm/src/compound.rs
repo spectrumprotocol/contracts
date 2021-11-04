@@ -215,7 +215,6 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         attributes.push(attr("net_commission", net_commission.amount));
         attributes.push(attr("spec_commission", spec_swap_rate.amount));
 
-        let uusd = "uusd".to_string();
         let swap_spec = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: nexus_token.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Send {
@@ -228,12 +227,12 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
                                 contract_addr: config.nexus_token.to_string() 
                             }, 
                             ask_asset_info: AssetInfo::NativeToken{
-                                denom: uusd.clone()
+                                denom: config.base_denom.clone(),
                             } 
                         },
                         SwapOperation::TerraSwap{
                             offer_asset_info: AssetInfo::NativeToken{
-                                denom: uusd.clone()
+                                denom: config.base_denom.clone(),
                             },
                             ask_asset_info: AssetInfo::Token{
                                 contract_addr: config.spectrum_token.to_string() 
