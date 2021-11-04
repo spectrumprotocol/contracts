@@ -184,19 +184,6 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     }
 
     if !total_nasset_commission_amount.is_zero() {
-        let spec_pair_info = query_pair_info(
-            &deps.querier,
-            terraswap_factory,
-            &[
-                AssetInfo::Token {
-                    contract_addr: config.nexus_token.clone().to_string(),
-                },
-                AssetInfo::Token {
-                    contract_addr: spectrum_token.to_string(),
-                },
-            ],
-        )?;
-
         // find SPEC swap rate
         let net_commission = Asset {
             info: AssetInfo::Token {

@@ -74,6 +74,22 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             compound_rate,
             staker_addr,
         ),
+        ExecuteMsg::bond_token_token {
+            contract,
+            assets,
+            slippage_tolerance,
+            compound_rate,
+            staker_addr,
+        } => bond_token_token(
+            deps,
+            env,
+            info,
+            contract,
+            assets,
+            slippage_tolerance,
+            compound_rate,
+            staker_addr,
+        ),
         ExecuteMsg::bond_hook {
             contract,
             asset_token,
@@ -179,6 +195,134 @@ fn receive_cw20(
         Err(_) => Err(StdError::generic_err("data should be given")),
     }
 }
+
+#[allow(clippy::too_many_arguments)]
+fn bond_token_token(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    contract: String,
+    assets: [Asset; 2],
+    slippage_tolerance: Decimal,
+    compound_rate: Option<Decimal>,
+    staker_addr: Option<String>,
+) -> StdResult<Response> {
+    validate_slippage(slippage_tolerance)?;
+
+    let config = read_config(deps.storage)?;
+    let terraswap_factory = deps.api.addr_humanize(&config.terraswap_factory)?;
+    let contract_raw = deps.api.addr_canonicalize(contract.as_str())?;
+
+    validate_contract(contract_raw, config.allowlist)?;
+
+    let mut token_info_base_op: Option<(String, Uint128)> = None;
+    let mut token_info_denom_op: Option<(String, Uint128)> = None;
+    for asset in assets.iter() {
+        match asset.info.clone() {
+            AssetInfo::Token { contract_addr } => {
+                token_info_base_op = Some((contract_addr, asset.amount))
+            }
+            AssetInfo::Token { contract_addr } => {
+                token_info_denom_op = Some((contract_addr, asset.amount))
+            }
+        }
+    }
+
+    // will fail if one of them is missing
+    let (token_base_addr, token_base_amount) = match token_info_base_op {
+        Some(v) => v,
+        None => return Err(StdError::generic_err("Missing base token asset")),
+    };
+    let (token_denom_addr, token_denom_amount) = match token_info_denom_op {
+        Some(v) => v,
+        None => return Err(StdError::generic_err("Missing denom token asset")),
+    };
+
+    // query pair info to obtain pair contract address
+    let asset_infos = [assets[0].info.clone(), assets[1].info.clone()];
+    let terraswap_pair = query_pair_info(&deps.querier, terraswap_factory, &asset_infos)?;
+
+    // get current lp token amount to later compute the received amount
+    let prev_staking_token_amount = query_token_balance(
+        &deps.querier,
+        deps.api.addr_validate(&terraswap_pair.liquidity_token)?,
+        env.contract.address.clone(),
+    )?;
+
+    // 1. Transfer token asset to staking contract
+    // 2. Increase allowance of token for pair contract
+    // 3. Provide liquidity
+    // 4. Execute staking hook, will stake in the name of the sender
+    let staker = staker_addr.unwrap_or_else(|| info.sender.to_string());
+
+    let mut messages: Vec<CosmosMsg> = vec![];
+    if info.sender != env.contract.address {
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: token_base_addr.clone(),
+            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                owner: staker.clone(),
+                recipient: env.contract.address.to_string(),
+                amount: token_base_amount,
+            })?,
+            funds: vec![],
+        }));
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: token_denom_addr.clone(),
+            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                owner: staker.clone(),
+                recipient: env.contract.address.to_string(),
+                amount: token_denom_amount,
+            })?,
+            funds: vec![],
+        }));
+    }
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: token_base_addr.clone(),
+        msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+            spender: terraswap_pair.contract_addr.clone(),
+            amount: token_base_amount,
+            expires: None,
+        })?,
+        funds: vec![],
+    }));
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: token_denom_addr.clone(),
+        msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+            spender: terraswap_pair.contract_addr.clone(),
+            amount: token_denom_amount,
+            expires: None,
+        })?,
+        funds: vec![],
+    }));
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: terraswap_pair.contract_addr,
+        msg: to_binary(&PairExecuteMsg::ProvideLiquidity {
+            assets: [assets[0].clone(), assets[1].clone()],
+            slippage_tolerance: Some(slippage_tolerance),
+            receiver: None,
+        })?,
+        funds: vec![],
+    }));
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: env.contract.address.to_string(),
+        msg: to_binary(&ExecuteMsg::bond_hook {
+            contract,
+            asset_token: token_addr.clone(),
+            staking_token: terraswap_pair.liquidity_token,
+            staker_addr: staker,
+            prev_staking_token_amount,
+            compound_rate,
+        })?,
+        funds: vec![],
+    }));
+
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
+        attr("action", "bond"),
+        attr("asset_token_base", token_base_addr),
+        attr("asset_token_denom", token_denom_addr),
+    ]))
+}
+
 
 #[allow(clippy::too_many_arguments)]
 fn bond(

@@ -21,6 +21,13 @@ pub enum ExecuteMsg {
         compound_rate: Option<Decimal>,
         staker_addr: Option<String>,
     },
+    bond_token_token {
+        contract: String,
+        assets: [Asset; 2],
+        slippage_tolerance: Decimal,
+        compound_rate: Option<Decimal>,
+        staker_addr: Option<String>,
+    },
     bond_hook {
         contract: String,
         asset_token: String,
