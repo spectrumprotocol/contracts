@@ -1,6 +1,10 @@
 use cosmwasm_std::{to_binary, CanonicalAddr, Deps, QueryRequest, StdResult, WasmQuery, Uint128};
 
 use nexus_token::staking::{QueryMsg as NexusStakingQueryMsg, StakerInfoResponse};
+use terraswap::{asset::AssetInfo, router::{Cw20HookMsg as TerraswapRouterCw20HookMsg, QueryMsg as TerraswapRouterQueryMsg, SimulateSwapOperationsResponse, SwapOperation}};
+
+
+use crate::state::read_config;
 
 pub fn query_nexus_reward_info(
     deps: Deps,
@@ -27,4 +31,38 @@ pub fn query_nexus_pool_balance(
 ) -> StdResult<Uint128> {
     let res = query_nexus_reward_info(deps, nasset_staking, staker, Some(time_seconds))?;
     Ok(res.bond_amount)
+}
+
+pub fn simulate_swap_operations(
+    deps: Deps,
+    offer_amount: Uint128
+) -> StdResult<SimulateSwapOperationsResponse>{
+    let config = read_config(deps.storage)?;
+    let uusd = "uusd".to_string();
+    let res: SimulateSwapOperationsResponse = 
+    deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: config.terraswap_router.to_string(),
+        msg: to_binary(&TerraswapRouterQueryMsg::SimulateSwapOperations {
+            offer_amount,
+            operations: vec![
+                SwapOperation::TerraSwap{
+                    offer_asset_info: AssetInfo::Token{
+                        contract_addr: config.nexus_token.to_string() 
+                    }, 
+                    ask_asset_info: AssetInfo::NativeToken{
+                        denom: uusd
+                    } 
+                },
+                SwapOperation::TerraSwap{
+                    offer_asset_info: AssetInfo::NativeToken{
+                        denom: uusd
+                    },
+                    ask_asset_info: AssetInfo::Token{
+                        contract_addr: config.spectrum_token.to_string() 
+                    }, 
+                }
+            ],
+        })?,
+    })).unwrap();
+    Ok(res)
 }

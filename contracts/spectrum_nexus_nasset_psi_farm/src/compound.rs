@@ -1,9 +1,6 @@
 use cosmwasm_std::{Attribute, CanonicalAddr, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult, Uint128, WasmMsg, attr, to_binary};
 
-use crate::{
-    bond::deposit_farm_share,
-    state::{read_config, state_store},
-};
+use crate::{bond::deposit_farm_share, querier::{self, simulate_swap_operations}, state::{read_config, state_store}};
 
 use crate::querier::query_nexus_reward_info;
 
@@ -16,7 +13,7 @@ use nexus_token::staking::{
 };
 use spectrum_protocol::gov::{Cw20HookMsg as GovCw20HookMsg, ExecuteMsg as GovExecuteMsg};
 use spectrum_protocol::nexus_nasset_psi_farm::ExecuteMsg;
-use terraswap::asset::{Asset, AssetInfo};
+use terraswap::{asset::{Asset, AssetInfo}, router::SwapOperation};
 use terraswap::pair::{
     Cw20HookMsg as TerraswapCw20HookMsg, ExecuteMsg as TerraswapExecuteMsg, SimulationResponse,
 };
@@ -57,8 +54,12 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let controller_fee = config.controller_fee;
     let total_fee = community_fee + platform_fee + controller_fee;
 
+    let nasset_token_as_slice  = 
+    pool_info_read(deps.storage).range(None, None, Order::Descending).last().unwrap().unwrap().0;
+    let nasset_token = &CanonicalAddr::from(nasset_token_as_slice.clone());
+
     // calculate auto-compound, auto-Stake, and commission in PSI
-    let mut pool_info = pool_info_read(deps.storage).load(config.nexus_token.as_slice())?;
+    let mut pool_info = pool_info_read(deps.storage).load(&nasset_token_as_slice)?;
     let reward = nexus_reward_info.pending_reward;
     if !reward.is_zero() && !nexus_reward_info.bond_amount.is_zero() {
         let commission = reward * total_fee;
@@ -97,15 +98,12 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     // add commission to reinvest PSI to total swap amount
     total_psi_swap_amount += swap_amount;
 
-    let asset_token_as_slice  = 
-        pool_info_read(deps.storage).range(None, None, Order::Descending).last().unwrap().unwrap().0;
-    let asset_token = &CanonicalAddr::from(asset_token_as_slice);
     let nasset_psi_pair_info = query_pair_info(
         &deps.querier,
         terraswap_factory.clone(),
         &[
             AssetInfo::Token {
-                contract_addr: asset_token.to_string(),
+                contract_addr: nasset_token.to_string(),
             },
             AssetInfo::Token {
                 contract_addr: nexus_token.to_string(),
@@ -125,40 +123,40 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         deps.api.addr_validate(&nasset_psi_pair_info.contract_addr)?,
         &psi,
     )?;
-    let total_psi_return_amount = Asset {
+    let total_nasset_return_amount = Asset {
         info: AssetInfo::Token {
-            contract_addr: asset_token.clone().to_string(),
+            contract_addr: nasset_token.to_string()
         },
         amount: psi_swap_rate.return_amount,
     }.amount;
 
 
-    let total_psi_commission_amount = if total_psi_swap_amount != Uint128::zero() {
-        total_psi_return_amount.multiply_ratio(total_psi_commission, total_psi_swap_amount)
+    let total_nasset_commission_amount = if total_psi_swap_amount != Uint128::zero() {
+        total_nasset_return_amount.multiply_ratio(total_psi_commission, total_psi_swap_amount)
     } else {
         Uint128::zero()
     };
-    let total_psi_reinvest_amount =
-        total_psi_return_amount.checked_sub(total_psi_commission_amount)?;
+    let total_nasset_reinvest_amount =
+        total_nasset_return_amount.checked_sub(total_nasset_commission_amount)?;
 
     let net_reinvest_asset = Asset {
         info: AssetInfo::Token {
-            contract_addr: asset_token.clone().to_string(),
+            contract_addr: config.nexus_token.to_string(),
         },
-        amount: total_psi_reinvest_amount,
+        amount: total_nasset_reinvest_amount,
     };
     let swap_psi_rate = simulate(
         &deps.querier,
         deps.api.addr_validate(&nasset_psi_pair_info.contract_addr)?,
         &net_reinvest_asset,
     )?;
-    // calculate provided PSI from provided UST
-    let provide_psi = swap_psi_rate.return_amount + swap_psi_rate.commission_amount;
+    // calculate provided nAsset from provided PSI
+    let provide_nasset = swap_psi_rate.return_amount + swap_psi_rate.commission_amount;
 
-    pool_info.reinvest_allowance = swap_amount.checked_sub(provide_psi)?;
+    pool_info.reinvest_allowance = swap_amount.checked_sub(provide_nasset)?;
     pool_info_store(deps.storage).save(config.nexus_token.as_slice(), &pool_info)?;
 
-    attributes.push(attr("total_psi_return_amount", total_psi_return_amount));
+    attributes.push(attr("total_nasset_return_amount", total_nasset_return_amount));
 
     let mut messages: Vec<CosmosMsg> = vec![];
     let withdraw_all_psi: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
@@ -185,7 +183,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         messages.push(swap_psi);
     }
 
-    if !total_psi_commission_amount.is_zero() {
+    if !total_nasset_commission_amount.is_zero() {
         let spec_pair_info = query_pair_info(
             &deps.querier,
             terraswap_factory,
@@ -204,31 +202,47 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
             info: AssetInfo::Token {
                 contract_addr: config.nexus_token.clone().to_string(),
             },
-            amount: total_psi_commission_amount,
+            amount: total_nasset_commission_amount,
         };
 
-        // let spec_swap_rate: SimulationResponse = simulate(
-        //     &deps.querier,
-        //     deps.api.addr_validate(&spec_pair_info.contract_addr)?,
-        //     &net_commission,
-        // )?;
-
-        let spec_swap_rate: 
+        let spec_swap_rate: SimulateSwapOperationsResponse = simulate_swap_operations(deps.as_ref(), net_commission.amount)?;    
 
         let mut state = read_state(deps.storage)?;
         state.earning += net_commission.amount;
-        state.earning_spec += spec_swap_rate.return_amount;
+        state.earning_spec += spec_swap_rate.amount;
         state_store(deps.storage).save(&state)?;
 
         attributes.push(attr("net_commission", net_commission.amount));
-        attributes.push(attr("spec_commission", spec_swap_rate.return_amount));
+        attributes.push(attr("spec_commission", spec_swap_rate.amount));
 
+        let uusd = "uusd".to_string();
         let swap_spec = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: config.terraswap_router.clone().to_string(),
-            msg: to_binary(&TerraswapRouterCw20HookMsg::ExecuteSwapOperations {
-                operations: vec![],
-                minimum_receive: None, // Minimum Received = amount from simulation *- slippage tolerance
-                to: None,
+            contract_addr: nexus_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: config.terraswap_router.to_string(),
+                amount: net_commission.amount,
+                msg: to_binary(&TerraswapRouterCw20HookMsg::ExecuteSwapOperations {
+                    operations: vec![
+                        SwapOperation::TerraSwap{
+                            offer_asset_info: AssetInfo::Token{
+                                contract_addr: config.nexus_token.to_string() 
+                            }, 
+                            ask_asset_info: AssetInfo::NativeToken{
+                                denom: uusd.clone()
+                            } 
+                        },
+                        SwapOperation::TerraSwap{
+                            offer_asset_info: AssetInfo::NativeToken{
+                                denom: uusd.clone()
+                            },
+                            ask_asset_info: AssetInfo::Token{
+                                contract_addr: config.spectrum_token.to_string() 
+                            }, 
+                        }
+                    ],
+                    minimum_receive: None, // TODO cleanup Minimum Received = amount from simulation *- slippage tolerance
+                    to: None,
+                })?,
             })?,
             funds: vec![],
         });
@@ -243,7 +257,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
 
         let thousand = Uint128::from(1000u64);
         let community_amount = spec_swap_rate
-            .return_amount
+            .amount
             .multiply_ratio(thousand * community_fee, thousand * total_fee);
         if !community_fee.is_zero() {
             let transfer_community_fee = CosmosMsg::Wasm(WasmMsg::Execute {
@@ -258,7 +272,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         }
 
         let platform_amount = spec_swap_rate
-            .return_amount
+            .amount
             .multiply_ratio(thousand * platform_fee, thousand * total_fee);
         if !platform_fee.is_zero() {
             let stake_platform_fee = CosmosMsg::Wasm(WasmMsg::Execute {
@@ -278,7 +292,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
 
         if !controller_fee.is_zero() {
             let controller_amount = spec_swap_rate
-                .return_amount
+                .amount
                 .checked_sub(community_amount + platform_amount)?;
             let stake_controller_fee = CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: spectrum_token.to_string(),
@@ -309,8 +323,9 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         messages.push(stake_psi);
     }
 
-    if !provide_psi.is_zero() {
-        let increase_allowance = CosmosMsg::Wasm(WasmMsg::Execute {
+    let provide_psi = reward.checked_sub(total_psi_swap_amount)?;
+    if !provide_nasset.is_zero() {
+        let increase_allowance_psi = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: nexus_token.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
                 spender: nasset_psi_pair_info.contract_addr.to_string(),
@@ -319,7 +334,18 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
             })?,
             funds: vec![],
         });
-        messages.push(increase_allowance);
+        messages.push(increase_allowance_psi);
+
+        let increase_allowance_nasset = CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: nasset_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+                spender: nasset_psi_pair_info.contract_addr.to_string(),
+                amount: provide_nasset,
+                expires: None,
+            })?,
+            funds: vec![],
+        });
+        messages.push(increase_allowance_nasset);
 
         let provide_liquidity = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: nasset_psi_pair_info.contract_addr,
@@ -327,31 +353,28 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
                 assets: [
                     Asset {
                         info: AssetInfo::Token {
+                            contract_addr: config.nasset_staking.to_string(),
+                        },
+                        amount: provide_nasset,
+                    },
+                    Asset {
+                        info: AssetInfo::Token {
                             contract_addr: nexus_token.to_string(),
                         },
                         amount: provide_psi,
-                    },
-                    Asset {
-                        info: AssetInfo::NativeToken {
-                            denom: config.base_denom.clone(),
-                        },
-                        amount: net_reinvest_ust,
                     },
                 ],
                 slippage_tolerance: None,
                 receiver: None,
             })?,
-            funds: vec![Coin {
-                denom: config.base_denom,
-                amount: net_reinvest_ust,
-            }],
+            funds: vec![]
         });
         messages.push(provide_liquidity);
 
         let stake = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: env.contract.address.to_string(),
             msg: to_binary(&ExecuteMsg::stake {
-                asset_token: nexus_token.to_string(),
+                asset_token: nasset_token.to_string(),
             })?,
             funds: vec![],
         });
@@ -359,10 +382,10 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     }
 
     attributes.push(attr("action", "compound"));
-    attributes.push(attr("asset_token", nexus_token));
+    attributes.push(attr("nasset_token", nasset_token.to_string()));
     attributes.push(attr("reinvest_allowance", reinvest_allowance));
-    attributes.push(attr("provide_token_amount", provide_psi));
-    attributes.push(attr("provide_ust_amount", net_reinvest_ust));
+    attributes.push(attr("provide_nasset_amount", provide_nasset));
+    attributes.push(attr("provide_psi_amount", provide_psi));
     attributes.push(attr(
         "remaining_reinvest_allowance",
         pool_info.reinvest_allowance,
@@ -391,7 +414,7 @@ pub fn stake(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    asset_token: String,
+    nasset_token: String,
 ) -> StdResult<Response> {
     // only nexus farm contract can execute this message
     if info.sender != env.contract.address {
@@ -399,7 +422,7 @@ pub fn stake(
     }
     let config: Config = read_config(deps.storage)?;
     let nasset_staking = deps.api.addr_humanize(&config.nasset_staking)?;
-    let asset_token_raw: CanonicalAddr = deps.api.addr_canonicalize(&asset_token)?;
+    let asset_token_raw: CanonicalAddr = deps.api.addr_canonicalize(&nasset_token)?;
     let pool_info: PoolInfo = pool_info_read(deps.storage).load(asset_token_raw.as_slice())?;
     let staking_token = deps.api.addr_humanize(&pool_info.staking_token)?;
 
@@ -417,7 +440,7 @@ pub fn stake(
         })])
         .add_attributes(vec![
             attr("action", "stake"),
-            attr("asset_token", asset_token),
+            attr("nasset_token", nasset_token),
             attr("staking_token", staking_token),
             attr("amount", amount),
         ]))

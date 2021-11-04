@@ -20,6 +20,7 @@ pub struct Config {
     pub nexus_gov: CanonicalAddr,
     pub controller: CanonicalAddr,
     pub platform: CanonicalAddr,
+    pub base_denom: String,
     pub community_fee: Decimal,
     pub platform_fee: Decimal,
     pub controller_fee: Decimal,

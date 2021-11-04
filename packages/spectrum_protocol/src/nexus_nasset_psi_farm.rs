@@ -16,6 +16,7 @@ pub struct ConfigInfo {
     pub nexus_gov: String,
     pub platform: String,
     pub controller: String,
+    pub base_denom: String,
     pub community_fee: Decimal,
     pub platform_fee: Decimal,
     pub controller_fee: Decimal,
