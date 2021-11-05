@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::collections::HashSet;
 use std::iter::FromIterator;
 
@@ -215,28 +216,65 @@ fn bond_token_token(
 
     validate_contract(contract_raw, config.allowlist)?;
 
+    let mut native_asset_op: Option<Asset> = None;
     let mut token_info_base_op: Option<(String, Uint128)> = None;
     let mut token_info_denom_op: Option<(String, Uint128)> = None;
     for asset in assets.iter() {
         match asset.info.clone() {
-            AssetInfo::Token { contract_addr } => {
-                token_info_base_op = Some((contract_addr, asset.amount))
+            AssetInfo::NativeToken { .. } => {
+                if info.sender != env.contract.address {
+                    asset.assert_sent_native_token_balance(&info)?;
+                }
+                native_asset_op = Some(asset.clone())
             }
             AssetInfo::Token { contract_addr } => {
-                token_info_denom_op = Some((contract_addr, asset.amount))
+                if token_info_base_op.is_none() {
+                    token_info_base_op = Some((contract_addr.clone(), asset.amount))
+                }
+                if token_info_denom_op.is_none() {
+                    token_info_denom_op = Some((contract_addr.clone(), asset.amount))
+                }
             }
         }
     }
 
-    // will fail if one of them is missing
-    let (token_base_addr, token_base_amount) = match token_info_base_op {
-        Some(v) => v,
-        None => return Err(StdError::generic_err("Missing base token asset")),
-    };
-    let (token_denom_addr, token_denom_amount) = match token_info_denom_op {
-        Some(v) => v,
-        None => return Err(StdError::generic_err("Missing denom token asset")),
-    };
+    let mut native_asset: Asset = Asset { info: AssetInfo:: NativeToken{ denom: "".to_string() }, amount: Default::default() };
+    let mut token_denom_addr: String = "".to_string();
+    let mut token_denom_amount: Uint128 = Default::default();
+    let mut token_base_addr: String = "".to_string();
+    let mut token_base_amount: Uint128 = Default::default();
+    let mut tax_amount: Uint128 = Default::default();
+
+    if native_asset_op.is_none() {
+        match token_info_base_op {
+            Some(ref v) => {
+                token_base_addr = v.clone().0;
+                token_base_amount = v.clone().1;
+            },
+            None => return Err(StdError::generic_err("Missing base token asset")),
+        };
+        match token_info_denom_op {
+            Some(ref v) => {
+                token_denom_addr = v.clone().0;
+                token_denom_amount = v.clone().1;
+            },
+            None => return Err(StdError::generic_err("Missing denom token asset")),
+        };
+    } else {
+        match native_asset_op {
+            Some(ref v) => {
+                native_asset = v.clone();
+            },
+            None => return Err(StdError::generic_err("Missing native asset")),
+        };
+        match token_info_base_op {
+            Some(ref v) => {
+                token_base_addr = v.clone().0;
+                token_base_amount = v.clone().1;
+            },
+            None => return Err(StdError::generic_err("Missing base token asset")),
+        };
+    }
 
     // query pair info to obtain pair contract address
     let asset_infos = [assets[0].info.clone(), assets[1].info.clone()];
@@ -249,6 +287,12 @@ fn bond_token_token(
         env.contract.address.clone(),
     )?;
 
+    // compute tax
+    if native_asset_op.is_some(){
+        tax_amount = native_asset.compute_tax(&deps.querier)?;
+        native_asset.amount = native_asset.amount.checked_sub(tax_amount)?;
+    }
+
     // 1. Transfer token asset to staking contract
     // 2. Increase allowance of token for pair contract
     // 3. Provide liquidity
@@ -257,57 +301,75 @@ fn bond_token_token(
 
     let mut messages: Vec<CosmosMsg> = vec![];
     if info.sender != env.contract.address {
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: token_base_addr.clone(),
-            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                owner: staker.clone(),
-                recipient: env.contract.address.to_string(),
-                amount: token_base_amount,
-            })?,
-            funds: vec![],
-        }));
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: token_denom_addr.clone(),
-            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                owner: staker.clone(),
-                recipient: env.contract.address.to_string(),
-                amount: token_denom_amount,
-            })?,
-            funds: vec![],
-        }));
+        if token_info_base_op.is_some(){
+            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: token_base_addr.clone(),
+                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+                    spender: terraswap_pair.contract_addr.clone(),
+                    amount: token_base_amount,
+                    expires: None,
+                })?,
+                funds: vec![],
+            }));
+            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: token_base_addr.clone(),
+                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                    owner: staker.clone(),
+                    recipient: env.contract.address.to_string(),
+                    amount: token_base_amount,
+                })?,
+                funds: vec![],
+            }));
+        }
+        if token_info_denom_op.is_some() {
+            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: token_denom_addr.clone(),
+                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+                    spender: terraswap_pair.contract_addr.clone(),
+                    amount: token_denom_amount,
+                    expires: None,
+                })?,
+                funds: vec![],
+            }));
+            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: token_denom_addr.clone(),
+                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                    owner: staker.clone(),
+                    recipient: env.contract.address.to_string(),
+                    amount: token_denom_amount,
+                })?,
+                funds: vec![],
+            }));
+        }
     }
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: token_base_addr.clone(),
-        msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-            spender: terraswap_pair.contract_addr.clone(),
-            amount: token_base_amount,
-            expires: None,
-        })?,
-        funds: vec![],
-    }));
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: token_denom_addr.clone(),
-        msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-            spender: terraswap_pair.contract_addr.clone(),
-            amount: token_denom_amount,
-            expires: None,
-        })?,
-        funds: vec![],
-    }));
+
+
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: terraswap_pair.contract_addr,
         msg: to_binary(&PairExecuteMsg::ProvideLiquidity {
-            assets: [assets[0].clone(), assets[1].clone()],
+            assets: if let AssetInfo::NativeToken { .. } = assets[0].info.clone() {
+                [native_asset.clone(), assets[1].clone()]
+            } else if let AssetInfo::NativeToken { .. } = assets[1].info.clone() {
+                [assets[0].clone(), native_asset.clone()]
+            } else {
+                [assets[0].clone(), assets[1].clone()]
+            },
             slippage_tolerance: Some(slippage_tolerance),
             receiver: None,
         })?,
-        funds: vec![],
-    }));
+        funds: if native_asset_op.is_some() {
+            vec![Coin {
+                denom: native_asset.info.to_string(),
+                amount: native_asset.amount,
+            }]
+        } else { vec![]}
+        },
+    ));
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: env.contract.address.to_string(),
         msg: to_binary(&ExecuteMsg::bond_hook {
             contract,
-            asset_token: token_addr.clone(),
+            asset_token: token_base_addr.clone(),
             staking_token: terraswap_pair.liquidity_token,
             staker_addr: staker,
             prev_staking_token_amount,
@@ -318,8 +380,9 @@ fn bond_token_token(
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "bond"),
-        attr("asset_token_base", token_base_addr),
-        attr("asset_token_denom", token_denom_addr),
+        attr("asset_token_base", token_base_addr.clone()),
+        attr("asset_token_denom", token_denom_addr.clone()),
+        attr("tax_amount", tax_amount),
     ]))
 }
 
