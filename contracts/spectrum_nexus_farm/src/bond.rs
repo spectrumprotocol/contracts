@@ -98,7 +98,7 @@ pub fn bond(
 
     let lp_balance = query_nexus_pool_balance(
         deps.as_ref(),
-        &config.nasset_staking,
+        &config.nexus_staking,
         &deps.api.addr_canonicalize(env.contract.address.as_str())?,
         env.block.time.seconds()
     )?;
@@ -116,7 +116,7 @@ pub fn bond(
 
     stake_token(
         deps.api,
-        config.nasset_staking,
+        config.nexus_staking,
         pool_info.staking_token,
         asset_token_raw,
         amount,
@@ -288,13 +288,13 @@ fn increase_bond_amount(
 // stake LP token to Nexus Staking
 fn stake_token(
     api: &dyn Api,
-    nasset_staking: CanonicalAddr,
+    nexus_staking: CanonicalAddr,
     staking_token: CanonicalAddr,
     asset_token: CanonicalAddr,
     amount: Uint128,
 ) -> StdResult<Response> {
     let asset_token = api.addr_humanize(&asset_token)?;
-    let nasset_staking = api.addr_humanize(&nasset_staking)?;
+    let nexus_staking = api.addr_humanize(&nexus_staking)?;
     let staking_token = api.addr_humanize(&staking_token)?;
 
     Ok(Response::new()
@@ -302,7 +302,7 @@ fn stake_token(
             contract_addr: staking_token.to_string(),
             funds: vec![],
             msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: nasset_staking.to_string(),
+                contract: nexus_staking.to_string(),
                 amount,
                 msg: to_binary(&NexusCw20HookMsg::Bond {})?,
             })?,
@@ -405,7 +405,7 @@ pub fn unbond(
 
     let lp_balance = query_nexus_pool_balance(
         deps.as_ref(),
-        &config.nasset_staking,
+        &config.nexus_staking,
         &deps.api.addr_canonicalize(env.contract.address.as_str())?,
         env.block.time.seconds()
     )?;
@@ -422,7 +422,7 @@ pub fn unbond(
     Ok(Response::new()
         .add_messages(vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: deps.api.addr_humanize(&config.nasset_staking)?.to_string(),
+                contract_addr: deps.api.addr_humanize(&config.nexus_staking)?.to_string(),
                 funds: vec![],
                 msg: to_binary(&NexusStakingExecuteMsg::Unbond { amount })?,
             }),
@@ -463,7 +463,7 @@ pub fn update_bond(
     let amount = amount_to_auto + amount_to_stake;
     let lp_balance = query_nexus_pool_balance(
         deps.as_ref(),
-        &config.nasset_staking,
+        &config.nexus_staking,
         &deps.api.addr_canonicalize(env.contract.address.as_str())?,
         env.block.time.seconds()
     )?;
@@ -621,7 +621,7 @@ fn withdraw_reward(
 
     let lp_balance = query_nexus_pool_balance(
         deps.as_ref(),
-        &config.nasset_staking,
+        &config.nexus_staking,
         &state.contract_addr,
         env.block.time.seconds()
     )?;
@@ -788,7 +788,7 @@ fn read_reward_infos(
         }))?;
 
     let lp_balance =
-        query_nexus_pool_balance(deps, &config.nasset_staking, &state.contract_addr, env.block.time.seconds())?;
+        query_nexus_pool_balance(deps, &config.nexus_staking, &state.contract_addr, env.block.time.seconds())?;
 
     let bucket = pool_info_read(deps.storage);
     let reward_infos: Vec<RewardInfoResponseItem> = reward_pair

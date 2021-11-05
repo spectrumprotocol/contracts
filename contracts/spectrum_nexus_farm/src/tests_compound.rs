@@ -122,7 +122,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         spectrum_token: SPEC_TOKEN.to_string(),
         nexus_gov: PSI_GOV.to_string(),
         nexus_token: PSI_TOKEN.to_string(),
-        nasset_staking: PSI_STAKING.to_string(),
+        nexus_staking: PSI_STAKING.to_string(),
         terraswap_factory: TERRA_SWAP.to_string(),
         platform: SPEC_PLATFORM.to_string(),
         controller: TEST_CONTROLLER.to_string(),

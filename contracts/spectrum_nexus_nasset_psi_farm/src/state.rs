@@ -20,7 +20,7 @@ pub struct Config {
     pub nexus_gov: CanonicalAddr,
     pub controller: CanonicalAddr,
     pub platform: CanonicalAddr,
-    pub base_denom: String,
+    pub nasset_token: CanonicalAddr,
     pub community_fee: Decimal,
     pub platform_fee: Decimal,
     pub controller_fee: Decimal,
@@ -80,7 +80,6 @@ pub struct PoolInfo {
     pub farm_share_index: Decimal,
     pub auto_spec_share_index: Decimal,
     pub stake_spec_share_index: Decimal,
-    pub reinvest_allowance: Uint128,
 }
 
 impl PoolInfo {

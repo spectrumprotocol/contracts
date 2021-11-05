@@ -52,7 +52,7 @@ pub fn instantiate(
             nexus_gov: deps.api.addr_canonicalize(&msg.nexus_gov)?,
             platform: deps.api.addr_canonicalize(&msg.platform)?,
             controller: deps.api.addr_canonicalize(&msg.controller)?,
-            base_denom: msg.base_denom,
+            nasset_token: deps.api.addr_canonicalize(&msg.nasset_token)?,
             community_fee: msg.community_fee,
             platform_fee: msg.platform_fee,
             controller_fee: msg.controller_fee,
@@ -231,7 +231,6 @@ fn register_asset(
             state_spec_share_index: state.spec_share_index,
             auto_spec_share_index: Decimal::zero(),
             stake_spec_share_index: Decimal::zero(),
-            reinvest_allowance: Uint128::zero(),
         });
     state.total_weight = state.total_weight + weight - pool_info.weight;
     pool_info.weight = weight;
@@ -275,7 +274,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         nexus_gov: deps.api.addr_humanize(&config.nexus_gov)?.to_string(),
         platform: deps.api.addr_humanize(&config.platform)?.to_string(),
         controller: deps.api.addr_humanize(&config.controller)?.to_string(),
-        base_denom: config.base_denom,
+        nasset_token: deps.api.addr_humanize(&config.nasset_token)?.to_string(),
         community_fee: config.community_fee,
         platform_fee: config.platform_fee,
         controller_fee: config.controller_fee,
@@ -308,7 +307,6 @@ fn query_pools(deps: Deps) -> StdResult<PoolsResponse> {
                 farm_share_index: pool_info.farm_share_index,
                 stake_spec_share_index: pool_info.stake_spec_share_index,
                 auto_spec_share_index: pool_info.auto_spec_share_index,
-                reinvest_allowance: pool_info.reinvest_allowance,
             })
         })
         .collect::<StdResult<Vec<PoolItem>>>()?;

@@ -15,7 +15,7 @@ pub struct Config {
     pub spectrum_token: CanonicalAddr,
     pub spectrum_gov: CanonicalAddr,
     pub nexus_token: CanonicalAddr,
-    pub nasset_staking: CanonicalAddr,
+    pub nexus_staking: CanonicalAddr,
     pub nexus_gov: CanonicalAddr,
     pub controller: CanonicalAddr,
     pub platform: CanonicalAddr,

@@ -16,7 +16,7 @@ pub struct ConfigInfo {
     pub nexus_gov: String,
     pub platform: String,
     pub controller: String,
-    pub base_denom: String,
+    pub nasset_token: String,
     pub community_fee: Decimal,
     pub platform_fee: Decimal,
     pub controller_fee: Decimal,
@@ -102,7 +102,6 @@ pub struct PoolItem {
     pub farm_share_index: Decimal,       // per stake bond share
     pub stake_spec_share_index: Decimal, // per stake bond share
     pub auto_spec_share_index: Decimal,  // per auto bond share
-    pub reinvest_allowance: Uint128,
 }
 
 // We define a custom struct for each query response

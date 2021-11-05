@@ -8,6 +8,7 @@ use cw20::Cw20ReceiveMsg;
 pub struct ConfigInfo {
     pub owner: String,
     pub terraswap_factory: String,
+    pub terraswap_router: String,
     pub allowlist: Vec<String>,
 }
 
@@ -15,13 +16,6 @@ pub struct ConfigInfo {
 pub enum ExecuteMsg {
     receive(Cw20ReceiveMsg),
     bond {
-        contract: String,
-        assets: [Asset; 2],
-        slippage_tolerance: Decimal,
-        compound_rate: Option<Decimal>,
-        staker_addr: Option<String>,
-    },
-    bond_token_token {
         contract: String,
         assets: [Asset; 2],
         slippage_tolerance: Decimal,
@@ -40,17 +34,10 @@ pub enum ExecuteMsg {
         contract: String,
         provide_asset: Asset,
         pair_asset: AssetInfo,
+        pair_asset_b: Option<AssetInfo>,
         belief_price: Option<Decimal>,
+        belief_price_b: Option<Decimal>,
         max_spread: Decimal,
-        compound_rate: Option<Decimal>,
-    },
-    zap_to_bond_hook {
-        contract: String,
-        bond_asset: Asset,
-        asset_token: String,
-        staker_addr: String,
-        prev_asset_token_amount: Uint128,
-        slippage_tolerance: Decimal,
         compound_rate: Option<Decimal>,
     },
     update_config {
@@ -59,10 +46,11 @@ pub enum ExecuteMsg {
     },
     zap_to_unbond_hook {
         staker_addr: String,
-        prev_sell_asset: Asset,
-        prev_target_asset: Asset,
+        prev_asset_a: Asset,
+        prev_asset_b: Asset,
         belief_price: Option<Decimal>,
         max_spread: Decimal,
+        minimum_receive: Option<Uint128>,
     },
 }
 
@@ -73,6 +61,7 @@ pub enum Cw20HookMsg {
         target_asset: AssetInfo,
         belief_price: Option<Decimal>,
         max_spread: Decimal,
+        minimum_receive: Option<Uint128>,
     },
 }
 
@@ -82,4 +71,6 @@ pub enum QueryMsg {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub terraswap_router: String,
+}

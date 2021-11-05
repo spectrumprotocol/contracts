@@ -11,7 +11,7 @@ pub struct ConfigInfo {
     pub spectrum_token: String,
     pub spectrum_gov: String,
     pub nexus_token: String,
-    pub nasset_staking: String,
+    pub nexus_staking: String,
     pub nexus_gov: String,
     pub platform: String,
     pub controller: String,

@@ -505,13 +505,13 @@ fn test_zap_unbond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) 
     // unauthorized
     let msg = ExecuteMsg::zap_to_unbond_hook {
         staker_addr: USER1.to_string(),
-        prev_sell_asset: Asset {
+        prev_asset_a: Asset {
             info: AssetInfo::Token {
                 contract_addr: TOKEN.to_string(),
             },
             amount: Uint128::from(1_000_000u128),
         },
-        prev_target_asset: Asset {
+        prev_asset_b: Asset {
             info: AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
@@ -653,13 +653,13 @@ fn test_zap_unbond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) 
                 contract_addr: env.contract.address.to_string(),
                 msg: to_binary(&ExecuteMsg::zap_to_unbond_hook {
                     staker_addr: USER1.to_string(),
-                    prev_sell_asset: Asset {
+                    prev_asset_a: Asset {
                         amount: Uint128::zero(),
                         info: AssetInfo::Token {
                             contract_addr: TOKEN.to_string(),
                         },
                     },
-                    prev_target_asset: Asset {
+                    prev_asset_b: Asset {
                         amount: Uint128::zero(),
                         info: AssetInfo::NativeToken {
                             denom: "uusd".to_string(),

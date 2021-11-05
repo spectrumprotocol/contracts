@@ -35,7 +35,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     }
 
     let terraswap_factory = deps.api.addr_humanize(&config.terraswap_factory)?;
-    let nasset_staking = deps.api.addr_humanize(&config.nasset_staking)?;
+    let nexus_staking = deps.api.addr_humanize(&config.nexus_staking)?;
     let nexus_token = deps.api.addr_humanize(&config.nexus_token)?;
     let nexus_gov = deps.api.addr_humanize(&config.nexus_gov)?;
     let spectrum_token = deps.api.addr_humanize(&config.spectrum_token)?;
@@ -43,7 +43,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
 
     let nexus_reward_info = query_nexus_reward_info(
         deps.as_ref(),
-        &config.nasset_staking,
+        &config.nexus_staking,
         &deps.api.addr_canonicalize(env.contract.address.as_str())?,
         Some(env.block.time.seconds()),
     )?;
@@ -167,7 +167,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
 
     let mut messages: Vec<CosmosMsg> = vec![];
     let withdraw_all_psi: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: nasset_staking.to_string(),
+        contract_addr: nexus_staking.to_string(),
         funds: vec![],
         msg: to_binary(&NexusStakingExecuteMsg::Withdraw {})?,
     });
@@ -411,7 +411,7 @@ pub fn stake(
         return Err(StdError::generic_err("unauthorized"));
     }
     let config: Config = read_config(deps.storage)?;
-    let nasset_staking = deps.api.addr_humanize(&config.nasset_staking)?;
+    let nexus_staking = deps.api.addr_humanize(&config.nexus_staking)?;
     let asset_token_raw: CanonicalAddr = deps.api.addr_canonicalize(&asset_token)?;
     let pool_info: PoolInfo = pool_info_read(deps.storage).load(asset_token_raw.as_slice())?;
     let staking_token = deps.api.addr_humanize(&pool_info.staking_token)?;
@@ -423,7 +423,7 @@ pub fn stake(
             contract_addr: staking_token.to_string(),
             funds: vec![],
             msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: nasset_staking.to_string(),
+                contract: nexus_staking.to_string(),
                 amount,
                 msg: to_binary(&NexusStakingCw20HookMsg::Bond {})?,
             })?,
