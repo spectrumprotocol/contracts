@@ -10,7 +10,7 @@ use cosmwasm_std::{
 use std::collections::HashMap;
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
-use terraswap::pair::SimulationResponse;
+use terraswap::pair::{PoolResponse, SimulationResponse};
 
 use spectrum_protocol::gov::BalanceResponse as SpecBalanceResponse;
 
@@ -35,6 +35,7 @@ pub struct WasmMockQuerier {
     token_querier: TokenQuerier,
     tax_querier: TaxQuerier,
     terraswap_factory_querier: TerraswapFactoryQuerier,
+    terraswap_pair_querier: TerraswapPairQuerier,
 }
 
 #[derive(Clone, Default)]
@@ -99,10 +100,23 @@ pub struct TerraswapFactoryQuerier {
     pairs: HashMap<String, PairInfo>,
 }
 
+#[derive(Clone, Default)]
+pub struct TerraswapPairQuerier {
+    pools: HashMap<String, PoolResponse>,
+}
+
 impl TerraswapFactoryQuerier {
     pub fn new(pairs: &[(&String, &PairInfo)]) -> Self {
         TerraswapFactoryQuerier {
             pairs: pairs_to_map(pairs),
+        }
+    }
+}
+
+impl TerraswapPairQuerier {
+    pub fn new(pools: &[(&String, &PoolResponse)]) -> Self {
+        TerraswapPairQuerier {
+            pools: pools_to_map(pools),
         }
     }
 }
@@ -113,6 +127,14 @@ pub(crate) fn pairs_to_map(pairs: &[(&String, &PairInfo)]) -> HashMap<String, Pa
         pairs_map.insert(key.to_string(), (*pair).clone());
     }
     pairs_map
+}
+
+pub(crate) fn pools_to_map(pools: &[(&String, &PoolResponse)]) -> HashMap<String, PoolResponse> {
+    let mut pools_map: HashMap<String, PoolResponse> = HashMap::new();
+    for (key, pool) in pools.iter() {
+        pools_map.insert(key.to_string(), (*pool).clone());
+    }
+    pools_map
 }
 
 impl Querier for WasmMockQuerier {
@@ -143,6 +165,7 @@ enum MockQueryMsg {
     Simulation {
         offer_asset: Asset,
     },
+    Pool {},
 }
 
 impl WasmMockQuerier {
@@ -184,7 +207,7 @@ impl WasmMockQuerier {
                             locked_balance: vec![],
                             pools: vec![],
                         })))
-                    }
+                    },
                     MockQueryMsg::Pair { asset_infos } => {
                         let key = asset_infos[0].to_string() + asset_infos[1].to_string().as_str();
                         match self.terraswap_factory_querier.pairs.get(&key) {
@@ -194,7 +217,7 @@ impl WasmMockQuerier {
                                 request: msg.as_slice().into(),
                             }),
                         }
-                    }
+                    },
                     MockQueryMsg::Simulation { offer_asset } => {
                         let commission_amount = offer_asset.amount.multiply_ratio(3u128, 1000u128);
                         let return_amount = offer_asset.amount.checked_sub(commission_amount);
@@ -208,7 +231,16 @@ impl WasmMockQuerier {
                             ))),
                             Err(_e) => SystemResult::Err(SystemError::Unknown {}),
                         }
-                    }
+                    },
+                    MockQueryMsg::Pool {} => {
+                        match self.terraswap_pair_querier.pools.get(contract_addr) {
+                            Some(v) => SystemResult::Ok(ContractResult::from(to_binary(&v))),
+                            None => SystemResult::Err(SystemError::InvalidRequest {
+                                error: "No pair info exists".to_string(),
+                                request: msg.as_slice().into(),
+                            }),
+                        }
+                    },
                 }
             }
             _ => self.base.handle_query(request),
@@ -224,6 +256,7 @@ impl WasmMockQuerier {
             token_querier: TokenQuerier::default(),
             tax_querier: TaxQuerier::default(),
             terraswap_factory_querier: TerraswapFactoryQuerier::default(),
+            terraswap_pair_querier: TerraswapPairQuerier::default(),
         }
     }
 
@@ -254,8 +287,13 @@ impl WasmMockQuerier {
         self.tax_querier = TaxQuerier::new(rate, caps);
     }
 
-    // configure the terraswap pair
-    pub fn with_terraswap_pairs(&mut self, pairs: &[(&String, &PairInfo)]) {
+    // configure the terraswap factory
+    pub fn with_terraswap_factory(&mut self, pairs: &[(&String, &PairInfo)]) {
         self.terraswap_factory_querier = TerraswapFactoryQuerier::new(pairs);
+    }
+
+    // configure the terraswap pair
+    pub fn with_terraswap_pairs(&mut self, pools: &[(&String, &PoolResponse)]) {
+        self.terraswap_pair_querier = TerraswapPairQuerier::new(pools);
     }
 }

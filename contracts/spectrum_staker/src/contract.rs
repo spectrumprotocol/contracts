@@ -1,22 +1,28 @@
+#![allow(clippy::assign_op_pattern)]
+#![allow(clippy::ptr_offset_with_cast)]
+
 use std::collections::HashSet;
 use std::iter::FromIterator;
 
 use crate::state::{config_store, read_config, Config};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    attr, from_binary, to_binary, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg, Decimal, Deps,
-    DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
-};
+use cosmwasm_std::{attr, from_binary, to_binary, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg, QueryRequest, WasmQuery, QuerierWrapper};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use spectrum_protocol::mirror_farm::Cw20HookMsg as MirrorCw20HookMsg;
 use spectrum_protocol::staker::{ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, QueryMsg};
 use terraswap::asset::{Asset, AssetInfo};
-use terraswap::pair::{Cw20HookMsg as PairCw20HookMsg, ExecuteMsg as PairExecuteMsg};
+use terraswap::pair::{Cw20HookMsg as PairCw20HookMsg, ExecuteMsg as PairExecuteMsg, PoolResponse, QueryMsg as PairQueryMsg};
 use terraswap::querier::{query_pair_info, query_token_balance, simulate};
 use terraswap::router::{
     SwapOperation, Cw20HookMsg as TerraswapRouterCw20HookMsg,
 };
+use uint::construct_uint;
+
+construct_uint! {
+	pub struct U256(4);
+}
+
 // max slippage tolerance is 0.5
 fn validate_slippage(slippage_tolerance: Decimal) -> StdResult<()> {
     if slippage_tolerance > Decimal::percent(50) {
@@ -376,6 +382,39 @@ fn bond_hook(
     )
 }
 
+// formula from https://blog.alphafinance.io/byot/
+pub(crate) fn compute_swap_amount(
+    amount_a: Uint128,
+    pool_a: Uint128,
+) -> Uint128 {
+    let amount_a = U256::from(amount_a.u128());
+    let pool_a = U256::from(pool_a.u128());
+
+    let a = U256::from(997u128);
+    let b = U256::from(1997u128) * pool_a;
+    let c = amount_a * U256::from(1000u128) * pool_a;
+    let d = a * c * U256::from(4u128);
+    let e = (b * b + d).integer_sqrt();
+
+    let num = e - b;
+    let denom = a * U256::from(2u128);
+
+    (num / denom).as_u128().into()
+}
+
+fn get_swap_amount(
+    querier: &QuerierWrapper,
+    contract_addr: String,
+    asset: Asset,
+) -> StdResult<Uint128> {
+    let pool: PoolResponse = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr,
+        msg: to_binary(&PairQueryMsg::Pool {})?,
+    }))?;
+    let pool_a = if pool.assets[0].info == asset.info { pool.assets[0].amount } else { pool.assets[1].amount };
+    Ok(compute_swap_amount(asset.amount, pool_a))
+}
+
 #[allow(clippy::too_many_arguments)]
 fn zap_to_bond(
     deps: DepsMut,
@@ -414,10 +453,13 @@ fn zap_to_bond(
     provide_asset.assert_sent_native_token_balance(&info)?;
 
     // if asset b is provided, swap all
+    let terraswap_factory = deps.api.addr_humanize(&config.terraswap_factory)?;
+    let asset_pair_a = [provide_asset.info.clone(), pair_asset_a.clone()];
+    let terraswap_pair_a = query_pair_info(&deps.querier, terraswap_factory.clone(), &asset_pair_a)?;
     let swap_amount = if asset_token_b_op.is_some() {
         provide_asset.amount
     } else {
-        provide_asset.amount.multiply_ratio(1000u128, 1997u128)
+        get_swap_amount(&deps.querier, terraswap_pair_a.contract_addr.clone(), provide_asset.clone())?
     };
     let swap_asset = Asset {
         info: provide_asset.info.clone(),
@@ -434,9 +476,6 @@ fn zap_to_bond(
     };
 
     // swap ust -> A
-    let terraswap_factory = deps.api.addr_humanize(&config.terraswap_factory)?;
-    let asset_pair_a = [provide_asset.info.clone(), pair_asset_a.clone()];
-    let terraswap_pair_a = query_pair_info(&deps.querier, terraswap_factory.clone(), &asset_pair_a)?;
     let simulate_a = simulate(
         &deps.querier,
         deps.api.addr_validate(&terraswap_pair_a.contract_addr)?,
@@ -459,13 +498,17 @@ fn zap_to_bond(
     ];
 
     if let Some(pair_asset_b) = pair_asset_b.clone() {
-        let swap_asset_a = Asset {
-            info: pair_asset_a.clone(),
-            amount: amount_a.multiply_ratio(1000u128, 1997u128),
-        };
-        amount_a = amount_a.checked_sub(swap_asset_a.amount)?;
         let asset_pair_b = [pair_asset_a.clone(), pair_asset_b.clone()];
         let terraswap_pair_b = query_pair_info(&deps.querier, terraswap_factory, &asset_pair_b)?;
+        let swap_asset_a = Asset {
+            info: pair_asset_a.clone(),
+            amount: amount_a,
+        };
+        let swap_asset_a = Asset {
+            info: pair_asset_a.clone(),
+            amount: get_swap_amount(&deps.querier, terraswap_pair_b.contract_addr.clone(), swap_asset_a)?,
+        };
+        amount_a = amount_a.checked_sub(swap_asset_a.amount)?;
         let simulate_b = simulate(
             &deps.querier,
             deps.api.addr_validate(&terraswap_pair_b.contract_addr)?,
@@ -487,28 +530,27 @@ fn zap_to_bond(
     }
 
     let asset_infos = [pair_asset_a, pair_asset_b.unwrap_or_else(|| provide_asset.info.clone())];
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: env.contract.address.to_string(),
+        msg: to_binary(&ExecuteMsg::bond {
+            contract,
+            assets: [
+                Asset {
+                    info: AssetInfo::Token {
+                        contract_addr: asset_token_a,
+                    },
+                    amount: amount_a,
+                },
+                bond_asset,
+            ],
+            slippage_tolerance: max_spread,
+            compound_rate,
+            staker_addr: Some(info.sender.to_string()),
+        })?,
+        funds: vec![],
+    }));
     Ok(Response::new()
-        .add_messages(vec![
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: env.contract.address.to_string(),
-                msg: to_binary(&ExecuteMsg::bond {
-                    contract,
-                    assets: [
-                        Asset {
-                            info: AssetInfo::Token {
-                                contract_addr: asset_token_a,
-                            },
-                            amount: amount_a,
-                        },
-                        bond_asset,
-                    ],
-                    slippage_tolerance: max_spread,
-                    compound_rate,
-                    staker_addr: Some(info.sender.to_string()),
-                })?,
-                funds: vec![],
-            }),
-        ])
+        .add_messages(messages)
         .add_attributes(vec![
             attr("action", "zap_to_bond"),
             attr("asset_token_a", asset_infos[0].to_string()),

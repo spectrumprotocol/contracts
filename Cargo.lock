@@ -763,6 +763,7 @@ dependencies = [
  "spectrum-protocol",
  "terra-cosmwasm",
  "terraswap",
+ "uint",
 ]
 
 [[package]]
