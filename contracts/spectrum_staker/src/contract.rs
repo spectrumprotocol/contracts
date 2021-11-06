@@ -417,13 +417,16 @@ fn zap_to_bond(
     let swap_amount = if asset_token_b_op.is_some() {
         provide_asset.amount
     } else {
-        provide_asset.amount.multiply_ratio(1u128, 2u128)
+        provide_asset.amount.multiply_ratio(1000u128, 1997u128)
     };
     let swap_asset = Asset {
         info: provide_asset.info.clone(),
         amount: swap_amount,
     };
-    let mut bond_asset = swap_asset.clone();
+    let mut bond_asset = Asset {
+        info: provide_asset.info.clone(),
+        amount: provide_asset.amount.checked_sub(swap_asset.amount)?,
+    };
     let tax_amount = swap_asset.compute_tax(&deps.querier)?;
     let swap_asset = Asset {
         info: provide_asset.info.clone(),
