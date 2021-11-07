@@ -459,7 +459,7 @@ fn test_zap_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                         info: AssetInfo::NativeToken {
                             denom: "uusd".to_string(),
                         },
-                        amount: Uint128::from(47794253u128),
+                        amount: Uint128::from(47801096u128),
                     },
                     max_spread: Some(Decimal::percent(1u64)),
                     belief_price: Some(Decimal::from_ratio(1u128, 1u128)),
@@ -468,7 +468,7 @@ fn test_zap_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 .unwrap(),
                 funds: vec![Coin {
                     denom: "uusd".to_string(),
-                    amount: Uint128::from(47794253u128),
+                    amount: Uint128::from(47801096u128),
                 }],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
@@ -480,13 +480,13 @@ fn test_zap_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                             info: AssetInfo::Token {
                                 contract_addr: TOKEN.to_string(),
                             },
-                            amount: Uint128::from(47650871u128),
+                            amount: Uint128::from(47657693u128),
                         },
                         Asset {
                             info: AssetInfo::NativeToken {
                                 denom: "uusd".to_string(),
                             },
-                            amount: Uint128::from(52205747u128),
+                            amount: Uint128::from(52198904u128),
                         },
                     ],
                     staker_addr: Some(USER1.to_string()),

@@ -55,6 +55,11 @@ pub enum ExecuteMsg {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct SimulateZapToBondResponse {
+    pub lp_amount: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum Cw20HookMsg {
     zap_to_unbond {
         sell_asset: AssetInfo,
@@ -68,6 +73,11 @@ pub enum Cw20HookMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum QueryMsg {
     config {},
+    simulate_zap_to_bond {
+        provide_asset: Asset,
+        pair_asset: AssetInfo,
+        pair_asset_b: Option<AssetInfo>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
