@@ -129,7 +129,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
 
     let provide_nasset = psi_swap_rate.return_amount;
 
-    pool_info_store(deps.storage).save(config.nexus_token.as_slice(), &pool_info)?;
+    pool_info_store(deps.storage).save(config.nasset_token.as_slice(), &pool_info)?;
 
     let mut messages: Vec<CosmosMsg> = vec![];
     let withdraw_all_psi: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
