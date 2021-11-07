@@ -682,9 +682,10 @@ fn test_zap_unbond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) 
 
 #[test]
 fn test_get_swap_amount() {
-    let amt_a = Uint128::from(2000u128);
-    let pool_a = Uint128::from(1000000u128);
+    let pool_a = Uint128::from(12000_000000u128);
+    let pool_b = Uint128::from(520_000000u128);
+    let amount_a = Uint128::from(2500_000000u128);
 
-    let swap_a = compute_swap_amount(amt_a, pool_a);
-    assert_eq!(swap_a, Uint128::from(1001u128));
+    let swap_a = compute_swap_amount(amount_a, Uint128::zero(), pool_a, pool_b);
+    assert_eq!(swap_a, Uint128::from(1192_872692u128));
 }

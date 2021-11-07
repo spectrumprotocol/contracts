@@ -382,24 +382,27 @@ fn bond_hook(
     )
 }
 
-// formula from https://blog.alphafinance.io/byot/
 pub(crate) fn compute_swap_amount(
     amount_a: Uint128,
+    amount_b: Uint128,
     pool_a: Uint128,
+    pool_b: Uint128,
 ) -> Uint128 {
     let amount_a = U256::from(amount_a.u128());
+    let amount_b = U256::from(amount_b.u128());
     let pool_a = U256::from(pool_a.u128());
+    let pool_b = U256::from(pool_b.u128());
 
-    let a = U256::from(997u128);
-    let b = U256::from(1997u128) * pool_a;
-    let c = amount_a * U256::from(1000u128) * pool_a;
-    let d = a * c * U256::from(4u128);
-    let e = (b * b + d).integer_sqrt();
+    let pool_ax = amount_a + pool_a;
+    let pool_bx = amount_b + pool_b;
+    let area_ax = pool_ax * pool_b;
+    let area_bx = pool_bx * pool_a;
 
-    let num = e - b;
-    let denom = a * U256::from(2u128);
+    let a = U256::from(9) * area_ax + U256::from(3988000) * area_bx;
+    let b = U256::from(3) * area_ax + area_ax.integer_sqrt() * a.integer_sqrt();
+    let result = b / U256::from(2000) / pool_bx - pool_a;
 
-    (num / denom).as_u128().into()
+    result.as_u128().into()
 }
 
 fn get_swap_amount(
@@ -411,8 +414,12 @@ fn get_swap_amount(
         contract_addr,
         msg: to_binary(&PairQueryMsg::Pool {})?,
     }))?;
-    let pool_a = if pool.assets[0].info == asset.info { pool.assets[0].amount } else { pool.assets[1].amount };
-    Ok(compute_swap_amount(asset.amount, pool_a))
+    let (pool_a, pool_b) = if pool.assets[0].info == asset.info {
+        (pool.assets[0].amount, pool.assets[1].amount)
+    } else {
+        (pool.assets[1].amount, pool.assets[0].amount)
+    };
+    Ok(compute_swap_amount(asset.amount, Uint128::zero(), pool_a, pool_b))
 }
 
 #[allow(clippy::too_many_arguments)]
