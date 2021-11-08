@@ -29,6 +29,8 @@ const NASSET_LP: &str = "nasset_lp";
 const SPY_TOKEN: &str = "spy_token";
 const SPY_LP: &str = "spy_lp";
 const TERRASWAP_ROUTER: &str = "terraswap_router";
+const SPEC_PLATFORM: &str = "spec_platform";
+const TEST_CONTROLLER: &str = "controller";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfoResponse {
@@ -78,8 +80,8 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         nexus_token: NEXUS_TOKEN.to_string(),
         nasset_staking: NASSET_STAKING.to_string(),
         nexus_gov: PSI_GOV.to_string(),
-        platform: TEST_CREATOR.to_string(),
-        controller: TEST_CREATOR.to_string(),
+        platform: SPEC_PLATFORM.to_string(),
+        controller: TEST_CONTROLLER.to_string(),
         nasset_token: NASSET_TOKEN.to_string(),
         community_fee: Decimal::zero(),
         platform_fee: Decimal::zero(),
