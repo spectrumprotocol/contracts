@@ -18,15 +18,17 @@ use std::fmt::Debug;
 const SPEC_GOV: &str = "SPEC_GOV";
 const SPEC_TOKEN: &str = "spec_token";
 const PSI_GOV: &str = "psi_gov";
-const PSI_TOKEN: &str = "psi_token";
-const PSI_STAKING: &str = "psi_staking";
+const NASSET_TOKEN: &str = "nasset_token";
+const NEXUS_TOKEN: &str = "psi_token";
+const NASSET_STAKING: &str = "nasset_staking";
 const TERRA_SWAP: &str = "terra_swap";
 const TEST_CREATOR: &str = "creator";
 const USER1: &str = "user1";
 const USER2: &str = "user2";
-const PSI_LP: &str = "psi_lp";
+const NASSET_LP: &str = "nasset_lp";
 const SPY_TOKEN: &str = "spy_token";
 const SPY_LP: &str = "spy_lp";
+const TERRASWAP_ROUTER: &str = "terraswap_router";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfoResponse {
@@ -69,15 +71,16 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
     let info = mock_info(TEST_CREATOR, &[]);
     let mut config = ConfigInfo {
         owner: TEST_CREATOR.to_string(),
-        spectrum_gov: SPEC_GOV.to_string(),
-        spectrum_token: SPEC_TOKEN.to_string(),
-        nexus_gov: PSI_GOV.to_string(),
-        nexus_token: PSI_TOKEN.to_string(),
-        nasset_staking: PSI_STAKING.to_string(),
         terraswap_factory: TERRA_SWAP.to_string(),
+        terraswap_router: TERRASWAP_ROUTER.to_string(),
+        spectrum_token: SPEC_TOKEN.to_string(),
+        spectrum_gov: SPEC_GOV.to_string(),
+        nexus_token: NEXUS_TOKEN.to_string(),
+        nasset_staking: NASSET_STAKING.to_string(),
+        nexus_gov: PSI_GOV.to_string(),
         platform: TEST_CREATOR.to_string(),
         controller: TEST_CREATOR.to_string(),
-        nasset_token: "uusd".to_string(),
+        nasset_token: NASSET_TOKEN.to_string(),
         community_fee: Decimal::zero(),
         platform_fee: Decimal::zero(),
         controller_fee: Decimal::zero(),
@@ -139,8 +142,8 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
     let msg = ExecuteMsg::register_asset {
-        asset_token: PSI_TOKEN.to_string(),
-        staking_token: PSI_LP.to_string(),
+        asset_token: NASSET_TOKEN.to_string(),
+        staking_token: NASSET_LP.to_string(),
         weight: 1u32,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
@@ -158,8 +161,8 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
         res,
         PoolsResponse {
             pools: vec![PoolItem {
-                asset_token: PSI_TOKEN.to_string(),
-                staking_token: PSI_LP.to_string(),
+                asset_token: NASSET_TOKEN.to_string(),
+                staking_token: NASSET_LP.to_string(),
                 weight: 1u32,
                 farm_share: Uint128::zero(),
                 state_spec_share_index: Decimal::zero(),
@@ -169,7 +172,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
                 total_stake_bond_amount: Uint128::zero(),
                 total_stake_bond_share: Uint128::zero(),
                 total_auto_bond_share: Uint128::zero(),
-                reinvest_allowance: Uint128::zero(),
             }]
         }
     );
@@ -198,7 +200,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         amount: Uint128::from(10000u128),
         msg: to_binary(&Cw20HookMsg::bond {
             staker_addr: None,
-            asset_token: PSI_TOKEN.to_string(),
+            asset_token: NASSET_TOKEN.to_string(),
             compound_rate: Some(Decimal::percent(60)),
         })
         .unwrap(),
@@ -206,8 +208,8 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
 
-    // bond success user1 1000 PSI-LP
-    let info = mock_info(PSI_LP, &[]);
+    // bond success user1 1000 nAsset-LP
+    let info = mock_info(NASSET_LP, &[]);
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
@@ -215,7 +217,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let config = read_config(deps_ref.storage).unwrap();
     let mut state = read_state(deps_ref.storage).unwrap();
     let mut pool_info = pool_info_read(deps_ref.storage)
-        .load(config.nexus_token.as_slice())
+        .load(config.nasset_token.as_slice())
         .unwrap();
     deposit_farm_share(
         deps_ref,
@@ -227,11 +229,11 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     .unwrap();
     state_store(deps.as_mut().storage).save(&state).unwrap();
     pool_info_store(deps.as_mut().storage)
-        .save(config.nexus_token.as_slice(), &pool_info)
+        .save(config.nasset_token.as_slice(), &pool_info)
         .unwrap();
     deps.querier.with_token_balances(&[
         (
-            &PSI_STAKING.to_string(),
+            &NASSET_STAKING.to_string(),
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(10000u128))],
         ),
         (
@@ -253,7 +255,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: PSI_TOKEN.to_string(),
+            asset_token: NASSET_TOKEN.to_string(),
             pending_farm_reward: Uint128::from(1000u128),
             pending_spec_reward: Uint128::from(2700u128),
             bond_amount: Uint128::from(10000u128),
@@ -269,10 +271,10 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         },]
     );
 
-    // unbond 3000 PSI-LP
+    // unbond 3000 nAsset-LP
     let info = mock_info(USER1, &[]);
     let msg = ExecuteMsg::unbond {
-        asset_token: PSI_TOKEN.to_string(),
+        asset_token: NASSET_TOKEN.to_string(),
         amount: Uint128::from(3000u128),
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
@@ -285,7 +287,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             .collect::<Vec<CosmosMsg>>(),
         [
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: PSI_STAKING.to_string(),
+                contract_addr: NASSET_STAKING.to_string(),
                 funds: vec![],
                 msg: to_binary(&NexusStakingExecuteMsg::Unbond {
                     amount: Uint128::from(3000u128),
@@ -293,7 +295,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 .unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: PSI_LP.to_string(),
+                contract_addr: NASSET_LP.to_string(),
                 funds: vec![],
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: USER1.to_string(),
@@ -343,7 +345,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 }).unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: PSI_TOKEN.to_string(),
+                contract_addr: NASSET_TOKEN.to_string(),
                 funds: vec![],
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: USER1.to_string(),
@@ -356,7 +358,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
 
     deps.querier.with_token_balances(&[
         (
-            &PSI_STAKING.to_string(),
+            &NASSET_STAKING.to_string(),
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(7000u128))],
         ),
         (
@@ -386,7 +388,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: PSI_TOKEN.to_string(),
+            asset_token: NASSET_TOKEN.to_string(),
             pending_farm_reward: Uint128::from(0u128),
             pending_spec_reward: Uint128::from(0u128),
             bond_amount: Uint128::from(7000u128),
@@ -402,14 +404,14 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         },]
     );
 
-    // bond user2 5000 PSI-LP auto-stake
-    let info = mock_info(PSI_LP, &[]);
+    // bond user2 5000 nAsset-LP auto-stake
+    let info = mock_info(NASSET_LP, &[]);
     let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
         sender: USER2.to_string(),
         amount: Uint128::from(5000u128),
         msg: to_binary(&Cw20HookMsg::bond {
             staker_addr: None,
-            asset_token: PSI_TOKEN.to_string(),
+            asset_token: NASSET_TOKEN.to_string(),
             compound_rate: None,
         })
         .unwrap(),
@@ -420,7 +422,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let deps_ref = deps.as_ref();
     let mut state = read_state(deps_ref.storage).unwrap();
     let mut pool_info = pool_info_read(deps_ref.storage)
-        .load(config.nexus_token.as_slice())
+        .load(config.nasset_token.as_slice())
         .unwrap();
     deposit_farm_share(
         deps_ref,
@@ -432,11 +434,11 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     .unwrap();
     state_store(deps.as_mut().storage).save(&state).unwrap();
     pool_info_store(deps.as_mut().storage)
-        .save(config.nexus_token.as_slice(), &pool_info)
+        .save(config.nasset_token.as_slice(), &pool_info)
         .unwrap();
     deps.querier.with_token_balances(&[
         (
-            &PSI_STAKING.to_string(),
+            &NASSET_STAKING.to_string(),
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(12000u128))],
         ),
         (
@@ -474,7 +476,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: PSI_TOKEN.to_string(),
+            asset_token: NASSET_TOKEN.to_string(),
             pending_farm_reward: Uint128::from(1794u128),
             pending_spec_reward: Uint128::from(582u128),
             bond_amount: Uint128::from(7000u128),
@@ -498,7 +500,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: PSI_TOKEN.to_string(),
+            asset_token: NASSET_TOKEN.to_string(),
             pending_farm_reward: Uint128::from(3205u128),
             pending_spec_reward: Uint128::from(416u128),
             bond_amount: Uint128::from(5000u128),

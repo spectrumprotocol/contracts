@@ -37,6 +37,7 @@ const FAIL_TOKEN: &str = "fail_token";
 const FAIL_LP: &str = "fail_lp";
 const USER1: &str = "user1";
 const USER2: &str = "user2";
+const TERRASWAP_ROUTER: &str = "terraswap_router";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfoResponse {
@@ -106,7 +107,7 @@ fn test() {
     test_register_asset(&mut deps);
     test_compound_unauthorized(&mut deps);
     test_compound_zero(&mut deps);
-    test_compound_psi_from_allowance(&mut deps);
+    //test_compound_psi_from_allowance(&mut deps);
     test_bond(&mut deps);
     test_compound_psi(&mut deps);
     test_compound_psi_with_fees(&mut deps);
@@ -131,6 +132,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         platform_fee: Decimal::zero(),
         controller_fee: Decimal::zero(),
         deposit_fee: Decimal::zero(),
+        terraswap_router: TERRASWAP_ROUTER.to_string()
     };
 
     // success init
@@ -218,7 +220,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
                 total_stake_bond_amount: Uint128::zero(),
                 total_stake_bond_share: Uint128::zero(),
                 total_auto_bond_share: Uint128::zero(),
-                reinvest_allowance: Uint128::zero(),
             }]
         }
     );
@@ -269,101 +270,101 @@ fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
     );
 }
 
-fn test_compound_psi_from_allowance(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
-    let env = mock_env();
-    let info = mock_info(TEST_CONTROLLER, &[]);
-
-    let asset_token_raw = deps.api.addr_canonicalize(&PSI_TOKEN.to_string()).unwrap();
-    let mut pool_info = pool_info_read(deps.as_ref().storage)
-        .load(asset_token_raw.as_slice())
-        .unwrap();
-    pool_info.reinvest_allowance = Uint128::from(100_000_000u128);
-    pool_info_store(deps.as_mut().storage)
-        .save(asset_token_raw.as_slice(), &pool_info)
-        .unwrap();
-
-    let msg = ExecuteMsg::compound {};
-    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
-
-    let pool_info = pool_info_read(deps.as_ref().storage)
-        .load(asset_token_raw.as_slice())
-        .unwrap();
-
-    assert_eq!(Uint128::from(1_132_243u128), pool_info.reinvest_allowance);
-
-    assert_eq!(
-        res.messages
-            .into_iter()
-            .map(|it| it.msg)
-            .collect::<Vec<CosmosMsg>>(),
-        vec![
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: PSI_STAKING.to_string(),
-                funds: vec![],
-                msg: to_binary(&NexusStakingExecuteMsg::Withdraw {}).unwrap(),
-            }), //ok
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: PSI_TOKEN.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: PSI_POOL.to_string(),
-                    amount: Uint128::from(50_000_000u128),
-                    msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                        max_spread: None,
-                        belief_price: None,
-                        to: None,
-                    })
-                    .unwrap()
-                })
-                .unwrap(),
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: PSI_TOKEN.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-                    spender: PSI_POOL.to_string(),
-                    amount: Uint128::from(48_867_757u128),
-                    expires: None
-                })
-                .unwrap(),
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: PSI_POOL.to_string(),
-                msg: to_binary(&TerraswapExecuteMsg::ProvideLiquidity {
-                    assets: [
-                        Asset {
-                            info: AssetInfo::Token {
-                                contract_addr: PSI_TOKEN.to_string(),
-                            },
-                            amount: Uint128::from(48_867_757u128),
-                        },
-                        Asset {
-                            info: AssetInfo::NativeToken {
-                                denom: "uusd".to_string(),
-                            },
-                            amount: Uint128::from(48_867_757u128),
-                        },
-                    ],
-                    slippage_tolerance: None,
-                    receiver: None
-                })
-                .unwrap(),
-                funds: vec![Coin {
-                    denom: "uusd".to_string(),
-                    amount: Uint128::from(48_867_757u128),
-                }],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: env.contract.address.to_string(),
-                msg: to_binary(&ExecuteMsg::stake {
-                    asset_token: PSI_TOKEN.to_string(),
-                })
-                .unwrap(),
-                funds: vec![],
-            }),
-        ]
-    );
-}
+// fn test_compound_psi_from_allowance(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+//     let env = mock_env();
+//     let info = mock_info(TEST_CONTROLLER, &[]);
+//
+//     let asset_token_raw = deps.api.addr_canonicalize(&PSI_TOKEN.to_string()).unwrap();
+//     let mut pool_info = pool_info_read(deps.as_ref().storage)
+//         .load(asset_token_raw.as_slice())
+//         .unwrap();
+//     pool_info.reinvest_allowance = Uint128::from(100_000_000u128);
+//     pool_info_store(deps.as_mut().storage)
+//         .save(asset_token_raw.as_slice(), &pool_info)
+//         .unwrap();
+//
+//     let msg = ExecuteMsg::compound {};
+//     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
+//
+//     let pool_info = pool_info_read(deps.as_ref().storage)
+//         .load(asset_token_raw.as_slice())
+//         .unwrap();
+//
+//     assert_eq!(Uint128::from(1_132_243u128), pool_info.reinvest_allowance);
+//
+//     assert_eq!(
+//         res.messages
+//             .into_iter()
+//             .map(|it| it.msg)
+//             .collect::<Vec<CosmosMsg>>(),
+//         vec![
+//             CosmosMsg::Wasm(WasmMsg::Execute {
+//                 contract_addr: PSI_STAKING.to_string(),
+//                 funds: vec![],
+//                 msg: to_binary(&NexusStakingExecuteMsg::Withdraw {}).unwrap(),
+//             }), //ok
+//             CosmosMsg::Wasm(WasmMsg::Execute {
+//                 contract_addr: PSI_TOKEN.to_string(),
+//                 msg: to_binary(&Cw20ExecuteMsg::Send {
+//                     contract: PSI_POOL.to_string(),
+//                     amount: Uint128::from(50_000_000u128),
+//                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
+//                         max_spread: None,
+//                         belief_price: None,
+//                         to: None,
+//                     })
+//                     .unwrap()
+//                 })
+//                 .unwrap(),
+//                 funds: vec![],
+//             }),
+//             CosmosMsg::Wasm(WasmMsg::Execute {
+//                 contract_addr: PSI_TOKEN.to_string(),
+//                 msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+//                     spender: PSI_POOL.to_string(),
+//                     amount: Uint128::from(48_867_757u128),
+//                     expires: None
+//                 })
+//                 .unwrap(),
+//                 funds: vec![],
+//             }),
+//             CosmosMsg::Wasm(WasmMsg::Execute {
+//                 contract_addr: PSI_POOL.to_string(),
+//                 msg: to_binary(&TerraswapExecuteMsg::ProvideLiquidity {
+//                     assets: [
+//                         Asset {
+//                             info: AssetInfo::Token {
+//                                 contract_addr: PSI_TOKEN.to_string(),
+//                             },
+//                             amount: Uint128::from(48_867_757u128),
+//                         },
+//                         Asset {
+//                             info: AssetInfo::NativeToken {
+//                                 denom: "uusd".to_string(),
+//                             },
+//                             amount: Uint128::from(48_867_757u128),
+//                         },
+//                     ],
+//                     slippage_tolerance: None,
+//                     receiver: None
+//                 })
+//                 .unwrap(),
+//                 funds: vec![Coin {
+//                     denom: "uusd".to_string(),
+//                     amount: Uint128::from(48_867_757u128),
+//                 }],
+//             }),
+//             CosmosMsg::Wasm(WasmMsg::Execute {
+//                 contract_addr: env.contract.address.to_string(),
+//                 msg: to_binary(&ExecuteMsg::stake {
+//                     asset_token: PSI_TOKEN.to_string(),
+//                 })
+//                 .unwrap(),
+//                 funds: vec![],
+//             }),
+//         ]
+//     );
+// }
 
 fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // bond err
@@ -699,7 +700,6 @@ fn test_compound_psi(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
     let mut pool_info = pool_info_read(deps.as_ref().storage)
         .load(asset_token_raw.as_slice())
         .unwrap();
-    pool_info.reinvest_allowance = Uint128::from(0u128);
     pool_info_store(deps.as_mut().storage)
         .save(asset_token_raw.as_slice(), &pool_info)
         .unwrap();
@@ -722,8 +722,6 @@ fn test_compound_psi(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
     let pool_info = pool_info_read(deps.as_ref().storage)
         .load(asset_token_raw.as_slice())
         .unwrap();
-
-    assert_eq!(Uint128::from(48u128), pool_info.reinvest_allowance);
 
     assert_eq!(
         res.messages
@@ -893,7 +891,6 @@ fn test_compound_psi_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMo
     let mut pool_info = pool_info_read(deps.as_ref().storage)
         .load(asset_token_raw.as_slice())
         .unwrap();
-    pool_info.reinvest_allowance = Uint128::from(0u128);
     pool_info_store(deps.as_mut().storage)
         .save(asset_token_raw.as_slice(), &pool_info)
         .unwrap();
@@ -923,8 +920,6 @@ fn test_compound_psi_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMo
     let pool_info = pool_info_read(deps.as_ref().storage)
         .load(asset_token_raw.as_slice())
         .unwrap();
-
-    assert_eq!(Uint128::from(46u128), pool_info.reinvest_allowance);
 
     assert_eq!(
         res.messages
