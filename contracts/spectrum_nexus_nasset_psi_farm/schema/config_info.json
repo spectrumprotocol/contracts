@@ -3,25 +3,23 @@
   "title": "ConfigInfo",
   "type": "object",
   "required": [
-    "base_denom",
     "community_fee",
     "controller",
     "controller_fee",
     "deposit_fee",
+    "nasset_staking",
+    "nasset_token",
+    "nexus_gov",
+    "nexus_token",
     "owner",
     "platform",
     "platform_fee",
-    "nexus_gov",
-    "nasset_staking",
-    "nexus_token",
     "spectrum_gov",
     "spectrum_token",
-    "terraswap_factory"
+    "terraswap_factory",
+    "terraswap_router"
   ],
   "properties": {
-    "base_denom": {
-      "type": "string"
-    },
     "community_fee": {
       "$ref": "#/definitions/Decimal"
     },
@@ -34,6 +32,18 @@
     "deposit_fee": {
       "$ref": "#/definitions/Decimal"
     },
+    "nasset_staking": {
+      "type": "string"
+    },
+    "nasset_token": {
+      "type": "string"
+    },
+    "nexus_gov": {
+      "type": "string"
+    },
+    "nexus_token": {
+      "type": "string"
+    },
     "owner": {
       "type": "string"
     },
@@ -43,15 +53,6 @@
     "platform_fee": {
       "$ref": "#/definitions/Decimal"
     },
-    "nexus_gov": {
-      "type": "string"
-    },
-    "nasset_staking": {
-      "type": "string"
-    },
-    "nexus_token": {
-      "type": "string"
-    },
     "spectrum_gov": {
       "type": "string"
     },
@@ -59,6 +60,9 @@
       "type": "string"
     },
     "terraswap_factory": {
+      "type": "string"
+    },
+    "terraswap_router": {
       "type": "string"
     }
   },

@@ -134,6 +134,16 @@
                 }
               ]
             },
+            "belief_price_b": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Decimal"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "compound_rate": {
               "anyOf": [
                 {
@@ -153,58 +163,18 @@
             "pair_asset": {
               "$ref": "#/definitions/AssetInfo"
             },
-            "provide_asset": {
-              "$ref": "#/definitions/Asset"
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "zap_to_bond_hook"
-      ],
-      "properties": {
-        "zap_to_bond_hook": {
-          "type": "object",
-          "required": [
-            "asset_token",
-            "bond_asset",
-            "contract",
-            "prev_asset_token_amount",
-            "slippage_tolerance",
-            "staker_addr"
-          ],
-          "properties": {
-            "asset_token": {
-              "type": "string"
-            },
-            "bond_asset": {
-              "$ref": "#/definitions/Asset"
-            },
-            "compound_rate": {
+            "pair_asset_b": {
               "anyOf": [
                 {
-                  "$ref": "#/definitions/Decimal"
+                  "$ref": "#/definitions/AssetInfo"
                 },
                 {
                   "type": "null"
                 }
               ]
             },
-            "contract": {
-              "type": "string"
-            },
-            "prev_asset_token_amount": {
-              "$ref": "#/definitions/Uint128"
-            },
-            "slippage_tolerance": {
-              "$ref": "#/definitions/Decimal"
-            },
-            "staker_addr": {
-              "type": "string"
+            "provide_asset": {
+              "$ref": "#/definitions/Asset"
             }
           }
         }
@@ -253,8 +223,8 @@
           "type": "object",
           "required": [
             "max_spread",
-            "prev_sell_asset",
-            "prev_target_asset",
+            "prev_asset_a",
+            "prev_asset_b",
             "staker_addr"
           ],
           "properties": {
@@ -271,10 +241,20 @@
             "max_spread": {
               "$ref": "#/definitions/Decimal"
             },
-            "prev_sell_asset": {
+            "minimum_receive": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Uint128"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "prev_asset_a": {
               "$ref": "#/definitions/Asset"
             },
-            "prev_target_asset": {
+            "prev_asset_b": {
               "$ref": "#/definitions/Asset"
             },
             "staker_addr": {
