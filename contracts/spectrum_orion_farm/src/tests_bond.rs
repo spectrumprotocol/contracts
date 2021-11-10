@@ -226,7 +226,8 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         staker: ORION_FARM_CONTRACT.to_string(),
         reward_index: Default::default(),
         bond_amount: gov_bond_amount,
-        pending_reward: Default::default()
+        pending_reward: Default::default(),
+        orders: vec![],
     };
     deposit_farm_share(
         &staked,
