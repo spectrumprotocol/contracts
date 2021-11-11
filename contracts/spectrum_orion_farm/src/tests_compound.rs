@@ -1,4 +1,3 @@
-use crate::bond::deposit_farm_share;
 use crate::contract::{execute, instantiate, query};
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
 use crate::state::{pool_info_read, pool_info_store, read_config, read_state, state_store};
@@ -7,8 +6,6 @@ use cosmwasm_std::{
     from_binary, to_binary, Api, Coin, CosmosMsg, Decimal, OwnedDeps, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use orion_token::governance::{AnyoneMsg, Cw20HookMsg as OrionGovCw20HookMsg};
-use orion_token::governance::ExecuteMsg as OrionGovExecuteMsg;
 use orion::lp_staking::ExecuteMsg as OrionStakingExecuteMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -25,7 +22,6 @@ const SPEC_PLATFORM: &str = "spec_platform";
 const SPEC_TOKEN: &str = "spec_token";
 const SPEC_LP: &str = "spec_lp";
 const SPEC_POOL: &str = "spec_pool";
-const ORION_GOV: &str = "orion_gov";
 const ORION_TOKEN: &str = "orion_token";
 const ORION_STAKING: &str = "orion_staking";
 const ORION_LP: &str = "orion_lp";
@@ -120,7 +116,6 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         owner: TEST_CREATOR.to_string(),
         spectrum_gov: SPEC_GOV.to_string(),
         spectrum_token: SPEC_TOKEN.to_string(),
-        orion_gov: ORION_GOV.to_string(),
         orion_token: ORION_TOKEN.to_string(),
         orion_staking: ORION_STAKING.to_string(),
         terraswap_factory: TERRA_SWAP.to_string(),
@@ -263,7 +258,7 @@ fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: ORION_STAKING.to_string(),
                 funds: vec![],
-                msg: to_binary(&OrionStakingExecuteMsg::Withdraw {}).unwrap(),
+                msg: to_binary(&OrionStakingExecuteMsg::Claim {}).unwrap(),
             }),
         ]
     );
@@ -300,7 +295,7 @@ fn test_compound_orion_from_allowance(deps: &mut OwnedDeps<MockStorage, MockApi,
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: ORION_STAKING.to_string(),
                 funds: vec![],
-                msg: to_binary(&OrionStakingExecuteMsg::Withdraw {}).unwrap(),
+                msg: to_binary(&OrionStakingExecuteMsg::Claim {}).unwrap(),
             }), //ok
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: ORION_TOKEN.to_string(),
@@ -389,19 +384,10 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
 
     let deps_ref = deps.as_ref();
     let config = read_config(deps_ref.storage).unwrap();
-    let mut state = read_state(deps_ref.storage).unwrap();
     let mut pool_info = pool_info_read(deps_ref.storage)
         .load(config.orion_token.as_slice())
         .unwrap();
-    deposit_farm_share(
-        deps_ref,
-        &mut state,
-        &mut pool_info,
-        &config,
-        Uint128::from(500u128),
-    )
-    .unwrap();
-    state_store(deps.as_mut().storage).save(&state).unwrap();
+
     pool_info_store(deps.as_mut().storage)
         .save(config.orion_token.as_slice(), &pool_info)
         .unwrap();
@@ -409,10 +395,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         (
             &ORION_STAKING.to_string(),
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(10000u128))],
-        ),
-        (
-            &ORION_GOV.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(1000u128))],
         ),
         (
             &SPEC_GOV.to_string(),
@@ -481,7 +463,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     );
 
     // withdraw rewards
-    let msg = ExecuteMsg::withdraw { asset_token: None, spec_amount: None, farm_amount: None };
+    let msg = ExecuteMsg::withdraw { asset_token: None, spec_amount: None};
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
     assert_eq!(
@@ -508,25 +490,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                     amount: Uint128::from(2700u128),
                 })
                 .unwrap(),
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: ORION_GOV.to_string(),
-                funds: vec![],
-                msg: to_binary(&OrionGovExecuteMsg::Anyone {
-                    anyone_msg: AnyoneMsg::WithdrawVotingTokens {
-                        amount: Some(Uint128::from(1000u128)),
-                    },
-                }).unwrap(),
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: ORION_TOKEN.to_string(),
-                funds: vec![],
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: USER1.to_string(),
-                    amount: Uint128::from(1000u128),
-                })
-                .unwrap(),
-            }),
+            })
         ]
     );
 
@@ -534,10 +498,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         (
             &ORION_STAKING.to_string(),
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(7000u128))],
-        ),
-        (
-            &ORION_GOV.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(0u128))],
         ),
         (
             &SPEC_GOV.to_string(),
@@ -594,19 +554,10 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert!(res.is_ok());
 
     let deps_ref = deps.as_ref();
-    let mut state = read_state(deps_ref.storage).unwrap();
     let mut pool_info = pool_info_read(deps_ref.storage)
         .load(config.orion_token.as_slice())
         .unwrap();
-    deposit_farm_share(
-        deps_ref,
-        &mut state,
-        &mut pool_info,
-        &config,
-        Uint128::from(10000u128),
-    )
-    .unwrap();
-    state_store(deps.as_mut().storage).save(&state).unwrap();
+
     pool_info_store(deps.as_mut().storage)
         .save(config.orion_token.as_slice(), &pool_info)
         .unwrap();
@@ -614,10 +565,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         (
             &ORION_STAKING.to_string(),
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(12000u128))],
-        ),
-        (
-            &ORION_GOV.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(5000u128))],
         ),
         (
             &SPEC_GOV.to_string(),
@@ -734,7 +681,7 @@ fn test_compound_orion(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: ORION_STAKING.to_string(),
                 funds: vec![],
-                msg: to_binary(&OrionStakingExecuteMsg::Withdraw {}).unwrap(),
+                msg: to_binary(&OrionStakingExecuteMsg::Claim {}).unwrap(),
             }), //ok
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: ORION_TOKEN.to_string(),
@@ -747,26 +694,6 @@ fn test_compound_orion(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
                         to: None,
                     })
                     .unwrap()
-                })
-                .unwrap(),
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: ORION_TOKEN.to_string(),
-                funds: vec![],
-                msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: ORION_GOV.to_string(),
-                    amount: Uint128::from(7800u128),
-                    msg: to_binary(&OrionGovCw20HookMsg::StakeVotingTokens {}).unwrap(),
-                })
-                .unwrap(),
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: ORION_TOKEN.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-                    spender: ORION_POOL.to_string(),
-                    amount: Uint128::from(2052u128),
-                    expires: None
                 })
                 .unwrap(),
                 funds: vec![],
@@ -812,10 +739,6 @@ fn test_compound_orion(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
         (
             &ORION_STAKING.to_string(),
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(12100u128))],
-        ),
-        (
-            &ORION_GOV.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(12800u128))],
         ),
         (
             &SPEC_GOV.to_string(),
@@ -935,7 +858,7 @@ fn test_compound_orion_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, Wasm
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: ORION_STAKING.to_string(),
                 funds: vec![],
-                msg: to_binary(&OrionStakingExecuteMsg::Withdraw {}).unwrap(),
+                msg: to_binary(&OrionStakingExecuteMsg::Claim {}).unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: ORION_TOKEN.to_string(),
@@ -1012,16 +935,6 @@ fn test_compound_orion_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, Wasm
                 })
                 .unwrap(),
                 funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: ORION_TOKEN.to_string(),
-                funds: vec![],
-                msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: ORION_GOV.to_string(),
-                    amount: Uint128::from(7410u128),
-                    msg: to_binary(&OrionGovCw20HookMsg::StakeVotingTokens {}).unwrap(),
-                })
-                .unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: ORION_TOKEN.to_string(),

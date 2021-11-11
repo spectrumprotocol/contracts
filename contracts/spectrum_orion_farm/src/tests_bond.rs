@@ -1,11 +1,9 @@
-use crate::bond::deposit_farm_share;
 use crate::contract::{execute, instantiate, query};
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
 use crate::state::{pool_info_read, pool_info_store, read_config, read_state, state_store};
 use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{from_binary, to_binary, CosmosMsg, Decimal, OwnedDeps, Uint128, WasmMsg};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use orion_token::governance::{AnyoneMsg, ExecuteMsg as OrionGovExecuteMsg};
 use orion::lp_staking::ExecuteMsg as OrionStakingExecuteMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -17,7 +15,6 @@ use std::fmt::Debug;
 
 const SPEC_GOV: &str = "SPEC_GOV";
 const SPEC_TOKEN: &str = "spec_token";
-const ORION_GOV: &str = "orion_gov";
 const ORION_TOKEN: &str = "orion_token";
 const ORION_STAKING: &str = "orion_staking";
 const TERRA_SWAP: &str = "terra_swap";
@@ -58,6 +55,7 @@ fn test() {
 
     let _ = test_config(&mut deps);
     test_register_asset(&mut deps);
+    //test_bond_with_compound_rate_non_one
     test_bond(&mut deps);
     // test_deposit_fee(&mut deps);
     // test_staked_reward(&mut deps);
@@ -71,7 +69,6 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         owner: TEST_CREATOR.to_string(),
         spectrum_gov: SPEC_GOV.to_string(),
         spectrum_token: SPEC_TOKEN.to_string(),
-        orion_gov: ORION_GOV.to_string(),
         orion_token: ORION_TOKEN.to_string(),
         orion_staking: ORION_STAKING.to_string(),
         terraswap_factory: TERRA_SWAP.to_string(),
@@ -199,7 +196,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         msg: to_binary(&Cw20HookMsg::bond {
             staker_addr: None,
             asset_token: ORION_TOKEN.to_string(),
-            compound_rate: Some(Decimal::percent(60)),
+            compound_rate: Some(Decimal::percent(100)),
         })
         .unwrap(),
     });
@@ -213,19 +210,10 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
 
     let deps_ref = deps.as_ref();
     let config = read_config(deps_ref.storage).unwrap();
-    let mut state = read_state(deps_ref.storage).unwrap();
     let mut pool_info = pool_info_read(deps_ref.storage)
         .load(config.orion_token.as_slice())
         .unwrap();
-    deposit_farm_share(
-        deps_ref,
-        &mut state,
-        &mut pool_info,
-        &config,
-        Uint128::from(500u128),
-    )
-    .unwrap();
-    state_store(deps.as_mut().storage).save(&state).unwrap();
+
     pool_info_store(deps.as_mut().storage)
         .save(config.orion_token.as_slice(), &pool_info)
         .unwrap();
@@ -233,10 +221,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         (
             &ORION_STAKING.to_string(),
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(10000u128))],
-        ),
-        (
-            &ORION_GOV.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(1000u128))],
         ),
         (
             &SPEC_GOV.to_string(),
@@ -254,18 +238,18 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         res.reward_infos,
         vec![RewardInfoResponseItem {
             asset_token: ORION_TOKEN.to_string(),
-            pending_farm_reward: Uint128::from(1000u128),
+            pending_farm_reward: Uint128::zero(),
             pending_spec_reward: Uint128::from(2700u128),
             bond_amount: Uint128::from(10000u128),
-            auto_bond_amount: Uint128::from(6000u128),
-            stake_bond_amount: Uint128::from(4000u128),
+            auto_bond_amount: Uint128::from(10000u128),
+            stake_bond_amount: Uint128::zero(),
             farm_share_index: Decimal::zero(),
             auto_spec_share_index: Decimal::zero(),
             stake_spec_share_index: Decimal::zero(),
-            farm_share: Uint128::from(500u128),
+            farm_share: Uint128::zero(),
             spec_share: Uint128::from(2700u128),
-            auto_bond_share: Uint128::from(6000u128),
-            stake_bond_share: Uint128::from(4000u128),
+            auto_bond_share: Uint128::from(10000u128),
+            stake_bond_share: Uint128::zero(),
         },]
     );
 
@@ -305,7 +289,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     );
 
     // withdraw rewards
-    let msg = ExecuteMsg::withdraw { asset_token: None, spec_amount: None, farm_amount: None };
+    let msg = ExecuteMsg::withdraw { asset_token: None, spec_amount: None };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
     assert_eq!(
@@ -333,24 +317,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 })
                 .unwrap(),
             }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: ORION_GOV.to_string(),
-                funds: vec![],
-                msg: to_binary(&OrionGovExecuteMsg::Anyone {
-                    anyone_msg: AnyoneMsg::WithdrawVotingTokens {
-                        amount: Some(Uint128::from(1000u128)),
-                    },
-                }).unwrap(),
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: ORION_TOKEN.to_string(),
-                funds: vec![],
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: USER1.to_string(),
-                    amount: Uint128::from(1000u128),
-                })
-                .unwrap(),
-            }),
         ]
     );
 
@@ -358,10 +324,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         (
             &ORION_STAKING.to_string(),
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(7000u128))],
-        ),
-        (
-            &ORION_GOV.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(0u128))],
         ),
         (
             &SPEC_GOV.to_string(),
@@ -390,15 +352,15 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             pending_farm_reward: Uint128::from(0u128),
             pending_spec_reward: Uint128::from(0u128),
             bond_amount: Uint128::from(7000u128),
-            auto_bond_amount: Uint128::from(4200u128),
-            stake_bond_amount: Uint128::from(2800u128),
+            auto_bond_amount: Uint128::from(7000u128),
+            stake_bond_amount: Uint128::zero(),
             farm_share_index: Decimal::from_ratio(125u128, 1000u128),
             auto_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
-            stake_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
+            stake_spec_share_index: Decimal::zero(), //TODO
             farm_share: Uint128::from(0u128),
             spec_share: Uint128::from(0u128),
-            auto_bond_share: Uint128::from(4200u128),
-            stake_bond_share: Uint128::from(2800u128),
+            auto_bond_share: Uint128::from(7000u128),
+            stake_bond_share: Uint128::zero(),
         },]
     );
 
@@ -410,7 +372,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         msg: to_binary(&Cw20HookMsg::bond {
             staker_addr: None,
             asset_token: ORION_TOKEN.to_string(),
-            compound_rate: None,
+            compound_rate: Some(Decimal::one()),
         })
         .unwrap(),
     });
@@ -418,19 +380,10 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert!(res.is_ok());
 
     let deps_ref = deps.as_ref();
-    let mut state = read_state(deps_ref.storage).unwrap();
     let mut pool_info = pool_info_read(deps_ref.storage)
         .load(config.orion_token.as_slice())
         .unwrap();
-    deposit_farm_share(
-        deps_ref,
-        &mut state,
-        &mut pool_info,
-        &config,
-        Uint128::from(10000u128),
-    )
-    .unwrap();
-    state_store(deps.as_mut().storage).save(&state).unwrap();
+
     pool_info_store(deps.as_mut().storage)
         .save(config.orion_token.as_slice(), &pool_info)
         .unwrap();
@@ -438,10 +391,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         (
             &ORION_STAKING.to_string(),
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(12000u128))],
-        ),
-        (
-            &ORION_GOV.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(5000u128))],
         ),
         (
             &SPEC_GOV.to_string(),

@@ -138,12 +138,9 @@ enum MockQueryMsg {
     balance {
         address: String,
     },
-    Staker {
-        address: String,
-    },
     StakerInfo {
         staker: String,
-        block_height: Option<u64>,
+        timestamp: Option<u64>,
     },
     Pair {
         asset_infos: [AssetInfo; 2],
@@ -193,18 +190,9 @@ impl WasmMockQuerier {
                             pools: vec![],
                         })))
                     }
-                    MockQueryMsg::Staker { address } => {
-                        let balance = self.read_token_balance(contract_addr, address);
-                        SystemResult::Ok(ContractResult::from(to_binary(&OrionStakerResponse {
-                            balance,
-                            share: balance
-                                .multiply_ratio(100u128, self.token_querier.balance_percent),
-                            locked_balance: vec![],
-                        })))
-                    }
                     MockQueryMsg::StakerInfo {
                         staker,
-                        block_height: _,
+                        timestamp: _,
                     } => {
                         let contract_addr = &ORION_STAKING.to_string();
                         let balance = self.read_token_balance(contract_addr, staker.clone());
