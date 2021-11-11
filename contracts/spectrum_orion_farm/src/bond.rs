@@ -32,7 +32,7 @@ fn bond_internal(
     let mut state = read_state(deps.storage)?;
 
     // update reward index; before changing share
-    if !pool_info.total_auto_bond_share.is_zero() || !pool_info.total_stake_bond_share.is_zero() {
+    if !pool_info.total_auto_bond_share.is_zero() {
         deposit_spec_reward(deps.as_ref(), &mut state, config, false)?;
         spec_reward_to_pool(&state, &mut pool_info, lp_balance)?;
     }
@@ -167,22 +167,10 @@ fn spec_reward_to_pool(
         return Ok(());
     }
 
-    let share = (UDec128::from(state.spec_share_index) - pool_info.state_spec_share_index.into())
+    let auto_share = (UDec128::from(state.spec_share_index) - pool_info.state_spec_share_index.into())
         * Uint128::from(pool_info.weight as u128);
 
-    // pool_info.total_stake_bond_amount / lp_balance = ratio for auto-stake
-    // now stake_share is additional SPEC rewards for auto-stake
-    let stake_share = share.multiply_ratio(pool_info.total_stake_bond_amount, lp_balance);
-
-    // spec reward to staker is per stake bond share & auto bond share
-    if !stake_share.is_zero() {
-        let stake_share_per_bond = stake_share / pool_info.total_stake_bond_share;
-        pool_info.stake_spec_share_index =
-            pool_info.stake_spec_share_index + stake_share_per_bond.into();
-    }
-
     // auto_share is additional SPEC rewards for auto-compound
-    let auto_share = share - stake_share;
     if !auto_share.is_zero() {
         let auto_share_per_bond = auto_share / pool_info.total_auto_bond_share;
         pool_info.auto_spec_share_index =
@@ -195,18 +183,10 @@ fn spec_reward_to_pool(
 
 // withdraw reward to pending reward
 fn before_share_change(pool_info: &PoolInfo, reward_info: &mut RewardInfo) -> StdResult<()> {
-    let farm_share =
-        (pool_info.farm_share_index - reward_info.farm_share_index) * reward_info.stake_bond_share;
-    reward_info.farm_share += farm_share;
-    reward_info.farm_share_index = pool_info.farm_share_index;
-
-    let stake_spec_share = reward_info.stake_bond_share
-        * (pool_info.stake_spec_share_index - reward_info.stake_spec_share_index);
     let auto_spec_share = reward_info.auto_bond_share
         * (pool_info.auto_spec_share_index - reward_info.auto_spec_share_index);
-    let spec_share = stake_spec_share + auto_spec_share;
-    reward_info.spec_share += spec_share;
-    reward_info.stake_spec_share_index = pool_info.stake_spec_share_index;
+
+    reward_info.spec_share += auto_spec_share;
     reward_info.auto_spec_share_index = pool_info.auto_spec_share_index;
 
     Ok(())
@@ -274,7 +254,7 @@ fn unbond_internal(
     deps: DepsMut,
     staker_addr_raw: CanonicalAddr,
     asset_token_raw: CanonicalAddr,
-    amount: Uint128,
+    auto_bond_amount: Uint128,
     lp_balance: Uint128,
     config: &Config,
 ) -> StdResult<PoolInfo> {
@@ -287,7 +267,7 @@ fn unbond_internal(
         pool_info.calc_user_auto_balance(lp_balance, reward_info.auto_bond_share);
     let user_balance = user_auto_balance;
 
-    if user_balance < amount {
+    if user_balance < auto_bond_amount {
         return Err(StdError::generic_err("Cannot unbond more than bond amount"));
     }
 
@@ -295,13 +275,6 @@ fn unbond_internal(
     deposit_spec_reward(deps.as_ref(), &mut state, config, false)?;
     spec_reward_to_pool(&state, &mut pool_info, lp_balance)?;
     before_share_change(&pool_info, &mut reward_info)?;
-
-    // decrease bond amount
-    let auto_bond_amount = if reward_info.stake_bond_share.is_zero() {
-        amount
-    } else {
-        amount.multiply_ratio(user_auto_balance, user_balance)
-    };
 
     // add 1 to share, otherwise there will always be a fraction
     let mut auto_bond_share = pool_info.calc_auto_bond_share(auto_bond_amount, lp_balance);
