@@ -1,10 +1,9 @@
 use cosmwasm_std::{
-    attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
-    QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
+    attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, Deps, DepsMut, Env,
+    MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
 };
 
 use crate::{
-    bond::deposit_farm_share,
     state::{read_config, state_store},
 };
 
@@ -13,7 +12,9 @@ use crate::querier::query_orion_reward_info;
 use cw20::Cw20ExecuteMsg;
 
 use crate::state::{pool_info_read, pool_info_store, read_state, Config, PoolInfo};
-
+use orion::lp_staking::{
+    Cw20HookMsg as OrionStakingCw20HookMsg, ExecuteMsg as OrionStakingExecuteMsg,
+};
 use spectrum_protocol::gov::{Cw20HookMsg as GovCw20HookMsg, ExecuteMsg as GovExecuteMsg};
 use spectrum_protocol::orion_farm::ExecuteMsg;
 use terraswap::asset::{Asset, AssetInfo};
@@ -21,20 +22,8 @@ use terraswap::pair::{
     Cw20HookMsg as TerraswapCw20HookMsg, ExecuteMsg as TerraswapExecuteMsg, SimulationResponse,
 };
 use terraswap::querier::{query_pair_info, query_token_balance, simulate};
-use orion::orion_staking::{
-    Cw20HookMsg as OrionGovCw20HookMsg, ExecuteMsg as OrionGovExecuteMsg,
-    QueryMsg as OrionGovQueryMsg, StakerInfoResponse as OrionStakerInfoResponse,
-};
-use orion::lp_staking::{
-    Cw20HookMsg as OrionStakingCw20HookMsg, ExecuteMsg as OrionStakingExecuteMsg,
-};
 
-pub fn compound(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    threshold_compound_gov: Uint128,
-) -> StdResult<Response> {
+pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
     let config = read_config(deps.storage)?;
 
     if config.controller != CanonicalAddr::from(vec![])
@@ -46,7 +35,7 @@ pub fn compound(
     let terraswap_factory = deps.api.addr_humanize(&config.terraswap_factory)?;
     let orion_staking = deps.api.addr_humanize(&config.orion_staking)?;
     let orion_token = deps.api.addr_humanize(&config.orion_token)?;
-    let orion_gov = deps.api.addr_humanize(&config.orion_gov)?;
+
     let spectrum_token = deps.api.addr_humanize(&config.spectrum_token)?;
     let spectrum_gov = deps.api.addr_humanize(&config.spectrum_gov)?;
 
@@ -54,47 +43,18 @@ pub fn compound(
         deps.as_ref(),
         &config.orion_staking,
         &deps.api.addr_canonicalize(env.contract.address.as_str())?,
-        Some(env.block.height),
+        Some(env.block.time.seconds()),
     )?;
 
     let mut total_orion_swap_amount = Uint128::zero();
-    let mut total_orion_stake_amount = Uint128::zero();
     let mut total_orion_commission = Uint128::zero();
     let mut compound_amount: Uint128 = Uint128::zero();
 
     let mut attributes: Vec<Attribute> = vec![];
-    let mut messages: Vec<CosmosMsg> = vec![];
-
-    let staked: OrionStakerInfoResponse =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: deps.api.addr_humanize(&config.orion_gov)?.to_string(),
-            msg: to_binary(&OrionGovQueryMsg::StakerInfo {
-                staker: env.contract.address.to_string(),
-                timestamp: Some(env.block.height),
-            })?,
-        }))?;
-
     let community_fee = config.community_fee;
     let platform_fee = config.platform_fee;
     let controller_fee = config.controller_fee;
     let total_fee = community_fee + platform_fee + controller_fee;
-        
-    if staked.pending_reward > threshold_compound_gov {
-        let withdraw_pending_reward_gov: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: deps.api.addr_humanize(&config.orion_gov)?.to_string(),
-            funds: vec![],
-            msg: to_binary(&OrionGovExecuteMsg::Claim {})?,
-        });
-        attributes.push(attr("gov_pending_reward", staked.pending_reward));
-        messages.push(withdraw_pending_reward_gov);
-
-        let reward = staked.pending_reward;
-        let commission = reward * total_fee;
-        let gov_reward = reward.checked_sub(commission)?;
-        total_orion_commission += commission;
-        total_orion_swap_amount += commission;
-        total_orion_stake_amount += gov_reward;
-    }
 
     // calculate auto-compound, auto-Stake, and commission in ORION
     let mut pool_info = pool_info_read(deps.storage).load(config.orion_token.as_slice())?;
@@ -111,16 +71,11 @@ pub fn compound(
             .checked_sub(pool_info.total_stake_bond_amount)?;
         compound_amount =
             orion_amount.multiply_ratio(auto_bond_amount, orion_reward_info.bond_amount);
-        let stake_amount = orion_amount.checked_sub(compound_amount)?;
 
         attributes.push(attr("commission", commission));
         attributes.push(attr("compound_amount", compound_amount));
-        attributes.push(attr("stake_amount", stake_amount));
-
-        total_orion_stake_amount += stake_amount;
     }
     let mut state = read_state(deps.storage)?;
-    deposit_farm_share(&staked, &mut state, &mut pool_info, total_orion_stake_amount)?;
     state_store(deps.storage).save(&state)?;
 
     // get reinvest amount
@@ -196,6 +151,7 @@ pub fn compound(
 
     attributes.push(attr("total_ust_return_amount", total_ust_return_amount));
 
+    let mut messages: Vec<CosmosMsg> = vec![];
     let withdraw_all_orion: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: orion_staking.to_string(),
         funds: vec![],
@@ -337,19 +293,6 @@ pub fn compound(
             });
             messages.push(stake_controller_fee);
         }
-    }
-
-    if !total_orion_stake_amount.is_zero() {
-        let stake_orion = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: orion_token.to_string(),
-            funds: vec![],
-            msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: orion_gov.to_string(),
-                amount: total_orion_stake_amount,
-                msg: to_binary(&OrionGovCw20HookMsg::Bond {})?,
-            })?,
-        });
-        messages.push(stake_orion);
     }
 
     if !provide_orion.is_zero() {

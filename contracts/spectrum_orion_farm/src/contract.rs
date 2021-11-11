@@ -12,8 +12,7 @@ use crate::{
 };
 
 use cw20::Cw20ReceiveMsg;
-
-use crate::bond::{deposit_spec_reward, query_reward_info, unbond, withdraw, update_bond};
+use crate::bond::{deposit_spec_reward, query_reward_info, unbond, withdraw};
 use crate::state::{pool_info_read, pool_info_store, read_state};
 use spectrum_protocol::orion_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
@@ -49,7 +48,6 @@ pub fn instantiate(
             spectrum_gov: deps.api.addr_canonicalize(&msg.spectrum_gov)?,
             orion_token: deps.api.addr_canonicalize(&msg.orion_token)?,
             orion_staking: deps.api.addr_canonicalize(&msg.orion_staking)?,
-            orion_gov: deps.api.addr_canonicalize(&msg.orion_gov)?,
             platform: deps.api.addr_canonicalize(&msg.platform)?,
             controller: deps.api.addr_canonicalize(&msg.controller)?,
             base_denom: msg.base_denom,
@@ -109,10 +107,9 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             asset_token,
             amount,
         } => unbond(deps, env, info, asset_token, amount),
-        ExecuteMsg::withdraw { asset_token, spec_amount, farm_amount } => withdraw(deps, env, info, asset_token, spec_amount, farm_amount),
+        ExecuteMsg::withdraw { asset_token, spec_amount } => withdraw(deps, info, asset_token, spec_amount, env),
         ExecuteMsg::stake { asset_token } => stake(deps, env, info, asset_token),
-        ExecuteMsg::compound { threshold_compound_gov} => compound(deps, env, info, threshold_compound_gov),
-        ExecuteMsg::update_bond { asset_token, amount_to_auto, amount_to_stake } => update_bond(deps, env, info, asset_token, amount_to_auto, amount_to_stake),
+        ExecuteMsg::compound {} => compound(deps, env, info)
     }
 }
 
@@ -245,13 +242,13 @@ fn register_asset(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::config {} => to_binary(&query_config(deps)?),
         QueryMsg::pools {} => to_binary(&query_pools(deps)?),
         QueryMsg::reward_info {
             staker_addr,
-        } => to_binary(&query_reward_info(deps, staker_addr, env)?),
+        } => to_binary(&query_reward_info(deps, staker_addr, _env)?),
         QueryMsg::state {} => to_binary(&query_state(deps)?),
     }
 }
@@ -268,7 +265,6 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         orion_token: deps.api.addr_humanize(&config.orion_token)?.to_string(),
         orion_staking: deps.api.addr_humanize(&config.orion_staking)?.to_string(),
         spectrum_gov: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
-        orion_gov: deps.api.addr_humanize(&config.orion_gov)?.to_string(),
         platform: deps.api.addr_humanize(&config.platform)?.to_string(),
         controller: deps.api.addr_humanize(&config.controller)?.to_string(),
         base_denom: config.base_denom,

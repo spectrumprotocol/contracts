@@ -1,4 +1,7 @@
-use cosmwasm_std::{Api, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Order, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery, attr, to_binary};
+use cosmwasm_std::{
+    attr, to_binary, Api, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Order, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
+};
 
 use crate::state::{
     pool_info_read, pool_info_store, read_config, read_state, rewards_read, rewards_store,
@@ -8,10 +11,6 @@ use crate::state::{
 use cw20::Cw20ExecuteMsg;
 
 use crate::querier::query_orion_pool_balance;
-use orion::orion_staking::{
-    ExecuteMsg as OrionGovExecuteMsg, QueryMsg as OrionGovQueryMsg,
-    StakerInfoResponse as OrionStakerInfoResponse,
-};
 use orion::lp_staking::{Cw20HookMsg as OrionCw20HookMsg, ExecuteMsg as OrionStakingExecuteMsg};
 use spectrum_protocol::gov::{
     BalanceResponse as SpecBalanceResponse, ExecuteMsg as SpecExecuteMsg, QueryMsg as SpecQueryMsg,
@@ -80,6 +79,11 @@ pub fn bond(
     amount: Uint128,
     compound_rate: Option<Decimal>,
 ) -> StdResult<Response> {
+
+    if compound_rate.is_none() || compound_rate.unwrap_or_else(|| Decimal::zero()) != Decimal::one(){
+        return Err(StdError::generic_err("auto-stake is disabled"));
+    }
+
     let staker_addr_raw = deps.api.addr_canonicalize(&sender_addr)?;
     let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
 
@@ -100,7 +104,7 @@ pub fn bond(
         deps.as_ref(),
         &config.orion_staking,
         &deps.api.addr_canonicalize(env.contract.address.as_str())?,
-        Some(env.block.time.seconds())
+        env.block.time.seconds()
     )?;
 
     bond_internal(
@@ -121,27 +125,6 @@ pub fn bond(
         asset_token_raw,
         amount,
     )
-}
-
-pub fn deposit_farm_share(
-    staked: &OrionStakerInfoResponse,
-    state: &mut State,
-    pool_info: &mut PoolInfo,
-    amount: Uint128,
-) -> StdResult<()> {
-
-    let mut new_total_share = Uint128::zero();
-    if !pool_info.total_stake_bond_share.is_zero() {
-        let new_share = state.calc_farm_share(amount, staked.bond_amount);
-        let share_per_bond = Decimal::from_ratio(new_share, pool_info.total_stake_bond_share);
-        pool_info.farm_share_index = pool_info.farm_share_index + share_per_bond;
-        pool_info.farm_share += new_share;
-        new_total_share += new_share;
-    }
-
-    state.total_farm_share += new_total_share;
-
-    Ok(())
 }
 
 pub fn deposit_spec_reward(
@@ -255,12 +238,10 @@ fn increase_bond_amount(
         // calculate deposit fee; split based on auto balance & stake balance
         let deposit_fee = amount * deposit_fee;
         let auto_bond_fee = deposit_fee.multiply_ratio(new_auto_bond_amount, new_balance);
-        let stake_bond_fee = deposit_fee.checked_sub(auto_bond_fee)?;
 
         // calculate amount after fee
         let remaining_amount = amount.checked_sub(deposit_fee)?;
         let auto_bond_amount = remaining_amount.multiply_ratio(amount_to_auto, amount);
-        let stake_bond_amount = remaining_amount.checked_sub(auto_bond_amount)?;
 
         (auto_bond_amount, stake_bond_amount, stake_bond_fee)
     };
@@ -399,7 +380,7 @@ pub fn unbond(
         deps.as_ref(),
         &config.orion_staking,
         &deps.api.addr_canonicalize(env.contract.address.as_str())?,
-        Some(env.block.time.seconds())
+        env.block.time.seconds()
     )?;
 
     let pool_info = unbond_internal(
@@ -438,63 +419,12 @@ pub fn unbond(
         ]))
 }
 
-pub fn update_bond(
-    mut deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    asset_token: String,
-    amount_to_auto: Uint128,
-    amount_to_stake: Uint128,
-) -> StdResult<Response> {
-
-    let config = read_config(deps.storage)?;
-
-    let staker_addr_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
-    let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
-
-    let amount = amount_to_auto + amount_to_stake;
-    let lp_balance = query_orion_pool_balance(
-        deps.as_ref(),
-        &config.orion_staking,
-        &deps.api.addr_canonicalize(env.contract.address.as_str())?,
-        Some(env.block.time.seconds())
-    )?;
-
-    unbond_internal(
-        deps.branch(),
-        staker_addr_raw.clone(),
-        asset_token_raw.clone(),
-        amount,
-        lp_balance,
-        &config,
-    )?;
-
-    bond_internal(
-        deps,
-        staker_addr_raw,
-        asset_token_raw,
-        amount_to_auto,
-        amount_to_stake,
-        Decimal::zero(),
-        lp_balance.checked_sub(amount)?,
-        &config,
-    )?;
-
-    Ok(Response::new().add_attributes(vec![
-        attr("action", "update_bond"),
-        attr("asset_token", asset_token),
-        attr("amount_to_auto", amount_to_auto),
-        attr("amount_to_stake", amount_to_stake),
-    ]))
-}
-
 pub fn withdraw(
     mut deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     asset_token: Option<String>,
     spec_amount: Option<Uint128>,
-    farm_amount: Option<Uint128>,
+    env: Env
 ) -> StdResult<Response> {
     let staker_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
     let asset_token = asset_token.map(|a| deps.api.addr_canonicalize(&a).unwrap());
@@ -505,7 +435,7 @@ pub fn withdraw(
     let spec_staked =
         deposit_spec_reward(deps.as_ref(), &mut state, &config, false)?;
 
-    let (spec_amount, spec_share, farm_amount, farm_share) = withdraw_reward(
+    let (spec_amount, spec_share) = withdraw_reward(
         deps.branch(),
         &config,
         &state,
@@ -513,12 +443,10 @@ pub fn withdraw(
         &asset_token,
         &spec_staked,
         spec_amount,
-        farm_amount,
         env
     )?;
 
     state.previous_spec_share = state.previous_spec_share.checked_sub(spec_share)?;
-    state.total_farm_share = state.total_farm_share.checked_sub(farm_share)?;
 
     state_store(deps.storage).save(&state)?;
 
@@ -542,27 +470,8 @@ pub fn withdraw(
         }));
     }
 
-    if !farm_amount.is_zero() {
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: deps.api.addr_humanize(&config.orion_gov)?.to_string(),
-            msg: to_binary(&OrionGovExecuteMsg::UnbondInit {
-                amount: farm_amount,
-            })?,
-            funds: vec![],
-        }));
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: deps.api.addr_humanize(&config.orion_token)?.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: info.sender.to_string(),
-                amount: farm_amount,
-            })?,
-            funds: vec![],
-        }));
-    }
-
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "withdraw"),
-        attr("farm_amount", farm_amount),
         attr("spec_amount", spec_amount),
     ]))
 }
@@ -576,9 +485,8 @@ fn withdraw_reward(
     asset_token: &Option<CanonicalAddr>,
     spec_staked: &SpecBalanceResponse,
     mut request_spec_amount: Option<Uint128>,
-    mut request_farm_amount: Option<Uint128>,
     env: Env
-) -> StdResult<(Uint128, Uint128, Uint128, Uint128)> {
+) -> StdResult<(Uint128, Uint128)> {
     let rewards_bucket = rewards_read(deps.storage, staker_addr);
 
     // single reward withdraw; or all rewards
@@ -601,26 +509,15 @@ fn withdraw_reward(
             .collect::<StdResult<Vec<(CanonicalAddr, RewardInfo)>>>()?;
     }
 
-    let farm_staked: OrionStakerInfoResponse =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: deps.api.addr_humanize(&config.orion_gov)?.to_string(),
-            msg: to_binary(&OrionGovQueryMsg::StakerInfo {
-                staker: deps.api.addr_humanize(&state.contract_addr)?.to_string(),
-                timestamp: Some(env.block.time.seconds())
-            })?,
-        }))?;
-
     let lp_balance = query_orion_pool_balance(
         deps.as_ref(),
         &config.orion_staking,
         &state.contract_addr,
-        Some(env.block.time.seconds())
+        env.block.time.seconds()
     )?;
 
     let mut spec_amount = Uint128::zero();
     let mut spec_share = Uint128::zero();
-    let mut farm_amount = Uint128::zero();
-    let mut farm_share = Uint128::zero();
     for reward_pair in reward_pairs {
         let (asset_token_raw, mut reward_info) = reward_pair;
 
@@ -629,26 +526,6 @@ fn withdraw_reward(
         let mut pool_info = pool_info_read(deps.storage).load(key)?;
         spec_reward_to_pool(state, &mut pool_info, lp_balance)?;
         before_share_change(&pool_info, &mut reward_info)?;
-
-        // update withdraw
-        let (asset_farm_share, asset_farm_amount) = if let Some(request_amount) = request_farm_amount {
-            let avail_amount = calc_farm_balance(reward_info.farm_share, farm_staked.bond_amount, state.total_farm_share);
-            let asset_farm_amount = if request_amount > avail_amount { avail_amount } else { request_amount };
-            let mut asset_farm_share = calc_farm_share(asset_farm_amount, farm_staked.bond_amount, state.total_farm_share);
-            if calc_farm_balance(asset_farm_share, farm_staked.bond_amount, state.total_farm_share) < asset_farm_amount {
-                asset_farm_share += Uint128::new(1u128);
-            }
-            request_farm_amount = Some(request_amount.checked_sub(asset_farm_amount)?);
-            (asset_farm_share, asset_farm_amount)
-        } else {
-            (reward_info.farm_share, calc_farm_balance(
-                reward_info.farm_share,
-                farm_staked.bond_amount,
-                state.total_farm_share,
-            ))
-        };
-        farm_share += asset_farm_share;
-        farm_amount += asset_farm_amount;
 
         let (asset_spec_share, asset_spec_amount) = if let Some(request_amount) = request_spec_amount {
             let avail_amount = calc_spec_balance(reward_info.spec_share, spec_staked);
@@ -664,8 +541,6 @@ fn withdraw_reward(
         };
         spec_share += asset_spec_share;
         spec_amount += asset_spec_amount;
-        pool_info.farm_share = pool_info.farm_share.checked_sub(asset_farm_share)?;
-        reward_info.farm_share = reward_info.farm_share.checked_sub(asset_farm_share)?;
         reward_info.spec_share = reward_info.spec_share.checked_sub(asset_spec_share)?;
 
         // update rewards info
@@ -681,34 +556,13 @@ fn withdraw_reward(
         }
     }
 
-    if let Some(request_amount) = request_farm_amount {
-        if !request_amount.is_zero() {
-            return Err(StdError::generic_err("Cannot withdraw more than remaining amount"));
-        }
-    }
     if let Some(request_amount) = request_spec_amount {
         if !request_amount.is_zero() {
             return Err(StdError::generic_err("Cannot withdraw more than remaining amount"));
         }
     }
 
-    Ok((spec_amount, spec_share, farm_amount, farm_share))
-}
-
-fn calc_farm_balance(share: Uint128, total_balance: Uint128, total_farm_share: Uint128) -> Uint128 {
-    if total_farm_share.is_zero() {
-        Uint128::zero()
-    } else {
-        total_balance.multiply_ratio(share, total_farm_share)
-    }
-}
-
-fn calc_farm_share(amount: Uint128, total_balance: Uint128, total_farm_share: Uint128) -> Uint128 {
-    if total_balance.is_zero() {
-        amount
-    } else {
-        amount.multiply_ratio(total_farm_share, total_balance)
-    }
+    Ok((spec_amount, spec_share))
 }
 
 fn calc_spec_balance(share: Uint128, staked: &SpecBalanceResponse) -> Uint128 {
@@ -740,10 +594,10 @@ pub fn query_reward_info(
     let reward_infos = read_reward_infos(
         deps,
         &config,
-        Some(env.block.time.seconds()),
         &state,
         &staker_addr_raw,
         &spec_staked,
+        env
     )?;
 
     Ok(RewardInfoResponse {
@@ -755,11 +609,11 @@ pub fn query_reward_info(
 fn read_reward_infos(
     deps: Deps,
     config: &Config,
-    timestamp: Option<u64>,
     state: &State,
     staker_addr: &CanonicalAddr,
     spec_staked: &SpecBalanceResponse,
-)  -> StdResult<Vec<RewardInfoResponseItem>> {
+    env: Env
+) -> StdResult<Vec<RewardInfoResponseItem>> {
     let rewards_bucket = rewards_read(deps.storage, staker_addr);
 
     let reward_pair = rewards_bucket
@@ -770,17 +624,8 @@ fn read_reward_infos(
         })
         .collect::<StdResult<Vec<(CanonicalAddr, RewardInfo)>>>()?;
 
-    let farm_staked: OrionStakerInfoResponse =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: deps.api.addr_humanize(&config.orion_gov)?.to_string(),
-            msg: to_binary(&OrionGovQueryMsg::StakerInfo {
-                staker: deps.api.addr_humanize(&state.contract_addr)?.to_string(),
-                timestamp
-            })?,
-        }))?;
-
     let lp_balance =
-        query_orion_pool_balance(deps, &config.orion_staking, &state.contract_addr, timestamp)?;
+        query_orion_pool_balance(deps, &config.orion_staking, &state.contract_addr, env.block.time.seconds())?;
 
     let bucket = pool_info_read(deps.storage);
     let reward_infos: Vec<RewardInfoResponseItem> = reward_pair
@@ -813,11 +658,7 @@ fn read_reward_infos(
                 stake_bond_share: reward_info.stake_bond_share,
                 spec_share: reward_info.spec_share,
                 pending_spec_reward: calc_spec_balance(reward_info.spec_share, spec_staked),
-                pending_farm_reward: calc_farm_balance(
-                    reward_info.farm_share,
-                    farm_staked.bond_amount,
-                    state.total_farm_share,
-                ),
+                pending_farm_reward: Uint128::zero()
             })
         })
         .collect::<StdResult<Vec<RewardInfoResponseItem>>>()?;

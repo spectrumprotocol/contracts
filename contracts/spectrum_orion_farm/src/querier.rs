@@ -12,7 +12,7 @@ pub fn query_orion_reward_info(
         contract_addr: deps.api.addr_humanize(orion_staking)?.to_string(),
         msg: to_binary(&OrionStakingQueryMsg::StakerInfo {
             staker: deps.api.addr_humanize(staker)?.to_string(),
-            timestamp,
+            timestamp
         })?,
     }))?;
 
@@ -23,8 +23,8 @@ pub fn query_orion_pool_balance(
     deps: Deps,
     orion_staking: &CanonicalAddr,
     staker: &CanonicalAddr,
-    timestamp: Option<u64>,
+    time_seconds: u64
 ) -> StdResult<Uint128> {
-    let res = query_orion_reward_info(deps, orion_staking, staker, timestamp)?;
+    let res = query_orion_reward_info(deps, orion_staking, staker, Some(time_seconds))?;
     Ok(res.bond_amount)
 }

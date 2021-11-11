@@ -1,5 +1,4 @@
 #![allow(non_camel_case_types)]
-#![allow(clippy::type_complexity)]
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -13,9 +12,10 @@ use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrap
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
 use terraswap::pair::SimulationResponse;
 
-
-use orion::lp_staking::{StakerInfoResponse as OrionStakerInfoResponse};
+use orion::lp_staking::StakerInfoResponse as OrionStakerInfoResponse;
 use spectrum_protocol::gov::BalanceResponse as SpecBalanceResponse;
+
+const ORION_STAKING: &str = "orion_staking";
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
@@ -138,6 +138,9 @@ enum MockQueryMsg {
     balance {
         address: String,
     },
+    Staker {
+        address: String,
+    },
     StakerInfo {
         staker: String,
         block_height: Option<u64>,
@@ -190,17 +193,27 @@ impl WasmMockQuerier {
                             pools: vec![],
                         })))
                     }
+                    MockQueryMsg::Staker { address } => {
+                        let balance = self.read_token_balance(contract_addr, address);
+                        SystemResult::Ok(ContractResult::from(to_binary(&OrionStakerResponse {
+                            balance,
+                            share: balance
+                                .multiply_ratio(100u128, self.token_querier.balance_percent),
+                            locked_balance: vec![],
+                        })))
+                    }
                     MockQueryMsg::StakerInfo {
                         staker,
                         block_height: _,
                     } => {
+                        let contract_addr = &ORION_STAKING.to_string();
                         let balance = self.read_token_balance(contract_addr, staker.clone());
                         SystemResult::Ok(ContractResult::from(to_binary(
                             &OrionStakerInfoResponse {
-                                    staker,
-                                    reward_index: Decimal::zero(),
-                                    bond_amount: balance,
-                                    pending_reward: balance,
+                                staker,
+                                reward_index: Decimal::zero(),
+                                bond_amount: balance,
+                                pending_reward: balance,
                             },
                         )))
                     }
