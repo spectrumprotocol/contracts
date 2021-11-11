@@ -24,7 +24,6 @@ fn bond_internal(
     sender_addr_raw: CanonicalAddr,
     asset_token_raw: CanonicalAddr,
     amount_to_auto: Uint128,
-    amount_to_stake: Uint128,
     deposit_fee: Decimal,
     lp_balance: Uint128,
     config: &Config,
@@ -58,7 +57,6 @@ fn bond_internal(
         &mut reward_info,
         deposit_fee,
         amount_to_auto,
-        amount_to_stake,
         lp_balance,
     )?;
 
@@ -96,9 +94,7 @@ pub fn bond(
 
     let config = read_config(deps.storage)?;
 
-    let compound_rate = compound_rate.unwrap_or_else(Decimal::zero);
-    let amount_to_auto = amount * compound_rate;
-    let amount_to_stake = amount.checked_sub(amount_to_auto)?;
+    let amount_to_auto = amount;
 
     let lp_balance = query_orion_pool_balance(
         deps.as_ref(),
@@ -112,7 +108,6 @@ pub fn bond(
         staker_addr_raw,
         asset_token_raw.clone(),
         amount_to_auto,
-        amount_to_stake,
         config.deposit_fee,
         lp_balance,
         &config,
@@ -223,37 +218,24 @@ fn increase_bond_amount(
     reward_info: &mut RewardInfo,
     deposit_fee: Decimal,
     amount_to_auto: Uint128,
-    amount_to_stake: Uint128,
     lp_balance: Uint128,
 ) -> StdResult<()> {
-    let (auto_bond_amount, stake_bond_amount, stake_bond_fee) = if deposit_fee.is_zero() {
-        (amount_to_auto, amount_to_stake, Uint128::zero())
+    let auto_bond_amount = if deposit_fee.is_zero() {
+        amount_to_auto
     } else {
-        // calculate target state
-        let amount = amount_to_auto + amount_to_stake;
-        let new_balance = lp_balance + amount;
-        let new_auto_bond_amount =
-            new_balance.checked_sub(pool_info.total_stake_bond_amount + amount_to_stake)?;
-
-        // calculate deposit fee; split based on auto balance & stake balance
-        let deposit_fee = amount * deposit_fee;
-        let auto_bond_fee = deposit_fee.multiply_ratio(new_auto_bond_amount, new_balance);
+        // calculate deposit fee;
+        let deposit_fee = amount_to_auto * deposit_fee;
 
         // calculate amount after fee
-        let remaining_amount = amount.checked_sub(deposit_fee)?;
-        let auto_bond_amount = remaining_amount.multiply_ratio(amount_to_auto, amount);
+        let auto_bond_amount = amount_to_auto.checked_sub(deposit_fee)?;
 
-        (auto_bond_amount, stake_bond_amount, stake_bond_fee)
+        auto_bond_amount
     };
 
     // convert amount to share & update
     let auto_bond_share = pool_info.calc_auto_bond_share(auto_bond_amount, lp_balance);
-    let stake_bond_share = pool_info.calc_stake_bond_share(stake_bond_amount);
     pool_info.total_auto_bond_share += auto_bond_share;
-    pool_info.total_stake_bond_amount += stake_bond_amount + stake_bond_fee;
-    pool_info.total_stake_bond_share += stake_bond_share;
     reward_info.auto_bond_share += auto_bond_share;
-    reward_info.stake_bond_share += stake_bond_share;
 
     Ok(())
 }
@@ -303,8 +285,7 @@ fn unbond_internal(
 
     let user_auto_balance =
         pool_info.calc_user_auto_balance(lp_balance, reward_info.auto_bond_share);
-    let user_stake_balance = pool_info.calc_user_stake_balance(reward_info.stake_bond_share);
-    let user_balance = user_auto_balance + user_stake_balance;
+    let user_balance = user_auto_balance;
 
     if user_balance < amount {
         return Err(StdError::generic_err("Cannot unbond more than bond amount"));
@@ -321,29 +302,17 @@ fn unbond_internal(
     } else {
         amount.multiply_ratio(user_auto_balance, user_balance)
     };
-    let stake_bond_amount = amount.checked_sub(auto_bond_amount)?;
 
     // add 1 to share, otherwise there will always be a fraction
     let mut auto_bond_share = pool_info.calc_auto_bond_share(auto_bond_amount, lp_balance);
     if pool_info.calc_user_auto_balance(lp_balance, auto_bond_share) < auto_bond_amount {
         auto_bond_share += Uint128::new(1u128);
     }
-    let mut stake_bond_share = pool_info.calc_stake_bond_share(stake_bond_amount);
-    if pool_info.calc_user_stake_balance(stake_bond_share) < stake_bond_amount {
-        stake_bond_share += Uint128::new(1u128);
-    }
 
     pool_info.total_auto_bond_share = pool_info
         .total_auto_bond_share
         .checked_sub(auto_bond_share)?;
-    pool_info.total_stake_bond_amount = pool_info
-        .total_stake_bond_amount
-        .checked_sub(stake_bond_amount)?;
-    pool_info.total_stake_bond_share = pool_info
-        .total_stake_bond_share
-        .checked_sub(stake_bond_share)?;
     reward_info.auto_bond_share = reward_info.auto_bond_share.checked_sub(auto_bond_share)?;
-    reward_info.stake_bond_share = reward_info.stake_bond_share.checked_sub(stake_bond_share)?;
 
     // update rewards info
     if reward_info.spec_share.is_zero()
@@ -644,15 +613,14 @@ fn read_reward_infos(
 
             let auto_bond_amount =
                 pool_info.calc_user_auto_balance(lp_balance, reward_info.auto_bond_share);
-            let stake_bond_amount = pool_info.calc_user_stake_balance(reward_info.stake_bond_share);
             Ok(RewardInfoResponseItem {
                 asset_token: deps.api.addr_humanize(&asset_token_raw)?.to_string(),
                 farm_share_index,
                 auto_spec_share_index: auto_spec_index,
                 stake_spec_share_index: stake_spec_index,
-                bond_amount: auto_bond_amount + stake_bond_amount,
+                bond_amount: auto_bond_amount,
                 auto_bond_amount,
-                stake_bond_amount,
+                stake_bond_amount: Uint128::zero(),
                 farm_share: reward_info.farm_share,
                 auto_bond_share: reward_info.auto_bond_share,
                 stake_bond_share: reward_info.stake_bond_share,

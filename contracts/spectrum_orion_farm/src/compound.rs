@@ -66,17 +66,13 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         total_orion_commission += commission;
         total_orion_swap_amount += commission;
 
-        let auto_bond_amount = orion_reward_info
-            .bond_amount
-            .checked_sub(pool_info.total_stake_bond_amount)?;
+        let auto_bond_amount = orion_reward_info.bond_amount;
         compound_amount =
             orion_amount.multiply_ratio(auto_bond_amount, orion_reward_info.bond_amount);
 
         attributes.push(attr("commission", commission));
         attributes.push(attr("compound_amount", compound_amount));
     }
-    let mut state = read_state(deps.storage)?;
-    state_store(deps.storage).save(&state)?;
 
     // get reinvest amount
     let reinvest_allowance = pool_info.reinvest_allowance + compound_amount;

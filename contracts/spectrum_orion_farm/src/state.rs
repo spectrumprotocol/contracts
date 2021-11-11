@@ -93,15 +93,6 @@ impl PoolInfo {
         }
     }
 
-    // pub fn calc_stake_bond_share(&self, stake_bond_amount: Uint128) -> Uint128 {
-    //     if self.total_stake_bond_share.is_zero() || self.total_stake_bond_amount.is_zero() {
-    //         stake_bond_amount
-    //     } else {
-    //         stake_bond_amount
-    //             .multiply_ratio(self.total_stake_bond_share, self.total_stake_bond_amount)
-    //     }
-    // }
-
     pub fn calc_user_auto_balance(&self, lp_balance: Uint128, auto_bond_share: Uint128) -> Uint128 {
         if self.total_auto_bond_share.is_zero() {
             Uint128::zero()
@@ -113,14 +104,6 @@ impl PoolInfo {
         }
     }
 
-    // pub fn calc_user_stake_balance(&self, stake_bond_share: Uint128) -> Uint128 {
-    //     if self.total_stake_bond_share.is_zero() {
-    //         Uint128::zero()
-    //     } else {
-    //         self.total_stake_bond_amount
-    //             .multiply_ratio(stake_bond_share, self.total_stake_bond_share)
-    //     }
-    // }
 }
 
 pub fn pool_info_store(storage: &mut dyn Storage) -> Bucket<PoolInfo> {
