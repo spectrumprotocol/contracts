@@ -5,7 +5,6 @@
   "required": [
     "balance",
     "locked_balance",
-    "pools",
     "share"
   ],
   "properties": {
@@ -31,6 +30,7 @@
       }
     },
     "pools": {
+      "default": [],
       "type": "array",
       "items": {
         "$ref": "#/definitions/BalancePoolInfo"

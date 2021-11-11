@@ -8,12 +8,11 @@
     "controller",
     "controller_fee",
     "deposit_fee",
+    "orion_staking",
+    "orion_token",
     "owner",
     "platform",
     "platform_fee",
-    "pylon_gov",
-    "pylon_staking",
-    "pylon_token",
     "spectrum_gov",
     "spectrum_token",
     "terraswap_factory"
@@ -34,6 +33,12 @@
     "deposit_fee": {
       "$ref": "#/definitions/Decimal"
     },
+    "orion_staking": {
+      "type": "string"
+    },
+    "orion_token": {
+      "type": "string"
+    },
     "owner": {
       "type": "string"
     },
@@ -42,15 +47,6 @@
     },
     "platform_fee": {
       "$ref": "#/definitions/Decimal"
-    },
-    "pylon_gov": {
-      "type": "string"
-    },
-    "pylon_staking": {
-      "type": "string"
-    },
-    "pylon_token": {
-      "type": "string"
     },
     "spectrum_gov": {
       "type": "string"
