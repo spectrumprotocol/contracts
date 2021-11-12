@@ -4,6 +4,7 @@ use cosmwasm_std::{
 };
 
 use crate::{
+    bond::deposit_farm_share,
     state::{read_config, state_store},
 };
 
@@ -12,6 +13,7 @@ use crate::querier::query_orion_reward_info;
 use cw20::Cw20ExecuteMsg;
 
 use crate::state::{pool_info_read, pool_info_store, read_state, Config, PoolInfo};
+use orion::orion_staking::Cw20HookMsg as OrionGovCw20HookMsg;
 use orion::lp_staking::{
     Cw20HookMsg as OrionStakingCw20HookMsg, ExecuteMsg as OrionStakingExecuteMsg,
 };
@@ -35,7 +37,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let terraswap_factory = deps.api.addr_humanize(&config.terraswap_factory)?;
     let orion_staking = deps.api.addr_humanize(&config.orion_staking)?;
     let orion_token = deps.api.addr_humanize(&config.orion_token)?;
-
+    let orion_gov = deps.api.addr_humanize(&config.orion_gov)?;
     let spectrum_token = deps.api.addr_humanize(&config.spectrum_token)?;
     let spectrum_gov = deps.api.addr_humanize(&config.spectrum_gov)?;
 
@@ -47,6 +49,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     )?;
 
     let mut total_orion_swap_amount = Uint128::zero();
+    let mut total_orion_stake_amount = Uint128::zero();
     let mut total_orion_commission = Uint128::zero();
     let mut compound_amount: Uint128 = Uint128::zero();
 
@@ -56,7 +59,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let controller_fee = config.controller_fee;
     let total_fee = community_fee + platform_fee + controller_fee;
 
-    // calculate auto-compound, auto-Stake, and commission in ORION
+    // calculate auto-compound, auto-Stake, and commission in PSI
     let mut pool_info = pool_info_read(deps.storage).load(config.orion_token.as_slice())?;
     let reward = orion_reward_info.pending_reward;
     if !reward.is_zero() && !orion_reward_info.bond_amount.is_zero() {
@@ -66,19 +69,35 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         total_orion_commission += commission;
         total_orion_swap_amount += commission;
 
-        let auto_bond_amount = orion_reward_info.bond_amount;
+        let auto_bond_amount = orion_reward_info
+            .bond_amount
+            .checked_sub(pool_info.total_stake_bond_amount)?;
         compound_amount =
             orion_amount.multiply_ratio(auto_bond_amount, orion_reward_info.bond_amount);
+        let stake_amount = orion_amount.checked_sub(compound_amount)?;
 
         attributes.push(attr("commission", commission));
         attributes.push(attr("compound_amount", compound_amount));
+        attributes.push(attr("stake_amount", stake_amount));
+
+        total_orion_stake_amount += stake_amount;
     }
+    let mut state = read_state(deps.storage)?;
+    deposit_farm_share(
+        deps.as_ref(),
+        &mut state,
+        &mut pool_info,
+        &config,
+        total_orion_stake_amount,
+        Some(env.block.time.seconds())
+    )?;
+    state_store(deps.storage).save(&state)?;
 
     // get reinvest amount
     let reinvest_allowance = pool_info.reinvest_allowance + compound_amount;
     // split reinvest amount
     let swap_amount = reinvest_allowance.multiply_ratio(1u128, 2u128);
-    // add commission to reinvest ORION to total swap amount
+    // add commission to reinvest PSI to total swap amount
     total_orion_swap_amount += swap_amount;
 
     let orion_pair_info = query_pair_info(
@@ -94,7 +113,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         ],
     )?;
 
-    // find ORION swap rate
+    // find PSI swap rate
     let orion = Asset {
         info: AssetInfo::Token {
             contract_addr: orion_token.to_string(),
@@ -139,7 +158,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         deps.api.addr_validate(&orion_pair_info.contract_addr)?,
         &net_reinvest_asset,
     )?;
-    // calculate provided ORION from provided UST
+    // calculate provided PSI from provided UST
     let provide_orion = swap_orion_rate.return_amount + swap_orion_rate.commission_amount;
 
     pool_info.reinvest_allowance = swap_amount.checked_sub(provide_orion)?;
@@ -289,6 +308,19 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
             });
             messages.push(stake_controller_fee);
         }
+    }
+
+    if !total_orion_stake_amount.is_zero() {
+        let stake_orion = CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: orion_token.to_string(),
+            funds: vec![],
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: orion_gov.to_string(),
+                amount: total_orion_stake_amount,
+                msg: to_binary(&OrionGovCw20HookMsg::Bond {})?,
+            })?,
+        });
+        messages.push(stake_orion);
     }
 
     if !provide_orion.is_zero() {

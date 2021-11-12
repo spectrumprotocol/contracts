@@ -12,6 +12,7 @@ pub struct ConfigInfo {
     pub spectrum_gov: String,
     pub orion_token: String,
     pub orion_staking: String,
+    pub orion_gov: String,
     pub platform: String,
     pub controller: String,
     pub base_denom: String,
@@ -48,11 +49,17 @@ pub enum ExecuteMsg {
         // If the asset token is not given, then all rewards are withdrawn
         asset_token: Option<String>,
         spec_amount: Option<Uint128>,
+        farm_amount: Option<Uint128>,
     },
     stake {
         asset_token: String,
     },
     compound {},
+    update_bond {
+        asset_token: String,
+        amount_to_stake: Uint128,
+        amount_to_auto: Uint128,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

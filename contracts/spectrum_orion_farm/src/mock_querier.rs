@@ -12,7 +12,7 @@ use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrap
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
 use terraswap::pair::SimulationResponse;
 
-use orion::lp_staking::StakerInfoResponse as OrionStakerInfoResponse;
+use orion::orion_staking::StakerInfoResponse as OrionStakerInfoResponse;
 use spectrum_protocol::gov::BalanceResponse as SpecBalanceResponse;
 
 const ORION_STAKING: &str = "orion_staking";
@@ -202,6 +202,7 @@ impl WasmMockQuerier {
                                 reward_index: Decimal::zero(),
                                 bond_amount: balance,
                                 pending_reward: balance,
+                                orders: vec![]
                             },
                         )))
                     }

@@ -22,6 +22,7 @@ const TEST_CREATOR: &str = "creator";
 const USER1: &str = "user1";
 const USER2: &str = "user2";
 const ORION_LP: &str = "orion_lp";
+const ORION_GOV: &str = "orion_gov";
 const SPY_TOKEN: &str = "spy_token";
 const SPY_LP: &str = "spy_lp";
 
@@ -70,6 +71,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         spectrum_token: SPEC_TOKEN.to_string(),
         orion_token: ORION_TOKEN.to_string(),
         orion_staking: ORION_STAKING.to_string(),
+        orion_gov: ORION_GOV.to_string(),
         terraswap_factory: TERRA_SWAP.to_string(),
         platform: TEST_CREATOR.to_string(),
         controller: TEST_CREATOR.to_string(),
@@ -288,7 +290,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     );
 
     // withdraw rewards
-    let msg = ExecuteMsg::withdraw { asset_token: None, spec_amount: None };
+    let msg = ExecuteMsg::withdraw { asset_token: None, spec_amount: None, farm_amount: None };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
     assert_eq!(
