@@ -1,3 +1,4 @@
+use crate::bond::deposit_farm_share;
 use crate::contract::{execute, instantiate, query};
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
 use crate::state::{pool_info_read, pool_info_store, read_config, read_state, state_store};
@@ -211,10 +212,20 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
 
     let deps_ref = deps.as_ref();
     let config = read_config(deps_ref.storage).unwrap();
+    let mut state = read_state(deps_ref.storage).unwrap();
     let mut pool_info = pool_info_read(deps_ref.storage)
         .load(config.orion_token.as_slice())
         .unwrap();
-
+        deposit_farm_share(
+            deps_ref,
+            &mut state,
+            &mut pool_info,
+            &config,
+            Uint128::from(500u128),
+            Some(env.block.time.seconds())
+        )
+        .unwrap();
+    state_store(deps.as_mut().storage).save(&state).unwrap();
     pool_info_store(deps.as_mut().storage)
         .save(config.orion_token.as_slice(), &pool_info)
         .unwrap();
@@ -381,10 +392,20 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert!(res.is_ok());
 
     let deps_ref = deps.as_ref();
+    let mut state = read_state(deps_ref.storage).unwrap();
     let mut pool_info = pool_info_read(deps_ref.storage)
         .load(config.orion_token.as_slice())
         .unwrap();
-
+        deposit_farm_share(
+            deps_ref,
+            &mut state,
+            &mut pool_info,
+            &config,
+            Uint128::from(500u128),
+            Some(env.block.time.seconds())
+        )
+        .unwrap();
+    state_store(deps.as_mut().storage).save(&state).unwrap();
     pool_info_store(deps.as_mut().storage)
         .save(config.orion_token.as_slice(), &pool_info)
         .unwrap();
