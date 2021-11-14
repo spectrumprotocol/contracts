@@ -405,16 +405,6 @@ pub(crate) fn compute_swap_amount(
     result.as_u128().into()
 }
 
-fn swap(
-    offer_pool: U256,
-    ask_pool: U256,
-    offer_amount: U256,
-) -> (U256, U256, U256) {
-    let cp = offer_pool * ask_pool;
-    let ask_amount = (ask_pool - cp / (offer_pool + offer_amount)) * 997 / 1000;
-    (offer_pool + offer_amount, ask_pool - ask_amount, ask_amount)
-}
-
 fn get_swap_amount(
     pool: &PoolResponse,
     asset: &Asset,
@@ -531,7 +521,7 @@ fn compute_zap_to_bond(
             contract_addr: terraswap_pair_a.contract_addr.clone(),
             msg: to_binary(&PairQueryMsg::Pool {})?,
         }))?;
-        let swap_amount = get_swap_amount(&pool, &provide_asset)?;
+        let swap_amount = get_swap_amount(&pool, &provide_asset);
         (swap_amount, terraswap_pair_a.contract_addr.clone(), pool)
     };
     let mut pool = pool;
@@ -581,7 +571,7 @@ fn compute_zap_to_bond(
         };
         let swap_asset_a = Asset {
             info: pair_asset_a,
-            amount: get_swap_amount(&mut pool, &swap_asset_a)?,
+            amount: get_swap_amount(&mut pool, &swap_asset_a),
         };
         amount_a = amount_a.checked_sub(swap_asset_a.amount)?;
         let simulate_b = simulate(
