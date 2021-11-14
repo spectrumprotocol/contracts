@@ -17,6 +17,9 @@ const USER1: &str = "user1";
 const TEST_CREATOR: &str = "creator";
 const LP: &str = "lp_token";
 const PAIR: &str = "pair0001";
+const TOKEN_B: &str = "token_b";
+const LP_B: &str = "lp_token_b";
+const PAIR_B: &str = "pair0002";
 const FARM1: &str = "farm1";
 const FARM2: &str = "farm2";
 const FARM3: &str = "farm3";
@@ -28,8 +31,8 @@ const TERRA_ROUTER: &str = "terra_router";
 fn test() {
     let mut deps = mock_dependencies(&[]);
     deps.querier.with_balance_percent(100);
-    deps.querier.with_terraswap_factory(&[(
-        &"uusdtoken".to_string(),
+    deps.querier.with_terraswap_factory(&[
+        (&"uusdtoken".to_string(),
         &PairInfo {
             asset_infos: [
                 AssetInfo::Token {
@@ -41,10 +44,23 @@ fn test() {
             ],
             contract_addr: PAIR.to_string(),
             liquidity_token: LP.to_string(),
-        },
-    )]);
-    deps.querier.with_terraswap_pairs(&[(
-        &PAIR.to_string(),
+        }),
+        (&"tokentoken_b".to_string(),
+        &PairInfo {
+            asset_infos: [
+                AssetInfo::Token {
+                    contract_addr: TOKEN.to_string(),
+                },
+                AssetInfo::Token {
+                    contract_addr: TOKEN_B.to_string(),
+                },
+            ],
+            contract_addr: PAIR_B.to_string(),
+            liquidity_token: LP_B.to_string(),
+        })
+    ]);
+    deps.querier.with_terraswap_pairs(&[
+        (&PAIR.to_string(),
         &PoolResponse {
             total_share: Uint128::from(500_000_000u128),
             assets: [
@@ -61,11 +77,30 @@ fn test() {
                     amount: Uint128::from(500_000_000u128),
                 },
             ]
-        },
-    )]);
+        }),
+        (&PAIR_B.to_string(),
+         &PoolResponse {
+             total_share: Uint128::from(550_000_000u128),
+             assets: [
+                 Asset {
+                     info: AssetInfo::Token {
+                         contract_addr: TOKEN.to_string(),
+                     },
+                     amount: Uint128::from(500_000_000u128),
+                 },
+                 Asset {
+                     info: AssetInfo::Token {
+                         contract_addr: TOKEN_B.to_string(),
+                     },
+                     amount: Uint128::from(600_000_000u128),
+                 },
+             ]
+         }),
+    ]);
 
     test_config(&mut deps);
     test_bond(&mut deps);
+    test_bond_2(&mut deps);
     test_zap_bond(&mut deps);
     test_zap_unbond(&mut deps);
 }
@@ -322,6 +357,121 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
 
     let res = execute(deps.as_mut(), env, info, msg);
     assert!(res.is_ok())
+}
+
+fn test_bond_2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+    let env = mock_env();
+    let info = mock_info(
+        USER1,
+        &[],
+    );
+
+    let msg = ExecuteMsg::bond {
+        contract: FARM1.to_string(),
+        assets: [
+            Asset {
+                info: AssetInfo::Token {
+                    contract_addr: TOKEN.to_string(),
+                },
+                amount: Uint128::from(50_000_000u128),
+            },
+            Asset {
+                info: AssetInfo::Token {
+                    contract_addr: TOKEN_B.to_string(),
+                },
+                amount: Uint128::from(60_000_000u128),
+            },
+        ],
+        slippage_tolerance: Decimal::percent(1u64),
+        compound_rate: Some(Decimal::percent(100u64)),
+        staker_addr: None,
+    };
+
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+    assert_eq!(
+        res.messages
+            .into_iter()
+            .map(|it| it.msg)
+            .collect::<Vec<CosmosMsg>>(),
+        vec![
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                    owner: USER1.to_string(),
+                    recipient: env.contract.address.to_string(),
+                    amount: Uint128::from(50_000_000u128),
+                })
+                    .unwrap(),
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+                    spender: PAIR_B.to_string(),
+                    amount: Uint128::from(50_000_000u128),
+                    expires: None,
+                })
+                    .unwrap(),
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: TOKEN_B.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                    owner: USER1.to_string(),
+                    recipient: env.contract.address.to_string(),
+                    amount: Uint128::from(60_000_000u128),
+                })
+                    .unwrap(),
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: TOKEN_B.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+                    spender: PAIR_B.to_string(),
+                    amount: Uint128::from(60_000_000u128),
+                    expires: None,
+                })
+                    .unwrap(),
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: PAIR_B.to_string(),
+                msg: to_binary(&TerraswapExecuteMsg::ProvideLiquidity {
+                    assets: [
+                        Asset {
+                            info: AssetInfo::Token {
+                                contract_addr: TOKEN.to_string(),
+                            },
+                            amount: Uint128::from(50_000_000u128),
+                        },
+                        Asset {
+                            info: AssetInfo::Token {
+                                contract_addr: TOKEN_B.to_string(),
+                            },
+                            amount: Uint128::from(60_000_000u128),
+                        },
+                    ],
+                    slippage_tolerance: Some(Decimal::percent(1u64)),
+                    receiver: None
+                })
+                    .unwrap(),
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: env.contract.address.to_string(),
+                msg: to_binary(&ExecuteMsg::bond_hook {
+                    contract: FARM1.to_string(),
+                    asset_token: TOKEN_B.to_string(),
+                    staking_token: LP_B.to_string(),
+                    staker_addr: USER1.to_string(),
+                    prev_staking_token_amount: Uint128::zero(),
+                    compound_rate: Some(Decimal::percent(100u64)),
+                })
+                    .unwrap(),
+                funds: vec![],
+            }),
+        ]
+    );
 }
 
 fn test_zap_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {

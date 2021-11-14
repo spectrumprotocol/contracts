@@ -276,7 +276,7 @@ fn bond(
             }));
         }
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: token_b_addr,
+            contract_addr: token_b_addr.clone(),
             msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
                 spender: terraswap_pair.contract_addr.clone(),
                 amount: token_b_amount,
@@ -284,9 +284,28 @@ fn bond(
             })?,
             funds: vec![],
         }));
-    }
-
-    if let Some(native_asset) = native_asset_op {
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: terraswap_pair.contract_addr,
+            msg: to_binary(&PairExecuteMsg::ProvideLiquidity {
+                assets: assets.clone(),
+                slippage_tolerance: Some(slippage_tolerance),
+                receiver: None,
+            })?,
+            funds: vec![],
+        }));
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: env.contract.address.to_string(),
+            msg: to_binary(&ExecuteMsg::bond_hook {
+                contract,
+                asset_token: token_b_addr,
+                staking_token: terraswap_pair.liquidity_token,
+                staker_addr: staker,
+                prev_staking_token_amount,
+                compound_rate,
+            })?,
+            funds: vec![],
+        }));
+    } else if let Some(native_asset) = native_asset_op {
         let tax_amount = native_asset.compute_tax(&deps.querier)?;
         let native_asset = Asset {
             amount: native_asset.amount.checked_sub(tax_amount)?,
@@ -308,30 +327,19 @@ fn bond(
                 amount: native_asset.amount,
             }],
         }));
-    } else {
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: terraswap_pair.contract_addr,
-            msg: to_binary(&PairExecuteMsg::ProvideLiquidity {
-                assets: assets.clone(),
-                slippage_tolerance: Some(slippage_tolerance),
-                receiver: None,
+            contract_addr: env.contract.address.to_string(),
+            msg: to_binary(&ExecuteMsg::bond_hook {
+                contract,
+                asset_token: token_a_addr,
+                staking_token: terraswap_pair.liquidity_token,
+                staker_addr: staker,
+                prev_staking_token_amount,
+                compound_rate,
             })?,
             funds: vec![],
         }));
     }
-
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: env.contract.address.to_string(),
-        msg: to_binary(&ExecuteMsg::bond_hook {
-            contract,
-            asset_token: token_a_addr,
-            staking_token: terraswap_pair.liquidity_token,
-            staker_addr: staker,
-            prev_staking_token_amount,
-            compound_rate,
-        })?,
-        funds: vec![],
-    }));
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "bond"),
