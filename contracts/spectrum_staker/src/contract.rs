@@ -571,7 +571,7 @@ fn compute_zap_to_bond(
         };
         let swap_asset_a = Asset {
             info: pair_asset_a,
-            amount: get_swap_amount(&mut pool, &swap_asset_a),
+            amount: get_swap_amount(&pool, &swap_asset_a),
         };
         amount_a = amount_a.checked_sub(swap_asset_a.amount)?;
         let simulate_b = simulate(
