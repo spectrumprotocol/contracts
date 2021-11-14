@@ -416,21 +416,27 @@ fn swap(
 }
 
 fn get_swap_amount(
-    pool: &mut PoolResponse,
+    pool: &PoolResponse,
     asset: &Asset,
-) -> StdResult<(Uint128, Uint128)> {
+) -> Uint128 {
     if pool.assets[0].info == asset.info {
-        let result = compute_swap_amount(asset.amount, Uint128::zero(), pool.assets[0].amount, pool.assets[1].amount);
-        let (offer_pool, ask_pool, return_amount) = swap(U256::from(pool.assets[0].amount.u128()), U256::from(pool.assets[1].amount.u128()), U256::from(result.u128()));
-        pool.assets[0].amount = Uint128::from(offer_pool.as_u128());
-        pool.assets[1].amount = Uint128::from(ask_pool.as_u128());
-        Ok((result, Uint128::from(return_amount.as_u128())))
+        compute_swap_amount(asset.amount, Uint128::zero(), pool.assets[0].amount, pool.assets[1].amount)
     } else {
-        let result = compute_swap_amount(asset.amount, Uint128::zero(), pool.assets[1].amount, pool.assets[0].amount);
-        let (offer_pool, ask_pool, return_amount) = swap(U256::from(pool.assets[1].amount.u128()), U256::from(pool.assets[0].amount.u128()), U256::from(result.u128()));
-        pool.assets[1].amount = Uint128::from(offer_pool.as_u128());
-        pool.assets[0].amount = Uint128::from(ask_pool.as_u128());
-        Ok((result, Uint128::from(return_amount.as_u128())))
+        compute_swap_amount(asset.amount, Uint128::zero(), pool.assets[1].amount, pool.assets[0].amount)
+    }
+}
+
+fn apply_pool(
+    pool: &mut PoolResponse,
+    swap_asset: &Asset,
+    return_amount: Uint128,
+) {
+    if pool.assets[0].info == swap_asset.info {
+        pool.assets[0].amount += swap_asset.amount;
+        pool.assets[1].amount -= return_amount;
+    } else {
+        pool.assets[1].amount += swap_asset.amount;
+        pool.assets[0].amount -= return_amount;
     }
 }
 
@@ -521,11 +527,11 @@ fn compute_zap_to_bond(
         }))?;
         (provide_asset.amount, terraswap_pair_b.contract_addr, pool)
     } else {
-        let mut pool: PoolResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        let pool: PoolResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: terraswap_pair_a.contract_addr.clone(),
             msg: to_binary(&PairQueryMsg::Pool {})?,
         }))?;
-        let (swap_amount, _) = get_swap_amount(&mut pool, &provide_asset)?;
+        let swap_amount = get_swap_amount(&pool, &provide_asset)?;
         (swap_amount, terraswap_pair_a.contract_addr.clone(), pool)
     };
     let mut pool = pool;
@@ -548,6 +554,9 @@ fn compute_zap_to_bond(
         &deps.querier,
         deps.api.addr_validate(&terraswap_pair_a.contract_addr)?,
         &swap_asset)?;
+    if pair_asset_b.is_none() {
+        apply_pool(&mut pool, &swap_asset, simulate_a.return_amount);
+    }
     let mut amount_a = simulate_a.return_amount;
     let mut messages: Vec<CosmosMsg> = vec![
         CosmosMsg::Wasm(WasmMsg::Execute {
@@ -570,16 +579,20 @@ fn compute_zap_to_bond(
             info: pair_asset_a.clone(),
             amount: amount_a,
         };
-        let (swap_amount, return_amount) = get_swap_amount(&mut pool, &swap_asset_a)?;
         let swap_asset_a = Asset {
             info: pair_asset_a,
-            amount: swap_amount,
+            amount: get_swap_amount(&mut pool, &swap_asset_a)?,
         };
         amount_a = amount_a.checked_sub(swap_asset_a.amount)?;
+        let simulate_b = simulate(
+            &deps.querier,
+            deps.api.addr_validate(&pair_contract)?,
+            &swap_asset_a)?;
         bond_asset = Asset {
             info: pair_asset_b,
-            amount: return_amount,
+            amount: simulate_b.return_amount,
         };
+        apply_pool(&mut pool, &swap_asset_a, simulate_b.return_amount);
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: pair_contract,
             msg: to_binary(&PairExecuteMsg::Swap {
