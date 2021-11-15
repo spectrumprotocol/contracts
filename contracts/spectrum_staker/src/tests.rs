@@ -25,7 +25,6 @@ const FARM2: &str = "farm2";
 const FARM3: &str = "farm3";
 const FARM4: &str = "farm4";
 const TERRA_SWAP: &str = "terra_swap";
-const TERRA_ROUTER: &str = "terra_router";
 
 #[test]
 fn test() {
@@ -113,7 +112,6 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let mut config = ConfigInfo {
         owner: TEST_CREATOR.to_string(),
         terraswap_factory: TERRA_SWAP.to_string(),
-        terraswap_router: TERRA_ROUTER.to_string(),
         allowlist: vec![FARM3.to_string()],
     };
 
@@ -148,7 +146,6 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         ConfigInfo {
             owner: TEST_CREATOR.to_string(),
             terraswap_factory: TERRA_SWAP.to_string(),
-            terraswap_router: TERRA_ROUTER.to_string(),
             allowlist: vec![FARM1.to_string()],
         }
     );
@@ -685,15 +682,16 @@ fn test_zap_unbond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) 
             },
             amount: Uint128::from(1_000_000u128),
         },
-        prev_asset_b: Asset {
+        prev_target_asset: Asset {
             info: AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
             amount: Uint128::from(1_000_000u128),
         },
-        belief_price: Some(Decimal::from_ratio(1u128, 1u128)),
+        belief_price_a: Some(Decimal::from_ratio(1u128, 1u128)),
         max_spread: Decimal::percent(1u64),
-        minimum_receive: None
+        prev_asset_b: None,
+        belief_price_b: None,
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert_eq!(res, Err(StdError::generic_err("unauthorized")));
@@ -711,7 +709,8 @@ fn test_zap_unbond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) 
             target_asset: AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
-            minimum_receive: None
+            sell_asset_b: None,
+            belief_price_b: None,
         })
         .unwrap(),
     });
@@ -737,7 +736,8 @@ fn test_zap_unbond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) 
             target_asset: AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
-            minimum_receive: None
+            sell_asset_b: None,
+            belief_price_b: None,
         })
         .unwrap(),
     });
@@ -761,7 +761,8 @@ fn test_zap_unbond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) 
             target_asset: AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
-            minimum_receive: None
+            sell_asset_b: None,
+            belief_price_b: None,
         })
         .unwrap(),
     });
@@ -784,7 +785,8 @@ fn test_zap_unbond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) 
             target_asset: AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
-            minimum_receive: None
+            sell_asset_b: None,
+            belief_price_b: None,
         })
         .unwrap(),
     });
@@ -815,15 +817,16 @@ fn test_zap_unbond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) 
                             contract_addr: TOKEN.to_string(),
                         },
                     },
-                    prev_asset_b: Asset {
+                    prev_target_asset: Asset {
                         amount: Uint128::zero(),
                         info: AssetInfo::NativeToken {
                             denom: "uusd".to_string(),
                         },
                     },
-                    belief_price: Some(Decimal::from_ratio(1u128, 1u128)),
+                    belief_price_a: Some(Decimal::from_ratio(1u128, 1u128)),
                     max_spread: Decimal::percent(1u64),
-                    minimum_receive: None
+                    prev_asset_b: None,
+                    belief_price_b: None,
                 }).unwrap(),
                 funds: vec![],
             }),
@@ -835,43 +838,22 @@ fn test_zap_unbond2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
     let env = mock_env();
     let info = mock_info(LP, &[]);
 
-    // target_asset as token
-    let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
-        sender: USER1.to_string(),
-        amount: Uint128::from(100u128),
-        msg: to_binary(&Cw20HookMsg::zap_to_unbond {
-            belief_price: Some(Decimal::from_ratio(1u128, 1u128)),
-            max_spread: Decimal::percent(1u64),
-            sell_asset: AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-            target_asset: AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-            minimum_receive: None
-        })
-            .unwrap(),
-    });
-
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
-    assert_eq!(
-        res,
-        Err(StdError::generic_err("not support sell_asset as native coin"))
-    );
-
     let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
         sender: USER1.to_string(),
         amount: Uint128::from(124u128),
         msg: to_binary(&Cw20HookMsg::zap_to_unbond {
             belief_price: Some(Decimal::from_ratio(1u128, 1u128)),
             max_spread: Decimal::percent(1u64),
-            sell_asset:  AssetInfo::Token {
+            sell_asset: AssetInfo::Token {
                 contract_addr: TOKEN.to_string(),
             },
+            sell_asset_b: Some(AssetInfo::Token {
+                contract_addr: TOKEN_B.to_string(),
+            }),
             target_asset: AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
             },
-            minimum_receive: None
+            belief_price_b: Some(Decimal::from_ratio(6u128, 5u128)),
         })
             .unwrap(),
     });
@@ -902,15 +884,21 @@ fn test_zap_unbond2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
                             contract_addr: TOKEN.to_string(),
                         },
                     },
-                    prev_asset_b: Asset {
+                    prev_target_asset: Asset {
                         amount: Uint128::zero(),
                         info: AssetInfo::NativeToken {
                             denom: "uusd".to_string(),
                         },
                     },
-                    belief_price: Some(Decimal::from_ratio(1u128, 1u128)),
+                    belief_price_a: Some(Decimal::from_ratio(1u128, 1u128)),
                     max_spread: Decimal::percent(1u64),
-                    minimum_receive: None
+                    belief_price_b: Some(Decimal::from_ratio(6u128, 5u128)),
+                    prev_asset_b: Some(Asset {
+                        amount: Uint128::zero(),
+                        info: AssetInfo::Token {
+                            contract_addr: TOKEN_B.to_string(),
+                        },
+                    }),
                 }).unwrap(),
                 funds: vec![],
             }),
