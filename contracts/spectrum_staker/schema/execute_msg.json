@@ -224,11 +224,21 @@
           "required": [
             "max_spread",
             "prev_asset_a",
-            "prev_asset_b",
+            "prev_target_asset",
             "staker_addr"
           ],
           "properties": {
-            "belief_price": {
+            "belief_price_a": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Decimal"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "belief_price_b": {
               "anyOf": [
                 {
                   "$ref": "#/definitions/Decimal"
@@ -241,20 +251,20 @@
             "max_spread": {
               "$ref": "#/definitions/Decimal"
             },
-            "minimum_receive": {
+            "prev_asset_a": {
+              "$ref": "#/definitions/Asset"
+            },
+            "prev_asset_b": {
               "anyOf": [
                 {
-                  "$ref": "#/definitions/Uint128"
+                  "$ref": "#/definitions/Asset"
                 },
                 {
                   "type": "null"
                 }
               ]
             },
-            "prev_asset_a": {
-              "$ref": "#/definitions/Asset"
-            },
-            "prev_asset_b": {
+            "prev_target_asset": {
               "$ref": "#/definitions/Asset"
             },
             "staker_addr": {

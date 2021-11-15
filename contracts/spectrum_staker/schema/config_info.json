@@ -5,8 +5,7 @@
   "required": [
     "allowlist",
     "owner",
-    "terraswap_factory",
-    "terraswap_router"
+    "terraswap_factory"
   ],
   "properties": {
     "allowlist": {
@@ -19,9 +18,6 @@
       "type": "string"
     },
     "terraswap_factory": {
-      "type": "string"
-    },
-    "terraswap_router": {
       "type": "string"
     }
   }
