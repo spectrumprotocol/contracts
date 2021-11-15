@@ -59,7 +59,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let controller_fee = config.controller_fee;
     let total_fee = community_fee + platform_fee + controller_fee;
 
-    // calculate auto-compound, auto-Stake, and commission in PSI
+    // calculate auto-compound, auto-Stake, and commission in ORION
     let mut pool_info = pool_info_read(deps.storage).load(config.orion_token.as_slice())?;
     let reward = orion_reward_info.pending_reward;
     if !reward.is_zero() && !orion_reward_info.bond_amount.is_zero() {
@@ -97,7 +97,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let reinvest_allowance = pool_info.reinvest_allowance + compound_amount;
     // split reinvest amount
     let swap_amount = reinvest_allowance.multiply_ratio(1u128, 2u128);
-    // add commission to reinvest PSI to total swap amount
+    // add commission to reinvest ORION to total swap amount
     total_orion_swap_amount += swap_amount;
 
     let orion_pair_info = query_pair_info(
@@ -113,7 +113,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         ],
     )?;
 
-    // find PSI swap rate
+    // find ORION swap rate
     let orion = Asset {
         info: AssetInfo::Token {
             contract_addr: orion_token.to_string(),
@@ -158,7 +158,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         deps.api.addr_validate(&orion_pair_info.contract_addr)?,
         &net_reinvest_asset,
     )?;
-    // calculate provided PSI from provided UST
+    // calculate provided ORION from provided UST
     let provide_orion = swap_orion_rate.return_amount + swap_orion_rate.commission_amount;
 
     pool_info.reinvest_allowance = swap_amount.checked_sub(provide_orion)?;

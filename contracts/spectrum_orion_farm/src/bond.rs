@@ -11,7 +11,7 @@ use crate::state::{
 use cw20::Cw20ExecuteMsg;
 
 use crate::querier::query_orion_pool_balance;
-use orion::orion_staking::{ExecuteMsg as OrionGovExecuteMsg, QueryMsg as OrionGovQueryMsg, StakerInfoResponse as OrionGovStakerInfoResponse};
+use orion::orion_staking::{ExecuteMsg as OrionGovExecuteMsg, StakerInfoResponse as OrionGovStakerInfoResponse};
 use orion::lp_staking::{Cw20HookMsg as OrionCw20HookMsg, ExecuteMsg as OrionStakingExecuteMsg};
 use spectrum_protocol::gov::{
     BalanceResponse as SpecBalanceResponse, ExecuteMsg as SpecExecuteMsg, QueryMsg as SpecQueryMsg,
@@ -81,7 +81,7 @@ pub fn bond(
     compound_rate: Option<Decimal>,
 ) -> StdResult<Response> {
 
-    if compound_rate.is_none() || compound_rate.unwrap_or_else(|| Decimal::zero()) != Decimal::one(){
+    if compound_rate.is_none() || compound_rate.unwrap_or_else(Decimal::zero) != Decimal::one(){
         return Err(StdError::generic_err("auto-stake is disabled"));
     }
 
@@ -132,9 +132,9 @@ pub fn deposit_farm_share(
     deps: Deps,
     state: &mut State,
     pool_info: &mut PoolInfo,
-    config: &Config,
+    _config: &Config,
     amount: Uint128,
-    time_seconds: Option<u64>
+    _time_seconds: Option<u64>
 ) -> StdResult<()> {
     let staked = OrionGovStakerInfoResponse {
         staker: deps.api.addr_humanize(&state.contract_addr)?.to_string(),
@@ -460,9 +460,6 @@ pub fn update_bond(
     amount_to_auto: Uint128,
     amount_to_stake: Uint128,
 ) -> StdResult<Response> {
-
-    return Err(StdError::generic_err("update_bond is disabled"));
-
     let config = read_config(deps.storage)?;
 
     let staker_addr_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
@@ -506,11 +503,11 @@ pub fn update_bond(
 
 pub fn withdraw(
     mut deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     asset_token: Option<String>,
     spec_amount: Option<Uint128>,
     farm_amount: Option<Uint128>,
-    env: Env
 ) -> StdResult<Response> {
     let staker_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
     let asset_token = asset_token.map(|a| deps.api.addr_canonicalize(&a).unwrap());
@@ -530,7 +527,7 @@ pub fn withdraw(
         &spec_staked,
         spec_amount,
         farm_amount,
-        env
+        env,
     )?;
 
     state.previous_spec_share = state.previous_spec_share.checked_sub(spec_share)?;
@@ -594,7 +591,7 @@ fn withdraw_reward(
     spec_staked: &SpecBalanceResponse,
     mut request_spec_amount: Option<Uint128>,
     mut request_farm_amount: Option<Uint128>,
-    env: Env
+    env: Env,
 ) -> StdResult<(Uint128, Uint128, Uint128, Uint128)> {
     let rewards_bucket = rewards_read(deps.storage, staker_addr);
 
@@ -745,8 +742,8 @@ fn calc_spec_share(amount: Uint128, stated: &SpecBalanceResponse) -> Uint128 {
 
 pub fn query_reward_info(
     deps: Deps,
+    env: Env,
     staker_addr: String,
-    env: Env
 ) -> StdResult<RewardInfoResponse> {
     let staker_addr_raw = deps.api.addr_canonicalize(&staker_addr)?;
     let mut state = read_state(deps.storage)?;
