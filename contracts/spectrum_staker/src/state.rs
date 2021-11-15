@@ -12,7 +12,6 @@ static KEY_CONFIG: &[u8] = b"config";
 pub struct Config {
     pub owner: CanonicalAddr,
     pub terraswap_factory: CanonicalAddr,
-    #[serde(default)] pub terraswap_router: String,
     pub allowlist: HashSet<CanonicalAddr>,
 }
 

@@ -8,7 +8,6 @@ use cw20::Cw20ReceiveMsg;
 pub struct ConfigInfo {
     pub owner: String,
     pub terraswap_factory: String,
-    pub terraswap_router: String,
     pub allowlist: Vec<String>,
 }
 
@@ -47,10 +46,11 @@ pub enum ExecuteMsg {
     zap_to_unbond_hook {
         staker_addr: String,
         prev_asset_a: Asset,
-        prev_asset_b: Asset,
-        belief_price: Option<Decimal>,
+        prev_asset_b: Option<Asset>,
+        prev_target_asset: Asset,
+        belief_price_a: Option<Decimal>,
+        belief_price_b: Option<Decimal>,
         max_spread: Decimal,
-        minimum_receive: Option<Uint128>,
     },
 }
 
@@ -63,10 +63,11 @@ pub struct SimulateZapToBondResponse {
 pub enum Cw20HookMsg {
     zap_to_unbond {
         sell_asset: AssetInfo,
+        sell_asset_b: Option<AssetInfo>,
         target_asset: AssetInfo,
         belief_price: Option<Decimal>,
+        belief_price_b: Option<Decimal>,
         max_spread: Decimal,
-        minimum_receive: Option<Uint128>,
     },
 }
 
@@ -81,6 +82,4 @@ pub enum QueryMsg {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {
-    pub terraswap_router: String,
-}
+pub struct MigrateMsg {}

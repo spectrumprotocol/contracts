@@ -103,6 +103,7 @@ fn test() {
     test_bond_2(&mut deps);
     test_zap_bond(&mut deps);
     test_zap_unbond(&mut deps);
+    test_zap_unbond2(&mut deps);
 }
 
 fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
@@ -786,6 +787,93 @@ fn test_zap_unbond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) 
             minimum_receive: None
         })
         .unwrap(),
+    });
+
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
+    assert_eq!(
+        res.messages
+            .into_iter()
+            .map(|it| it.msg)
+            .collect::<Vec<CosmosMsg>>(),
+        vec![
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: LP.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    amount: Uint128::from(124u128),
+                    contract: PAIR.to_string(),
+                    msg: to_binary(&TerraswapCw20HookMsg::WithdrawLiquidity {}).unwrap(),
+                }).unwrap(),
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: env.contract.address.to_string(),
+                msg: to_binary(&ExecuteMsg::zap_to_unbond_hook {
+                    staker_addr: USER1.to_string(),
+                    prev_asset_a: Asset {
+                        amount: Uint128::zero(),
+                        info: AssetInfo::Token {
+                            contract_addr: TOKEN.to_string(),
+                        },
+                    },
+                    prev_asset_b: Asset {
+                        amount: Uint128::zero(),
+                        info: AssetInfo::NativeToken {
+                            denom: "uusd".to_string(),
+                        },
+                    },
+                    belief_price: Some(Decimal::from_ratio(1u128, 1u128)),
+                    max_spread: Decimal::percent(1u64),
+                    minimum_receive: None
+                }).unwrap(),
+                funds: vec![],
+            }),
+        ]
+    );
+}
+
+fn test_zap_unbond2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+    let env = mock_env();
+    let info = mock_info(LP, &[]);
+
+    // target_asset as token
+    let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
+        sender: USER1.to_string(),
+        amount: Uint128::from(100u128),
+        msg: to_binary(&Cw20HookMsg::zap_to_unbond {
+            belief_price: Some(Decimal::from_ratio(1u128, 1u128)),
+            max_spread: Decimal::percent(1u64),
+            sell_asset: AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            target_asset: AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            minimum_receive: None
+        })
+            .unwrap(),
+    });
+
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    assert_eq!(
+        res,
+        Err(StdError::generic_err("not support sell_asset as native coin"))
+    );
+
+    let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
+        sender: USER1.to_string(),
+        amount: Uint128::from(124u128),
+        msg: to_binary(&Cw20HookMsg::zap_to_unbond {
+            belief_price: Some(Decimal::from_ratio(1u128, 1u128)),
+            max_spread: Decimal::percent(1u64),
+            sell_asset:  AssetInfo::Token {
+                contract_addr: TOKEN.to_string(),
+            },
+            target_asset: AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            minimum_receive: None
+        })
+            .unwrap(),
     });
 
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();

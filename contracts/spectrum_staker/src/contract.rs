@@ -14,9 +14,6 @@ use spectrum_protocol::staker::{ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg,
 use terraswap::asset::{Asset, AssetInfo};
 use terraswap::pair::{Cw20HookMsg as PairCw20HookMsg, ExecuteMsg as PairExecuteMsg, PoolResponse, QueryMsg as PairQueryMsg};
 use terraswap::querier::{query_pair_info, query_token_balance, simulate};
-use terraswap::router::{
-    SwapOperation, Cw20HookMsg as TerraswapRouterCw20HookMsg,
-};
 use uint::construct_uint;
 
 construct_uint! {
@@ -57,7 +54,6 @@ pub fn instantiate(
     config_store(deps.storage).save(&Config {
         owner: deps.api.addr_canonicalize(&msg.owner)?,
         terraswap_factory: deps.api.addr_canonicalize(&msg.terraswap_factory)?,
-        terraswap_router: deps.api.addr_validate(&msg.terraswap_router)?.to_string(),
         allowlist: HashSet::from_iter(allowlist),
     })?;
     Ok(Response::default())
@@ -129,21 +125,23 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         } => update_config(deps, info, insert_allowlist, remove_allowlist),
         ExecuteMsg::zap_to_unbond_hook {
             staker_addr,
+            prev_target_asset,
             prev_asset_a,
             prev_asset_b,
-            belief_price,
+            belief_price_a,
+            belief_price_b,
             max_spread,
-            minimum_receive,
         } => zap_to_unbond_hook(
             deps,
             env,
             info,
             staker_addr,
+            prev_target_asset,
             prev_asset_a,
             prev_asset_b,
-            belief_price,
+            belief_price_a,
+            belief_price_b,
             max_spread,
-            minimum_receive,
         ),
     }
 }
@@ -157,10 +155,11 @@ fn receive_cw20(
     match from_binary(&cw20_msg.msg) {
         Ok(Cw20HookMsg::zap_to_unbond {
             sell_asset,
+            sell_asset_b,
             target_asset,
             belief_price,
+            belief_price_b,
             max_spread,
-            minimum_receive,
         }) => zap_to_unbond(
             deps,
             env,
@@ -168,10 +167,11 @@ fn receive_cw20(
             cw20_msg.sender,
             cw20_msg.amount,
             sell_asset,
+            sell_asset_b,
             target_asset,
             belief_price,
+            belief_price_b,
             max_spread,
-            minimum_receive,
         ),
         Err(_) => Err(StdError::generic_err("data should be given")),
     }
@@ -660,51 +660,67 @@ fn zap_to_unbond(
     info: MessageInfo,
     staker_addr: String,
     amount: Uint128,
-    sell_asset: AssetInfo,
+    sell_asset_a: AssetInfo,
+    sell_asset_b: Option<AssetInfo>,
     target_asset: AssetInfo,
-    belief_price: Option<Decimal>,
+    belief_price_a: Option<Decimal>,
+    belief_price_b: Option<Decimal>,
     max_spread: Decimal,
-    minimum_receive: Option<Uint128>,
 ) -> StdResult<Response> {
     validate_slippage(max_spread)?;
 
-    let asset_token = match sell_asset.clone() {
+    let denom = match target_asset.clone() {
+        AssetInfo::NativeToken { denom } => denom,
+        _ => return Err(StdError::generic_err("not support target_asset as token")),
+    };
+    let asset_token_a = match sell_asset_a.clone() {
         AssetInfo::Token { contract_addr } => contract_addr,
+        _ => return Err(StdError::generic_err("not support sell_asset as native coin")),
+    };
+    let asset_token_b = match sell_asset_b {
+        Some(AssetInfo::Token { contract_addr }) => Some(contract_addr),
+        None => None,
         _ => return Err(StdError::generic_err("not support sell_asset as native coin")),
     };
 
     let config = read_config(deps.storage)?;
     let terraswap_factory = deps.api.addr_humanize(&config.terraswap_factory)?;
-    let asset_infos = [target_asset.clone(), sell_asset.clone()];
-    let terraswap_pair = query_pair_info(&deps.querier, terraswap_factory, &asset_infos)?;
+    let asset_infos = [target_asset.clone(), sell_asset_a.clone()];
+    let terraswap_pair_a = query_pair_info(&deps.querier, terraswap_factory, &asset_infos)?;
 
-    if terraswap_pair.liquidity_token != info.sender {
+    if terraswap_pair_a.liquidity_token != info.sender {
         return Err(StdError::generic_err("invalid lp token"));
     }
 
+    let current_denom_amount = deps
+        .querier
+        .query_balance(env.contract.address.to_string(), denom)?
+        .amount;
     let current_token_a_amount = query_token_balance(
         &deps.querier,
-        deps.api.addr_validate(&asset_token)?,
+        deps.api.addr_validate(&asset_token_a)?,
         env.contract.address.clone(),
     )?;
-
-    let current_token_b_amount = match target_asset.clone() {
-        AssetInfo::NativeToken { denom } => deps
-            .querier
-            .query_balance(env.contract.address.to_string(), denom)?
-            .amount,
-        AssetInfo::Token { contract_addr } => query_token_balance(
-            &deps.querier,
-            deps.api.addr_validate(&contract_addr)?,
-            env.contract.address.clone())?
+    let current_token_b_asset = match asset_token_b {
+        Some(contract_addr) => {
+            let amount = query_token_balance(
+                &deps.querier,
+                deps.api.addr_validate(&contract_addr)?,
+                env.contract.address.clone())?;
+            Some(Asset {
+                info: AssetInfo::Token { contract_addr },
+                amount,
+            })
+        },
+        None => None,
     };
 
     Ok(Response::new().add_messages(vec![
         CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: terraswap_pair.liquidity_token,
+            contract_addr: terraswap_pair_a.liquidity_token,
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 amount,
-                contract: terraswap_pair.contract_addr,
+                contract: terraswap_pair_a.contract_addr,
                 msg: to_binary(&PairCw20HookMsg::WithdrawLiquidity {})?,
             })?,
             funds: vec![],
@@ -713,17 +729,18 @@ fn zap_to_unbond(
             contract_addr: env.contract.address.to_string(),
             msg: to_binary(&ExecuteMsg::zap_to_unbond_hook {
                 staker_addr,
-                prev_asset_a: Asset {
-                    amount: current_token_a_amount,
-                    info: sell_asset,
-                },
-                prev_asset_b: Asset {
-                    amount: current_token_b_amount,
+                prev_target_asset: Asset {
+                    amount: current_denom_amount,
                     info: target_asset,
                 },
-                belief_price,
+                prev_asset_a: Asset {
+                    amount: current_token_a_amount,
+                    info: sell_asset_a,
+                },
+                prev_asset_b: current_token_b_asset,
+                belief_price_a,
+                belief_price_b,
                 max_spread,
-                minimum_receive,
             })?,
             funds: vec![],
         }),
@@ -736,114 +753,112 @@ fn zap_to_unbond_hook(
     env: Env,
     info: MessageInfo,
     staker_addr: String,
+    prev_target_asset: Asset,
     prev_asset_a: Asset,
-    prev_asset_b: Asset,
-    belief_price: Option<Decimal>,
+    prev_asset_b: Option<Asset>,
+    belief_price_a: Option<Decimal>,
+    belief_price_b: Option<Decimal>,
     max_spread: Decimal,
-    minimum_receive: Option<Uint128>,
 ) -> StdResult<Response> {
     // only can be called by itself
     if info.sender != env.contract.address {
         return Err(StdError::generic_err("unauthorized"));
     }
 
-    let asset_token = match prev_asset_a.info.clone() {
-        AssetInfo::Token { contract_addr } => contract_addr,
-        _ => return Err(StdError::generic_err("not support sell_asset as native coin")),
-    };
-
-    let current_token_a_amount = query_token_balance(
-        &deps.querier,
-        deps.api.addr_validate(&asset_token)?,
-        env.contract.address.clone(),
-    )?;
-
     let config = read_config(deps.storage)?;
     let terraswap_factory = deps.api.addr_humanize(&config.terraswap_factory)?;
-    match prev_asset_b.info.clone() {
-        AssetInfo::NativeToken { denom } => {
-            let asset_infos = [prev_asset_b.info.clone(), prev_asset_a.info];
-            let terraswap_pair = query_pair_info(&deps.querier, terraswap_factory, &asset_infos)?;
-            let current_token_b_amount = deps
-                .querier
-                .query_balance(env.contract.address.to_string(), denom.clone())?
-                .amount;
-            let transfer_asset = Asset {
-                info: prev_asset_b.info.clone(),
-                amount: current_token_b_amount.checked_sub(prev_asset_b.amount)?,
-            };
+    if let Some(prev_asset_b) = prev_asset_b {
+        let asset_token_b = match prev_asset_b.info.clone() {
+            AssetInfo::Token { contract_addr } => contract_addr,
+            _ => return Err(StdError::generic_err("not support sell_asset as native coin")),
+        };
+        let asset_infos = [prev_asset_b.info.clone(), prev_asset_a.info.clone()];
+        let terraswap_pair = query_pair_info(&deps.querier, terraswap_factory, &asset_infos)?;
+        let current_token_b_amount = query_token_balance(
+            &deps.querier,
+            deps.api.addr_validate(&asset_token_b)?,
+            env.contract.address.clone())?;
+
+        Ok(Response::new().add_messages(vec![
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: asset_token_b,
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: terraswap_pair.contract_addr,
+                    amount: current_token_b_amount.checked_sub(prev_asset_b.amount)?,
+                    msg: to_binary(&PairCw20HookMsg::Swap {
+                        to: None,
+                        belief_price: belief_price_b,
+                        max_spread: Some(max_spread),
+                    })?,
+                })?,
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: env.contract.address.to_string(),
+                msg: to_binary(&ExecuteMsg::zap_to_unbond_hook {
+                    staker_addr,
+                    prev_target_asset,
+                    prev_asset_a,
+                    prev_asset_b: None,
+                    belief_price_a,
+                    belief_price_b: None,
+                    max_spread,
+                })?,
+                funds: vec![],
+            }),
+        ]))
+    } else {
+        let denom = match prev_target_asset.info.clone() {
+            AssetInfo::NativeToken { denom } => denom,
+            _ => return Err(StdError::generic_err("not support target_asset as token")),
+        };
+        let asset_token_a = match prev_asset_a.info.clone() {
+            AssetInfo::Token { contract_addr } => contract_addr,
+            _ => return Err(StdError::generic_err("not support sell_asset as native coin")),
+        };
+        let current_token_a_amount = query_token_balance(
+            &deps.querier,
+            deps.api.addr_validate(&asset_token_a)?,
+            env.contract.address.clone(),
+        )?;
+        let current_denom_amount = deps
+            .querier
+            .query_balance(env.contract.address.to_string(), denom.clone())?
+            .amount;
+
+        let transfer_asset = Asset {
+            info: prev_target_asset.info.clone(),
+            amount: current_denom_amount.checked_sub(prev_target_asset.amount)?,
+        };
+        let mut messages: Vec<CosmosMsg> = vec![];
+        if !transfer_asset.amount.is_zero() {
             let tax_amount = transfer_asset.compute_tax(&deps.querier)?;
-            Ok(Response::new().add_messages(vec![
-                CosmosMsg::Bank(BankMsg::Send {
-                    to_address: staker_addr.clone(),
-                    amount: vec![Coin {
-                        denom,
-                        amount: transfer_asset.amount.checked_sub(tax_amount)?,
-                    }],
-                }),
-                CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: asset_token,
-                    msg: to_binary(&Cw20ExecuteMsg::Send {
-                        contract: terraswap_pair.contract_addr,
-                        amount: current_token_a_amount.checked_sub(prev_asset_a.amount)?,
-                        msg: to_binary(&PairCw20HookMsg::Swap {
-                            to: Some(staker_addr),
-                            belief_price,
-                            max_spread: Some(max_spread),
-                        })?,
-                    })?,
-                    funds: vec![],
-                }),
-            ]))
-        },
-        AssetInfo::Token { contract_addr } => {
-            let uusd_info = AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            };
-            let asset_infos_a = [uusd_info.clone(), prev_asset_a.info.clone()];
-            let terraswap_pair_a = query_pair_info(&deps.querier, terraswap_factory, &asset_infos_a)?;
-            let current_token_b_amount = query_token_balance(
-                &deps.querier,
-                deps.api.addr_validate(&contract_addr)?,
-                env.contract.address)?;
-            Ok(Response::new().add_messages(vec![
-                CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: asset_token,
-                    msg: to_binary(&Cw20ExecuteMsg::Send {
-                        contract: terraswap_pair_a.contract_addr,
-                        amount: current_token_a_amount.checked_sub(prev_asset_a.amount)?,
-                        msg: to_binary(&PairCw20HookMsg::Swap {
-                            to: Some(staker_addr.clone()),
-                            belief_price,
-                            max_spread: Some(max_spread),
-                        })?,
-                    })?,
-                    funds: vec![],
-                }),
-                CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr,
-                    msg: to_binary(&Cw20ExecuteMsg::Send {
-                        contract: config.terraswap_router,
-                        amount: current_token_b_amount.checked_sub(prev_asset_b.amount)?,
-                        msg: to_binary(&TerraswapRouterCw20HookMsg::ExecuteSwapOperations {
-                            operations: vec![
-                                SwapOperation::TerraSwap {
-                                    offer_asset_info: prev_asset_b.info,
-                                    ask_asset_info: prev_asset_a.info.clone(),
-                                },
-                                SwapOperation::TerraSwap {
-                                    offer_asset_info: prev_asset_a.info,
-                                    ask_asset_info: uusd_info,
-                                },
-                            ],
-                            minimum_receive,
-                            to: Some(staker_addr),
-                        })?,
-                    })?,
-                    funds: vec![],
-                }),
-            ]))
+            messages.push(CosmosMsg::Bank(BankMsg::Send {
+                to_address: staker_addr.clone(),
+                amount: vec![Coin {
+                    denom,
+                    amount: transfer_asset.amount.checked_sub(tax_amount)?,
+                }],
+            }));
         }
+
+        let asset_infos = [prev_target_asset.info, prev_asset_a.info];
+        let terraswap_pair = query_pair_info(&deps.querier, terraswap_factory, &asset_infos)?;
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: asset_token_a,
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: terraswap_pair.contract_addr,
+                amount: current_token_a_amount.checked_sub(prev_asset_a.amount)?,
+                msg: to_binary(&PairCw20HookMsg::Swap {
+                    to: Some(staker_addr),
+                    belief_price: belief_price_a,
+                    max_spread: Some(max_spread),
+                })?,
+            })?,
+            funds: vec![],
+        }));
+
+        Ok(Response::new().add_messages(messages))
     }
 }
 
@@ -867,7 +882,6 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
             .api
             .addr_humanize(&config.terraswap_factory)?
             .to_string(),
-        terraswap_router: config.terraswap_router,
         allowlist: config
             .allowlist
             .into_iter()
@@ -918,9 +932,6 @@ fn simulate_zap_to_bond(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
-    let mut config = read_config(deps.storage)?;
-    config.terraswap_router = msg.terraswap_router;
-    config_store(deps.storage).save(&config)?;
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
 }
