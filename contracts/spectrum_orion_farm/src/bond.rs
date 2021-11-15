@@ -136,14 +136,13 @@ pub fn deposit_farm_share(
     amount: Uint128,
     time_seconds: Option<u64>
 ) -> StdResult<()> {
-    let staked: OrionGovStakerInfoResponse =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: deps.api.addr_humanize(&config.orion_gov)?.to_string(),
-            msg: to_binary(&OrionGovQueryMsg::StakerInfo {
-                staker: deps.api.addr_humanize(&state.contract_addr)?.to_string(),
-                timestamp: time_seconds
-            })?,
-        }))?;
+    let staked = OrionGovStakerInfoResponse {
+        staker: deps.api.addr_humanize(&state.contract_addr)?.to_string(),
+        reward_index: Decimal::zero(),
+        bond_amount: Uint128::zero(),
+        pending_reward: Uint128::zero(),
+        orders: vec![]
+    };
 
     let mut new_total_share = Uint128::zero();
     if !pool_info.total_stake_bond_share.is_zero() {
@@ -619,14 +618,13 @@ fn withdraw_reward(
             .collect::<StdResult<Vec<(CanonicalAddr, RewardInfo)>>>()?;
     }
 
-    let farm_staked: OrionGovStakerInfoResponse =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: deps.api.addr_humanize(&config.orion_gov)?.to_string(),
-            msg: to_binary(&OrionGovQueryMsg::StakerInfo {
-                staker: deps.api.addr_humanize(&state.contract_addr)?.to_string(),
-                timestamp: Some(env.block.time.seconds())
-            })?,
-        }))?;
+    let farm_staked = OrionGovStakerInfoResponse {
+        staker: deps.api.addr_humanize(&state.contract_addr)?.to_string(),
+        reward_index: Decimal::zero(),
+        bond_amount: Uint128::zero(),
+        pending_reward: Uint128::zero(),
+        orders: vec![]
+    };
 
     let lp_balance = query_orion_pool_balance(
         deps.as_ref(),
@@ -788,14 +786,13 @@ fn read_reward_infos(
         })
         .collect::<StdResult<Vec<(CanonicalAddr, RewardInfo)>>>()?;
 
-    let farm_staked: OrionGovStakerInfoResponse =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: deps.api.addr_humanize(&config.orion_gov)?.to_string(),
-            msg: to_binary(&OrionGovQueryMsg::StakerInfo {
-                staker: deps.api.addr_humanize(&state.contract_addr)?.to_string(),
-                timestamp: Some(env.block.time.seconds())
-            })?,
-        }))?;
+    let farm_staked = OrionGovStakerInfoResponse {
+        staker: deps.api.addr_humanize(&state.contract_addr)?.to_string(),
+        reward_index: Decimal::zero(),
+        bond_amount: Uint128::zero(),
+        pending_reward: Uint128::zero(),
+        orders: vec![]
+    };
 
     let lp_balance =
         query_orion_pool_balance(deps, &config.orion_staking, &state.contract_addr, env.block.time.seconds())?;
