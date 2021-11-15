@@ -101,6 +101,7 @@ fn test() {
     test_bond(&mut deps);
     test_bond_2(&mut deps);
     test_zap_bond(&mut deps);
+    test_zap_bond2(&mut deps);
     test_zap_unbond(&mut deps);
     test_zap_unbond2(&mut deps);
 }
@@ -667,6 +668,107 @@ fn test_zap_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
 
     let res = execute(deps.as_mut(), env, info, msg);
     assert!(res.is_ok())
+}
+
+fn test_zap_bond2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+    let env = mock_env();
+    let info = mock_info(
+        USER1,
+        &[Coin {
+            denom: "uusd".to_string(),
+            amount: Uint128::from(100_000_000u128),
+        }],
+    );
+
+    let msg = ExecuteMsg::zap_to_bond {
+        contract: FARM1.to_string(),
+        compound_rate: Some(Decimal::percent(55u64)),
+        provide_asset: Asset {
+            info: AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            amount: Uint128::from(100_000_000u128),
+        },
+        pair_asset: AssetInfo::Token {
+            contract_addr: TOKEN.to_string(),
+        },
+        pair_asset_b: Some(AssetInfo::Token {
+            contract_addr: TOKEN_B.to_string(),
+        }),
+        belief_price: Some(Decimal::from_ratio(1u128, 1u128)),
+        belief_price_b: Some(Decimal::from_ratio(6u128, 5u128)),
+        max_spread: Decimal::percent(1u64),
+    };
+
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+    assert_eq!(
+        res.messages
+            .into_iter()
+            .map(|it| it.msg)
+            .collect::<Vec<CosmosMsg>>(),
+        vec![
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: "pair0001".to_string(),
+                msg: to_binary(&TerraswapExecuteMsg::Swap {
+                    offer_asset: Asset {
+                        info: AssetInfo::NativeToken {
+                            denom: "uusd".to_string(),
+                        },
+                        amount: Uint128::from(100000000u128),
+                    },
+                    max_spread: Some(Decimal::percent(1u64)),
+                    belief_price: Some(Decimal::from_ratio(1u128, 1u128)),
+                    to: None,
+                })
+                    .unwrap(),
+                funds: vec![Coin {
+                    denom: "uusd".to_string(),
+                    amount: Uint128::from(100000000u128),
+                }],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: "pair0002".to_string(),
+                msg: to_binary(&TerraswapExecuteMsg::Swap {
+                    offer_asset: Asset {
+                        info: AssetInfo::Token {
+                            contract_addr: TOKEN.to_string(),
+                        },
+                        amount: Uint128::from(47663904u128),
+                    },
+                    max_spread: Some(Decimal::percent(1u64)),
+                    belief_price: Some(Decimal::from_ratio(6u128, 5u128)),
+                    to: None,
+                })
+                    .unwrap(),
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: env.contract.address.to_string(),
+                msg: to_binary(&ExecuteMsg::bond {
+                    contract: FARM1.to_string(),
+                    assets: [
+                        Asset {
+                            info: AssetInfo::Token {
+                                contract_addr: TOKEN.to_string(),
+                            },
+                            amount: Uint128::from(52036096u128),
+                        },
+                        Asset {
+                            info: AssetInfo::Token {
+                                contract_addr: TOKEN_B.to_string(),
+                            },
+                            amount: Uint128::from(47520913u128),
+                        },
+                    ],
+                    staker_addr: Some(USER1.to_string()),
+                    slippage_tolerance: Decimal::percent(1u64),
+                    compound_rate: Some(Decimal::percent(55u64)),
+                })
+                    .unwrap(),
+                funds: vec![],
+            }),
+        ]
+    );
 }
 
 fn test_zap_unbond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
