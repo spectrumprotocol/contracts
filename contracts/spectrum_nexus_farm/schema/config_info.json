@@ -8,12 +8,12 @@
     "controller",
     "controller_fee",
     "deposit_fee",
-    "owner",
-    "platform",
-    "platform_fee",
     "nexus_gov",
     "nexus_staking",
     "nexus_token",
+    "owner",
+    "platform",
+    "platform_fee",
     "spectrum_gov",
     "spectrum_token",
     "terraswap_factory"
@@ -34,15 +34,6 @@
     "deposit_fee": {
       "$ref": "#/definitions/Decimal"
     },
-    "owner": {
-      "type": "string"
-    },
-    "platform": {
-      "type": "string"
-    },
-    "platform_fee": {
-      "$ref": "#/definitions/Decimal"
-    },
     "nexus_gov": {
       "type": "string"
     },
@@ -51,6 +42,15 @@
     },
     "nexus_token": {
       "type": "string"
+    },
+    "owner": {
+      "type": "string"
+    },
+    "platform": {
+      "type": "string"
+    },
+    "platform_fee": {
+      "$ref": "#/definitions/Decimal"
     },
     "spectrum_gov": {
       "type": "string"
