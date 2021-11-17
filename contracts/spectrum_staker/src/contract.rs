@@ -460,7 +460,7 @@ fn zap_to_bond(
 
     validate_contract(contract_raw, &config.allowlist)?;
 
-    let (messages, _, _) = compute_zap_to_bond(
+    let (messages, _) = compute_zap_to_bond(
         deps.as_ref(),
         env,
         &config,
@@ -473,6 +473,7 @@ fn zap_to_bond(
         Some(max_spread),
         compound_rate,
         Some(info.sender.to_string()),
+        false,
     )?;
 
     Ok(Response::new()
@@ -499,7 +500,8 @@ fn compute_zap_to_bond(
     max_spread: Option<Decimal>,
     compound_rate: Option<Decimal>,
     staker_addr: Option<String>,
-) -> StdResult<(Vec<CosmosMsg>, [Asset; 2], PoolResponse)> {
+    simulation_mode: bool,
+) -> StdResult<(Vec<CosmosMsg>, Option<SimulateZapToBondResponse>)> {
     let denom = match provide_asset.info.clone() {
         AssetInfo::NativeToken { denom } => denom,
         _ => return Err(StdError::generic_err("not support provide_asset as token")),
@@ -555,6 +557,8 @@ fn compute_zap_to_bond(
     if pair_asset_b.is_none() {
         apply_pool(&mut pool, &swap_asset, simulate_a.return_amount);
     }
+    let price_a = Decimal::from_ratio(swap_asset.amount, simulate_a.return_amount + simulate_a.commission_amount);
+    let mut price_b: Option<Decimal> = None;
     let mut amount_a = simulate_a.return_amount;
     let mut messages: Vec<CosmosMsg> = vec![
         CosmosMsg::Wasm(WasmMsg::Execute {
@@ -591,13 +595,17 @@ fn compute_zap_to_bond(
             amount: simulate_b.return_amount,
         };
         apply_pool(&mut pool, &swap_asset_a, simulate_b.return_amount);
+        price_b = Some(Decimal::from_ratio(swap_asset_a.amount, simulate_b.return_amount + simulate_b.commission_amount));
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: pair_contract,
-            msg: to_binary(&PairExecuteMsg::Swap {
-                offer_asset: swap_asset_a,
-                max_spread,
-                belief_price: belief_price_b,
-                to: None,
+            contract_addr: swap_asset_a.info.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: pair_contract,
+                amount: swap_asset_a.amount,
+                msg: to_binary(&PairCw20HookMsg::Swap {
+                    belief_price: belief_price_b,
+                    max_spread,
+                    to: None,
+                })?
             })?,
             funds: vec![],
         }));
@@ -621,7 +629,24 @@ fn compute_zap_to_bond(
         funds: vec![],
     }));
 
-    Ok((messages, assets, pool))
+    if simulation_mode {
+        let (pool_a, pool_b) = if pool.assets[0].info.clone() == assets[0].info {
+            (pool.assets[0].amount, pool.assets[1].amount)
+        } else {
+            (pool.assets[1].amount, pool.assets[0].amount)
+        };
+        let lp_amount = std::cmp::min(
+            assets[0].amount.multiply_ratio(pool.total_share, pool_a),
+            assets[1].amount.multiply_ratio(pool.total_share, pool_b),
+        );
+        Ok((messages.clone(), Some(SimulateZapToBondResponse {
+            lp_amount,
+            belief_price: price_a,
+            belief_price_b: price_b,
+        })))
+    } else {
+        Ok((messages, None))
+    }
 }
 
 fn update_config(
@@ -677,7 +702,7 @@ fn zap_to_unbond(
         AssetInfo::Token { contract_addr } => contract_addr,
         _ => return Err(StdError::generic_err("not support sell_asset as native coin")),
     };
-    let asset_token_b = match sell_asset_b {
+    let asset_token_b = match sell_asset_b.clone() {
         Some(AssetInfo::Token { contract_addr }) => Some(contract_addr),
         None => None,
         _ => return Err(StdError::generic_err("not support sell_asset as native coin")),
@@ -685,10 +710,14 @@ fn zap_to_unbond(
 
     let config = read_config(deps.storage)?;
     let terraswap_factory = deps.api.addr_humanize(&config.terraswap_factory)?;
-    let asset_infos = [target_asset.clone(), sell_asset_a.clone()];
-    let terraswap_pair_a = query_pair_info(&deps.querier, terraswap_factory, &asset_infos)?;
+    let asset_infos = if let Some(asset_info) = sell_asset_b {
+        [sell_asset_a.clone(), asset_info]
+    } else {
+        [target_asset.clone(), sell_asset_a.clone()]
+    };
+    let terraswap_pair = query_pair_info(&deps.querier, terraswap_factory, &asset_infos)?;
 
-    if terraswap_pair_a.liquidity_token != info.sender {
+    if terraswap_pair.liquidity_token != info.sender {
         return Err(StdError::generic_err("invalid lp token"));
     }
 
@@ -717,10 +746,10 @@ fn zap_to_unbond(
 
     Ok(Response::new().add_messages(vec![
         CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: terraswap_pair_a.liquidity_token,
+            contract_addr: terraswap_pair.liquidity_token,
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 amount,
-                contract: terraswap_pair_a.contract_addr,
+                contract: terraswap_pair.contract_addr,
                 msg: to_binary(&PairCw20HookMsg::WithdrawLiquidity {})?,
             })?,
             funds: vec![],
@@ -901,7 +930,7 @@ fn simulate_zap_to_bond(
 ) -> StdResult<SimulateZapToBondResponse> {
     let config = read_config(deps.storage)?;
 
-    let (_, [asset_a, asset_b], pool) = compute_zap_to_bond(
+    let (_, res) = compute_zap_to_bond(
         deps,
         env,
         &config,
@@ -914,21 +943,10 @@ fn simulate_zap_to_bond(
         None,
         None,
         None,
+        true,
     )?;
 
-    let (pool_a, pool_b) = if pool.assets[0].info.clone() == asset_a.info {
-        (pool.assets[0].amount, pool.assets[1].amount)
-    } else {
-        (pool.assets[1].amount, pool.assets[0].amount)
-    };
-    let lp_amount = std::cmp::min(
-        asset_a.amount.multiply_ratio(pool.total_share, pool_a),
-        asset_b.amount.multiply_ratio(pool.total_share, pool_b),
-    );
-
-    Ok(SimulateZapToBondResponse {
-        lp_amount,
-    })
+    Ok(res.unwrap())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

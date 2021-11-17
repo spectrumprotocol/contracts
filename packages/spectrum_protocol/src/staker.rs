@@ -57,6 +57,8 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct SimulateZapToBondResponse {
     pub lp_amount: Uint128,
+    pub belief_price: Decimal,
+    pub belief_price_b: Option<Decimal>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

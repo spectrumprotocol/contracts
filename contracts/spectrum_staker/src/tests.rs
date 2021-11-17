@@ -727,19 +727,16 @@ fn test_zap_bond2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 }],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: "pair0002".to_string(),
-                msg: to_binary(&TerraswapExecuteMsg::Swap {
-                    offer_asset: Asset {
-                        info: AssetInfo::Token {
-                            contract_addr: TOKEN.to_string(),
-                        },
-                        amount: Uint128::from(47663904u128),
-                    },
-                    max_spread: Some(Decimal::percent(1u64)),
-                    belief_price: Some(Decimal::from_ratio(6u128, 5u128)),
-                    to: None,
-                })
-                    .unwrap(),
+                contract_addr: TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: "pair0002".to_string(),
+                    amount: Uint128::from(47663904u128),
+                    msg: to_binary(&TerraswapCw20HookMsg::Swap {
+                        max_spread: Some(Decimal::percent(1u64)),
+                        belief_price: Some(Decimal::from_ratio(6u128, 5u128)),
+                        to: None,
+                    }).unwrap()
+                }).unwrap(),
                 funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
@@ -938,7 +935,7 @@ fn test_zap_unbond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) 
 
 fn test_zap_unbond2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let env = mock_env();
-    let info = mock_info(LP, &[]);
+    let info = mock_info(LP_B, &[]);
 
     let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
         sender: USER1.to_string(),
@@ -968,10 +965,10 @@ fn test_zap_unbond2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
             .collect::<Vec<CosmosMsg>>(),
         vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: LP.to_string(),
+                contract_addr: LP_B.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     amount: Uint128::from(124u128),
-                    contract: PAIR.to_string(),
+                    contract: PAIR_B.to_string(),
                     msg: to_binary(&TerraswapCw20HookMsg::WithdrawLiquidity {}).unwrap(),
                 }).unwrap(),
                 funds: vec![],
