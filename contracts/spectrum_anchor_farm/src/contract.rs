@@ -109,7 +109,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             asset_token,
             amount,
         } => unbond(deps, env, info, asset_token, amount),
-        ExecuteMsg::withdraw { asset_token, spec_amount, farm_amount } => withdraw(deps, info, asset_token, spec_amount, farm_amount),
+        ExecuteMsg::withdraw { asset_token, spec_amount, farm_amount } => withdraw(deps, env, info, asset_token, spec_amount, farm_amount),
         ExecuteMsg::stake { asset_token } => stake(deps, env, info, asset_token),
         ExecuteMsg::compound {} => compound(deps, env, info),
         ExecuteMsg::update_bond { asset_token, amount_to_auto, amount_to_stake } => update_bond(deps, env, info, asset_token, amount_to_auto, amount_to_stake),
@@ -245,13 +245,13 @@ fn register_asset(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::config {} => to_binary(&query_config(deps)?),
         QueryMsg::pools {} => to_binary(&query_pools(deps)?),
         QueryMsg::reward_info {
             staker_addr,
-        } => to_binary(&query_reward_info(deps, staker_addr)?),
+        } => to_binary(&query_reward_info(deps, env, staker_addr)?),
         QueryMsg::state {} => to_binary(&query_state(deps)?),
     }
 }
