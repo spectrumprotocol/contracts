@@ -632,6 +632,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "spectrum-deployer"
+version = "0.2.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
+]
+
+[[package]]
 name = "spectrum-gov"
 version = "0.2.0"
 dependencies = [
