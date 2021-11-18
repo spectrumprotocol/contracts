@@ -246,7 +246,7 @@ pub fn register_asset(
         && pool_info.total_auto_bond_share.is_zero()
     {
         pool_info.staking_token = deps.api.addr_canonicalize(&staking_token)?;
-    } else {
+    } else if deps.api.addr_humanize(&pool_info.staking_token)? != staking_token {
         return Err(StdError::generic_err("pool is not empty"));
     }
 
