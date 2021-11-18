@@ -346,9 +346,6 @@ fn query_state(deps: Deps) -> StdResult<StateInfo> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
-    let mut state = read_state(deps.storage)?;
-    state.earning_spec = msg.earning_spec;
-    state_store(deps.storage).save(&state)?;
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
 }
