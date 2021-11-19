@@ -454,6 +454,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
 
 [[package]]
+name = "orion"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-bignumber",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+]
+
+[[package]]
 name = "pkcs8"
 version = "0.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -679,14 +692,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "spectrum-nexus-nasset-psi-farm"
+name = "spectrum-orion-farm"
 version = "0.2.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw20",
- "nexus-token",
+ "orion",
  "schemars",
  "serde",
  "spectrum-protocol",
