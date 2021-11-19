@@ -518,7 +518,7 @@ fn compute_zap_to_bond(
     let terraswap_factory = deps.api.addr_humanize(&config.terraswap_factory)?;
     let asset_pair_a = [provide_asset.info.clone(), pair_asset_a.clone()];
     let terraswap_pair_a = query_pair_info(&deps.querier, terraswap_factory.clone(), &asset_pair_a)?;
-    let (swap_amount, pair_contract, pool) = if let Some(pair_asset_b) = pair_asset_b.clone() {
+    let (ust_swap_amount, pair_contract, pool) = if let Some(pair_asset_b) = pair_asset_b.clone() {
         let asset_pair_b = [pair_asset_a.clone(), pair_asset_b];
         let terraswap_pair_b = query_pair_info(&deps.querier, terraswap_factory, &asset_pair_b)?;
         let pool: PoolResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
@@ -535,43 +535,43 @@ fn compute_zap_to_bond(
         (swap_amount, terraswap_pair_a.contract_addr.clone(), pool)
     };
     let mut pool = pool;
-    let swap_asset = Asset {
+    let ust_swap_asset = Asset {
         info: provide_asset.info.clone(),
-        amount: swap_amount,
+        amount: ust_swap_amount,
     };
     let mut bond_asset = Asset {
         info: provide_asset.info.clone(),
-        amount: provide_asset.amount.checked_sub(swap_asset.amount)?,
+        amount: provide_asset.amount.checked_sub(ust_swap_asset.amount)?,
     };
-    let tax_amount = swap_asset.compute_tax(&deps.querier)?;
-    let swap_asset = Asset {
+    let tax_amount = ust_swap_asset.compute_tax(&deps.querier)?;
+    let ust_swap_asset = Asset {
         info: provide_asset.info,
-        amount: swap_amount.checked_sub(tax_amount)?,
+        amount: ust_swap_amount.checked_sub(tax_amount)?,
     };
 
     // swap ust -> A
     let simulate_a = simulate(
         &deps.querier,
         deps.api.addr_validate(&terraswap_pair_a.contract_addr)?,
-        &swap_asset)?;
+        &ust_swap_asset)?;
     if pair_asset_b.is_none() {
-        apply_pool(&mut pool, &swap_asset, simulate_a.return_amount);
+        apply_pool(&mut pool, &ust_swap_asset, simulate_a.return_amount);
     }
-    let price_a = Decimal::from_ratio(swap_asset.amount, simulate_a.return_amount + simulate_a.commission_amount);
+    let price_a = Decimal::from_ratio(ust_swap_asset.amount, simulate_a.return_amount + simulate_a.commission_amount);
     let mut price_b: Option<Decimal> = None;
     let mut amount_a = simulate_a.return_amount;
     let mut messages: Vec<CosmosMsg> = vec![
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: terraswap_pair_a.contract_addr,
             msg: to_binary(&PairExecuteMsg::Swap {
-                offer_asset: swap_asset.clone(),
+                offer_asset: ust_swap_asset.clone(),
                 max_spread,
                 belief_price: belief_price_a,
                 to: None,
             })?,
             funds: vec![Coin {
                 denom,
-                amount: swap_asset.amount,
+                amount: ust_swap_asset.amount,
             }],
         }),
     ];
@@ -639,7 +639,7 @@ fn compute_zap_to_bond(
             assets[0].amount.multiply_ratio(pool.total_share, pool_a),
             assets[1].amount.multiply_ratio(pool.total_share, pool_b),
         );
-        Ok((messages.clone(), Some(SimulateZapToBondResponse {
+        Ok((messages, Some(SimulateZapToBondResponse {
             lp_amount,
             belief_price: price_a,
             belief_price_b: price_b,
