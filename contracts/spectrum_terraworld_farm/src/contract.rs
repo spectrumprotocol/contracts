@@ -251,7 +251,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::pools {} => to_binary(&query_pools(deps)?),
         QueryMsg::reward_info {
             staker_addr,
-        } => to_binary(&query_reward_info(deps, staker_addr, env.block.height)?),
+        } => to_binary(&query_reward_info(deps, env, staker_addr)?),
         QueryMsg::state {} => to_binary(&query_state(deps)?),
     }
 }

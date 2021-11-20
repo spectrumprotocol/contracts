@@ -143,6 +143,8 @@ pub struct RewardInfo {
     pub stake_bond_share: Uint128,
     pub farm_share: Uint128,
     pub spec_share: Uint128,
+    #[serde(default)] pub deposit_amount: Uint128,
+    #[serde(default)] pub deposit_time: u64,
 }
 
 /// returns a bucket with all rewards owned by this owner (query it by owner)

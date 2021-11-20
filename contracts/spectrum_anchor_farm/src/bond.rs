@@ -861,7 +861,11 @@ fn read_reward_infos(
                 } else {
                     None
                 },
-                deposit_time: reward_info.deposit_time,
+                deposit_time: if has_deposit_amount {
+                    Some(reward_info.deposit_time)
+                } else {
+                    None
+                },
             })
         })
         .collect::<StdResult<Vec<RewardInfoResponseItem>>>()?;

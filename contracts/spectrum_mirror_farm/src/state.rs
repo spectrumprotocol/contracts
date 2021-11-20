@@ -198,6 +198,10 @@ pub struct RewardInfo {
 
     // current SPEC reward share balance
     pub spec_share: Uint128,
+
+    // record to track initial deposit amount & APR%
+    #[serde(default)] pub deposit_amount: Uint128,
+    #[serde(default)] pub deposit_time: u64,
 }
 
 /// returns a bucket with all rewards owned by this owner (query it by owner)
