@@ -692,6 +692,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "spectrum-nexus-nasset-psi-farm"
+version = "0.2.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "nexus-token",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
+ "terraswap",
+]
+
+[[package]]
 name = "spectrum-orion-farm"
 version = "0.2.0"
 dependencies = [
@@ -776,6 +792,7 @@ dependencies = [
  "spectrum-protocol",
  "terra-cosmwasm",
  "terraswap",
+ "uint",
 ]
 
 [[package]]
