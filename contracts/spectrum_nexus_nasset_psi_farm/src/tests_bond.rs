@@ -347,13 +347,12 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 }).unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: NASSET_TOKEN.to_string(),
+                contract_addr: NEXUS_TOKEN.to_string(),
                 funds: vec![],
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: USER1.to_string(),
                     amount: Uint128::from(1000u128),
-                })
-                .unwrap(),
+                }).unwrap(),
             }),
         ]
     );

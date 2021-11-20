@@ -11,12 +11,13 @@ use std::collections::HashMap;
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
 use terraswap::pair::SimulationResponse;
+use terraswap::router::{SimulateSwapOperationsResponse, SwapOperation};
 
 use nexus_token::governance::StakerResponse as NexusStakerResponse;
 use nexus_token::staking::StakerInfoResponse as NexusStakerInfoResponse;
 use spectrum_protocol::gov::BalanceResponse as SpecBalanceResponse;
 
-const PSI_STAKING: &str = "psi_staking";
+const NASSET_STAKING: &str = "nasset_staking";
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
@@ -152,6 +153,10 @@ enum MockQueryMsg {
     Simulation {
         offer_asset: Asset,
     },
+    SimulateSwapOperations {
+        offer_amount: Uint128,
+        operations: Vec<SwapOperation>,
+    }
 }
 
 impl WasmMockQuerier {
@@ -207,7 +212,7 @@ impl WasmMockQuerier {
                         staker,
                         block_height: _,
                     } => {
-                        let contract_addr = &PSI_STAKING.to_string();
+                        let contract_addr = &NASSET_STAKING.to_string();
                         let balance = self.read_token_balance(contract_addr, staker.clone());
                         SystemResult::Ok(ContractResult::from(to_binary(
                             &NexusStakerInfoResponse {
@@ -237,6 +242,18 @@ impl WasmMockQuerier {
                                     return_amount: amount,
                                     commission_amount,
                                     spread_amount: Uint128::from(100u128),
+                                },
+                            ))),
+                            Err(_e) => SystemResult::Err(SystemError::Unknown {}),
+                        }
+                    }
+                    MockQueryMsg::SimulateSwapOperations { offer_amount, operations } => {
+                        let commission_amount = offer_amount.multiply_ratio(3u128, 1000u128);
+                        let return_amount = offer_amount.checked_sub(commission_amount);
+                        match return_amount {
+                            Ok(amount) => SystemResult::Ok(ContractResult::from(to_binary(
+                                &SimulateSwapOperationsResponse {
+                                    amount
                                 },
                             ))),
                             Err(_e) => SystemResult::Err(SystemError::Unknown {}),

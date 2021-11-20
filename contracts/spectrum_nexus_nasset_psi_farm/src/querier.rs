@@ -38,18 +38,20 @@ pub fn query_nexus_pool_balance(
 pub fn simulate_swap_operations(
     deps: Deps,
     offer_amount: Uint128,
+    terraswap_router: &CanonicalAddr,
+    input_token: &CanonicalAddr,
+    output_token: &CanonicalAddr,
 ) -> StdResult<SimulateSwapOperationsResponse> {
-    let config = read_config(deps.storage)?;
     let res: SimulateSwapOperationsResponse = deps
         .querier
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: config.terraswap_router.to_string(),
+            contract_addr: deps.api.addr_humanize(terraswap_router)?.to_string(),
             msg: to_binary(&TerraswapRouterQueryMsg::SimulateSwapOperations {
                 offer_amount,
                 operations: vec![
                     SwapOperation::TerraSwap {
                         offer_asset_info: AssetInfo::Token {
-                            contract_addr: config.nexus_token.to_string(),
+                            contract_addr:  deps.api.addr_humanize(input_token)?.to_string(),
                         },
                         ask_asset_info: AssetInfo::NativeToken {
                             denom: "uusd".to_string(),
@@ -60,7 +62,7 @@ pub fn simulate_swap_operations(
                             denom: "uusd".to_string(),
                         },
                         ask_asset_info: AssetInfo::Token {
-                            contract_addr: config.spectrum_token.to_string(),
+                            contract_addr:  deps.api.addr_humanize(output_token)?.to_string(),
                         },
                     },
                 ],

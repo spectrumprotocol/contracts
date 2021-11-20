@@ -5,11 +5,7 @@ use cosmwasm_std::{
     Order, Response, StdError, StdResult, Uint128,
 };
 
-use crate::{
-    bond::bond,
-    compound::{compound, stake},
-    state::{read_config, state_store, store_config, Config, PoolInfo, State},
-};
+use crate::{bond::bond, compound::{compound, stake}, state::{read_config, state_store, store_config, Config, PoolInfo, State}};
 
 use cw20::Cw20ReceiveMsg;
 use crate::bond::{deposit_spec_reward, query_reward_info, unbond, withdraw, update_bond};
