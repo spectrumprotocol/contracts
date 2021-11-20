@@ -14,3 +14,4 @@ pub mod nexus_farm;
 pub mod pylon_farm;
 pub mod terraworld_farm;
 pub mod valkyrie_farm;
+pub mod orion_farm;
