@@ -6,8 +6,6 @@
     "last_mint",
     "poll_count",
     "poll_deposit",
-    "pools",
-    "prev_balance",
     "total_staked",
     "total_weight"
   ],
@@ -26,13 +24,19 @@
       "$ref": "#/definitions/Uint128"
     },
     "pools": {
+      "default": [],
       "type": "array",
       "items": {
         "$ref": "#/definitions/StatePoolInfo"
       }
     },
     "prev_balance": {
-      "$ref": "#/definitions/Uint128"
+      "default": "0",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Uint128"
+        }
+      ]
     },
     "total_staked": {
       "$ref": "#/definitions/Uint128"
