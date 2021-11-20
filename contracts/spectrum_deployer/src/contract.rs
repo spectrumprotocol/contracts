@@ -13,6 +13,7 @@ pub fn instantiate(
 ) -> StdResult<Response> {
     let config = Config {
         owner: deps.api.addr_canonicalize(&msg.owner)?,
+        manager: deps.api.addr_canonicalize(&msg.manager)?,
         operator: deps.api.addr_canonicalize(&msg.operator)?,
         time_lock: msg.time_lock,
     };
@@ -42,7 +43,7 @@ fn add_contract(
 ) -> StdResult<Response> {
 
     let config = read_config(deps.storage)?;
-    if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
+    if config.manager != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(StdError::generic_err("unauthorized"));
     }
 
@@ -65,7 +66,7 @@ fn update_contract(
 ) -> StdResult<Response> {
 
     let config = read_config(deps.storage)?;
-    if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
+    if config.manager != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(StdError::generic_err("unauthorized"));
     }
 
@@ -159,6 +160,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
     let config = read_config(deps.storage)?;
     Ok(ConfigInfo {
         owner: deps.api.addr_humanize(&config.owner)?.to_string(),
+        manager: deps.api.addr_humanize(&config.manager)?.to_string(),
         operator: deps.api.addr_humanize(&config.operator)?.to_string(),
         time_lock: config.time_lock,
     })
