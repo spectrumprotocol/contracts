@@ -123,7 +123,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         &deps.querier,
         deps.api.addr_validate(&nasset_psi_pair_info.contract_addr)?,
         &psi,
-    )?; //SHOULD BE OK
+    )?;
 
     let provide_nasset = psi_swap_rate_to_nasset.return_amount;
 
