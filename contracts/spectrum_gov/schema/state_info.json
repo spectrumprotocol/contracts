@@ -3,23 +3,43 @@
   "title": "StateInfo",
   "type": "object",
   "required": [
-    "pools",
-    "previous_share",
-    "share_index",
+    "last_mint",
+    "poll_count",
+    "poll_deposit",
+    "total_staked",
     "total_weight"
   ],
   "properties": {
+    "last_mint": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "poll_count": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "poll_deposit": {
+      "$ref": "#/definitions/Uint128"
+    },
     "pools": {
+      "default": [],
       "type": "array",
       "items": {
         "$ref": "#/definitions/StatePoolInfo"
       }
     },
-    "previous_share": {
-      "$ref": "#/definitions/Uint128"
+    "prev_balance": {
+      "default": "0",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Uint128"
+        }
+      ]
     },
-    "share_index": {
-      "$ref": "#/definitions/Decimal"
+    "total_staked": {
+      "$ref": "#/definitions/Uint128"
     },
     "total_weight": {
       "type": "integer",
@@ -28,28 +48,28 @@
     }
   },
   "definitions": {
-    "Decimal": {
-      "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
-      "type": "string"
-    },
     "StatePoolInfo": {
       "type": "object",
       "required": [
+        "active",
         "days",
-        "previous_share",
-        "share_index"
+        "total_balance",
+        "total_share"
       ],
       "properties": {
+        "active": {
+          "type": "boolean"
+        },
         "days": {
           "type": "integer",
           "format": "uint64",
           "minimum": 0.0
         },
-        "previous_share": {
+        "total_balance": {
           "$ref": "#/definitions/Uint128"
         },
-        "share_index": {
-          "$ref": "#/definitions/Decimal"
+        "total_share": {
+          "$ref": "#/definitions/Uint128"
         }
       }
     },
