@@ -3,10 +3,22 @@
   "title": "BalanceResponse",
   "type": "object",
   "required": [
-    "balance"
+    "locked_amount",
+    "share",
+    "staked_amount",
+    "unstaked_amount"
   ],
   "properties": {
-    "balance": {
+    "locked_amount": {
+      "$ref": "#/definitions/Uint128"
+    },
+    "share": {
+      "$ref": "#/definitions/Uint128"
+    },
+    "staked_amount": {
+      "$ref": "#/definitions/Uint128"
+    },
+    "unstaked_amount": {
       "$ref": "#/definitions/Uint128"
     }
   },

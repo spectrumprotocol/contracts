@@ -1,30 +1,16 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "StateInfo",
+  "title": "SharesResponse",
   "type": "object",
   "required": [
-    "pools",
-    "previous_share",
-    "share_index",
-    "total_weight"
+    "shares"
   ],
   "properties": {
-    "pools": {
+    "shares": {
       "type": "array",
       "items": {
-        "$ref": "#/definitions/StatePoolInfo"
+        "$ref": "#/definitions/ShareInfo"
       }
-    },
-    "previous_share": {
-      "$ref": "#/definitions/Uint128"
-    },
-    "share_index": {
-      "$ref": "#/definitions/Decimal"
-    },
-    "total_weight": {
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0.0
     }
   },
   "definitions": {
@@ -32,11 +18,63 @@
       "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
       "type": "string"
     },
-    "StatePoolInfo": {
+    "ShareInfo": {
+      "type": "object",
+      "required": [
+        "address",
+        "amount",
+        "lock_amount",
+        "lock_end",
+        "lock_start",
+        "pools",
+        "share",
+        "share_index",
+        "weight"
+      ],
+      "properties": {
+        "address": {
+          "type": "string"
+        },
+        "amount": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "lock_amount": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "lock_end": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "lock_start": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "pools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SharePoolInfo"
+          }
+        },
+        "share": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "share_index": {
+          "$ref": "#/definitions/Decimal"
+        },
+        "weight": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        }
+      }
+    },
+    "SharePoolInfo": {
       "type": "object",
       "required": [
         "days",
-        "previous_share",
+        "share",
         "share_index"
       ],
       "properties": {
@@ -45,7 +83,7 @@
           "format": "uint64",
           "minimum": 0.0
         },
-        "previous_share": {
+        "share": {
           "$ref": "#/definitions/Uint128"
         },
         "share_index": {

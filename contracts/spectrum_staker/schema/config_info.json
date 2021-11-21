@@ -3,21 +3,18 @@
   "title": "ConfigInfo",
   "type": "object",
   "required": [
-    "allowlist",
     "owner",
-    "terraswap_factory"
+    "spectrum_gov",
+    "spectrum_token"
   ],
   "properties": {
-    "allowlist": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
     "owner": {
       "type": "string"
     },
-    "terraswap_factory": {
+    "spectrum_gov": {
+      "type": "string"
+    },
+    "spectrum_token": {
       "type": "string"
     }
   }
