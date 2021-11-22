@@ -6,8 +6,6 @@ use terraswap::{
     router::{QueryMsg as TerraswapRouterQueryMsg, SimulateSwapOperationsResponse, SwapOperation},
 };
 
-use crate::state::read_config;
-
 pub fn query_nexus_reward_info(
     deps: Deps,
     nasset_staking: &CanonicalAddr,
