@@ -311,6 +311,16 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
 
     if !total_kujira_stake_amount.is_zero() {
         //do nothing, there is no gov
+        // let stake_orion = CosmosMsg::Wasm(WasmMsg::Execute {
+        //     contract_addr: kujira_token.to_string(),
+        //     funds: vec![],
+        //     msg: to_binary(&Cw20ExecuteMsg::Send {
+        //         contract: kujira_gov.to_string(),
+        //         amount: total_kujira_stake_amount,
+        //         msg: to_binary(&KujiraGovCw20HookMsg::Bond {})?,
+        //     })?,
+        // });
+        // messages.push(stake_orion);
     }
 
     if !provide_kujira.is_zero() {

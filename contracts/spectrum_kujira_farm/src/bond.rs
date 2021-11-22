@@ -585,6 +585,22 @@ pub fn withdraw(
 
     if !farm_amount.is_zero() {
         //do nothing, there is no gov
+        // messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        //     contract_addr: deps.api.addr_humanize(&config.kujira_gov)?.to_string(),
+        //     msg: to_binary(&KujiraGovExecuteMsg::UnbondInit {
+        //             amount: farm_amount,
+        //         }
+        //     )?,
+        //     funds: vec![],
+        // }));
+        // messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        //     contract_addr: deps.api.addr_humanize(&config.kujira_token)?.to_string(),
+        //     msg: to_binary(&Cw20ExecuteMsg::Transfer {
+        //         recipient: info.sender.to_string(),
+        //         amount: farm_amount,
+        //     })?,
+        //     funds: vec![],
+        // }));
     }
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
