@@ -419,6 +419,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "kujira"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-bignumber",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.99"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -652,6 +665,22 @@ dependencies = [
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw20",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
+ "terraswap",
+]
+
+[[package]]
+name = "spectrum-kujira-farm"
+version = "0.2.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "kujira",
  "schemars",
  "serde",
  "spectrum-protocol",

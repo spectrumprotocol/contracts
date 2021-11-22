@@ -8,15 +8,14 @@
     "controller",
     "controller_fee",
     "deposit_fee",
+    "kujira_staking",
+    "kujira_token",
     "owner",
     "platform",
     "platform_fee",
     "spectrum_gov",
     "spectrum_token",
-    "terraswap_factory",
-    "terraworld_gov",
-    "terraworld_staking",
-    "terraworld_token"
+    "terraswap_factory"
   ],
   "properties": {
     "base_denom": {
@@ -34,6 +33,12 @@
     "deposit_fee": {
       "$ref": "#/definitions/Decimal"
     },
+    "kujira_staking": {
+      "type": "string"
+    },
+    "kujira_token": {
+      "type": "string"
+    },
     "owner": {
       "type": "string"
     },
@@ -50,15 +55,6 @@
       "type": "string"
     },
     "terraswap_factory": {
-      "type": "string"
-    },
-    "terraworld_gov": {
-      "type": "string"
-    },
-    "terraworld_staking": {
-      "type": "string"
-    },
-    "terraworld_token": {
       "type": "string"
     }
   },
