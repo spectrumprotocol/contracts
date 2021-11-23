@@ -201,7 +201,15 @@
       ],
       "properties": {
         "compound": {
-          "type": "object"
+          "type": "object",
+          "required": [
+            "threshold_compound_gov"
+          ],
+          "properties": {
+            "threshold_compound_gov": {
+              "$ref": "#/definitions/Uint128"
+            }
+          }
         }
       },
       "additionalProperties": false
