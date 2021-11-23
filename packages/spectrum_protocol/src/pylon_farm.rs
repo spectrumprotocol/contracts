@@ -140,5 +140,5 @@ pub struct StateInfo {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {
-    pub earning_spec: Uint128,
+
 }
