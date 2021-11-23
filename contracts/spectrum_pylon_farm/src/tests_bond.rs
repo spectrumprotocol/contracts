@@ -6,7 +6,7 @@ use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONT
 use cosmwasm_std::{from_binary, to_binary, CosmosMsg, Decimal, OwnedDeps, Uint128, WasmMsg};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use pylon_token::gov_msg::{
-    StakingMsg as PylonGovStakingMsg
+    StakingMsg as PylonGovStakingMsg, ExecuteMsg as PylonGovExecuteMsg
 };
 use pylon_token::staking::ExecuteMsg as PylonStakingExecuteMsg;
 use schemars::JsonSchema;
@@ -338,9 +338,9 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: MINE_GOV.to_string(),
                 funds: vec![],
-                msg: to_binary(&PylonGovStakingMsg::Unstake {
+                msg: to_binary(&PylonGovExecuteMsg::Staking(PylonGovStakingMsg::Unstake {
                     amount: Some(Uint128::from(1000u128)),
-                })
+                }))
                 .unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {

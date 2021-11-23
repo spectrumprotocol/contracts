@@ -12,7 +12,7 @@ use cw20::Cw20ExecuteMsg;
 
 use crate::querier::query_pylon_pool_balance;
 use pylon_token::gov_msg::{
-    StakingMsg as PylonGovStakingMsg, QueryMsg as PylonGovQueryMsg
+    StakingMsg as PylonGovStakingMsg, QueryMsg as PylonGovQueryMsg, ExecuteMsg as PylonGovExecuteMsg
 };
 use pylon_token::gov_resp::{
     StakerResponse as PylonStakerResponse
@@ -553,9 +553,9 @@ pub fn withdraw(
     if !farm_amount.is_zero() {
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.pylon_gov)?.to_string(),
-            msg: to_binary(&PylonGovStakingMsg::Unstake {
+            msg: to_binary(&PylonGovExecuteMsg::Staking(PylonGovStakingMsg::Unstake {
                 amount: Some(farm_amount),
-            })?,
+            }))?,
             funds: vec![],
         }));
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
