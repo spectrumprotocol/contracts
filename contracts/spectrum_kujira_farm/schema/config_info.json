@@ -8,9 +8,8 @@
     "controller",
     "controller_fee",
     "deposit_fee",
-    "nexus_gov",
-    "nexus_staking",
-    "nexus_token",
+    "kujira_staking",
+    "kujira_token",
     "owner",
     "platform",
     "platform_fee",
@@ -34,13 +33,10 @@
     "deposit_fee": {
       "$ref": "#/definitions/Decimal"
     },
-    "nexus_gov": {
+    "kujira_staking": {
       "type": "string"
     },
-    "nexus_staking": {
-      "type": "string"
-    },
-    "nexus_token": {
+    "kujira_token": {
       "type": "string"
     },
     "owner": {

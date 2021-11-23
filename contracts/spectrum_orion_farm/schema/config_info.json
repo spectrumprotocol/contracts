@@ -8,9 +8,9 @@
     "controller",
     "controller_fee",
     "deposit_fee",
-    "nexus_gov",
-    "nexus_staking",
-    "nexus_token",
+    "orion_gov",
+    "orion_staking",
+    "orion_token",
     "owner",
     "platform",
     "platform_fee",
@@ -34,13 +34,13 @@
     "deposit_fee": {
       "$ref": "#/definitions/Decimal"
     },
-    "nexus_gov": {
+    "orion_gov": {
       "type": "string"
     },
-    "nexus_staking": {
+    "orion_staking": {
       "type": "string"
     },
-    "nexus_token": {
+    "orion_token": {
       "type": "string"
     },
     "owner": {
