@@ -489,6 +489,24 @@ dependencies = [
 name = "pylon-token"
 version = "0.2.0"
 dependencies = [
+ "cosmwasm-bignumber",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw2",
+ "cw20",
+ "pylon-utils",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+]
+
+[[package]]
+name = "pylon-utils"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "83bdbb249aa278fc161a65fa4111be34571811f37c99eb3f76487f2873121384"
+dependencies = [
+ "cosmwasm-bignumber",
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw20",

@@ -7,8 +7,9 @@ use cosmwasm_std::{
     from_binary, to_binary, Api, Coin, CosmosMsg, Decimal, OwnedDeps, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use pylon_token::gov::Cw20HookMsg as PylonGovCw20HookMsg;
-use pylon_token::gov::ExecuteMsg as PylonGovExecuteMsg;
+use pylon_token::gov_msg::{
+    StakingMsg as PylonGovStakingMsg, Cw20HookMsg as PylonGovCw20HookMsg
+};
 use pylon_token::staking::ExecuteMsg as PylonStakingExecuteMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -512,7 +513,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: MINE_GOV.to_string(),
                 funds: vec![],
-                msg: to_binary(&PylonGovExecuteMsg::WithdrawVotingTokens {
+                msg: to_binary(&PylonGovStakingMsg::Unstake {
                     amount: Some(Uint128::from(1000u128)),
                 })
                 .unwrap(),
@@ -756,7 +757,7 @@ fn test_compound_mine(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: MINE_GOV.to_string(),
                     amount: Uint128::from(7800u128),
-                    msg: to_binary(&PylonGovCw20HookMsg::StakeVotingTokens {}).unwrap(),
+                    msg: to_binary(&PylonGovCw20HookMsg::Stake {}).unwrap(),
                 })
                 .unwrap(),
             }),
@@ -1018,7 +1019,7 @@ fn test_compound_mine_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmM
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: MINE_GOV.to_string(),
                     amount: Uint128::from(7410u128),
-                    msg: to_binary(&PylonGovCw20HookMsg::StakeVotingTokens {}).unwrap(),
+                    msg: to_binary(&PylonGovCw20HookMsg::Stake {}).unwrap(),
                 })
                 .unwrap(),
             }),

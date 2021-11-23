@@ -20,6 +20,9 @@ pub enum ExecuteMsg {
     },
     /// Withdraw pending rewards
     Withdraw {},
+    MigrateStaking {
+        new_staking_contract: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

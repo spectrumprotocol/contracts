@@ -12,7 +12,9 @@ use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrap
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
 use terraswap::pair::SimulationResponse;
 
-use pylon_token::gov::StakerResponse as PylonStakerResponse;
+use pylon_token::gov_resp::{
+    StakerResponse as PylonStakerResponse
+};
 use pylon_token::staking::StakerInfoResponse as PylonStakerInfoResponse;
 use spectrum_protocol::gov::BalanceResponse as SpecBalanceResponse;
 
@@ -201,6 +203,7 @@ impl WasmMockQuerier {
                             share: balance
                                 .multiply_ratio(100u128, self.token_querier.balance_percent),
                             locked_balance: vec![],
+                            claimable_airdrop: vec![],
                         })))
                     }
                     MockQueryMsg::StakerInfo {

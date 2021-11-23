@@ -1,7 +1,6 @@
+use cosmwasm_std::Decimal;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use cosmwasm_std::Decimal;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -22,10 +21,6 @@ pub enum ExecuteMsg {
     /// Sweep all given denom balance to ANC token
     /// and execute Distribute message
     Sweep { denom: String },
-
-    /// Internal Message
-    /// Distribute all ANC token to gov_contract
-    Distribute {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

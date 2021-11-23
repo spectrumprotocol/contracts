@@ -22,6 +22,7 @@ pub enum ExecuteMsg {
         stage: u8,
         amount: Uint128,
         proof: Vec<String>,
+        receiver: Option<String>,
     },
 }
 
