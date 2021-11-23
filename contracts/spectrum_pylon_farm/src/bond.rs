@@ -11,9 +11,11 @@ use crate::state::{
 use cw20::Cw20ExecuteMsg;
 
 use crate::querier::query_pylon_pool_balance;
-use pylon_token::gov::{
-    ExecuteMsg as PylonGovExecuteMsg, QueryMsg as PylonGovQueryMsg,
-    StakerResponse as PylonStakerResponse,
+use pylon_token::gov_msg::{
+    StakingMsg as PylonGovStakingMsg, QueryMsg as PylonGovQueryMsg, ExecuteMsg as PylonGovExecuteMsg
+};
+use pylon_token::gov_resp::{
+    StakerResponse as PylonStakerResponse
 };
 use pylon_token::staking::{Cw20HookMsg as PylonCw20HookMsg, ExecuteMsg as PylonStakingExecuteMsg};
 use spectrum_protocol::gov::{
@@ -551,9 +553,9 @@ pub fn withdraw(
     if !farm_amount.is_zero() {
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.pylon_gov)?.to_string(),
-            msg: to_binary(&PylonGovExecuteMsg::WithdrawVotingTokens {
+            msg: to_binary(&PylonGovExecuteMsg::Staking(PylonGovStakingMsg::Unstake {
                 amount: Some(farm_amount),
-            })?,
+            }))?,
             funds: vec![],
         }));
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {

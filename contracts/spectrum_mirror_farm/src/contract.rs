@@ -246,7 +246,7 @@ pub fn register_asset(
         && pool_info.total_auto_bond_share.is_zero()
     {
         pool_info.staking_token = deps.api.addr_canonicalize(&staking_token)?;
-    } else {
+    } else if deps.api.addr_humanize(&pool_info.staking_token)? != staking_token {
         return Err(StdError::generic_err("pool is not empty"));
     }
 
@@ -346,9 +346,6 @@ fn query_state(deps: Deps) -> StdResult<StateInfo> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
-    let mut state = read_state(deps.storage)?;
-    state.earning_spec = msg.earning_spec;
-    state_store(deps.storage).save(&state)?;
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
 }
