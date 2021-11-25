@@ -11,8 +11,8 @@ pub enum OrderBy {
 }
 
 impl From<OrderBy> for Order {
-    fn from(o: OrderBy) -> Order {
-        if o == OrderBy::Asc {
+    fn from(order: OrderBy) -> Order {
+        if order == OrderBy::Asc {
             Order::Ascending
         } else {
             Order::Descending

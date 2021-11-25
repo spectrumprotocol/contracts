@@ -11,12 +11,12 @@
     "owner",
     "platform",
     "platform_fee",
-    "pylon_gov",
-    "pylon_staking",
-    "pylon_token",
     "spectrum_gov",
     "spectrum_token",
-    "terraswap_factory"
+    "terraswap_factory",
+    "terraworld_gov",
+    "terraworld_staking",
+    "terraworld_token"
   ],
   "properties": {
     "base_denom": {
@@ -43,15 +43,6 @@
     "platform_fee": {
       "$ref": "#/definitions/Decimal"
     },
-    "pylon_gov": {
-      "type": "string"
-    },
-    "pylon_staking": {
-      "type": "string"
-    },
-    "pylon_token": {
-      "type": "string"
-    },
     "spectrum_gov": {
       "type": "string"
     },
@@ -59,6 +50,15 @@
       "type": "string"
     },
     "terraswap_factory": {
+      "type": "string"
+    },
+    "terraworld_gov": {
+      "type": "string"
+    },
+    "terraworld_staking": {
+      "type": "string"
+    },
+    "terraworld_token": {
       "type": "string"
     }
   },
