@@ -236,7 +236,10 @@ fn unstake(deps: DepsMut, info: MessageInfo, amount: Uint128, days: Option<u64>)
 
 fn deduct_amount(days: u64, state: &mut State, reward_info: &mut RewardInfo, staked: GovBalanceResponse, amount: Uint128) -> StdResult<()> {
     let pool = staked.pools.into_iter().find(|it| it.days == days).ok_or_else(|| StdError::not_found("pool"))?;
-    let share = amount.multiply_ratio(pool.share, pool.balance);
+    let mut share = amount.multiply_ratio(pool.share, pool.balance);
+    if share.multiply_ratio(pool.balance, pool.share) < amount {
+        share += Uint128::from(1u128);
+    }
 
     if days == 0u64 {
         reward_info.share = reward_info.share.checked_sub(share)?;

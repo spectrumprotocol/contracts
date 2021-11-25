@@ -1,13 +1,13 @@
 [package]
 name = "pylon-token"
 version = "0.2.0"
-authors = ["Terraform Labs, PTE."]
+authors = ["carter@pylon.money", "Terraform Labs, PTE."]
 edition = "2018"
-description = "Common helpers for other anchor-token specs"
+description = "Common helpers for other pylon-token specs"
 license = "Apache-2.0"
-repository = "https://github.com/anchor-protocol/anchor-token-contracts"
-homepage = "https://terra.money"
-documentation = "https://docs.terra.money"
+repository = "https://github.com/pylon-protocol/pylon-token-contracts"
+homepage = "https://pylon.money"
+documentation = "https://docs.pylon.money"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -17,10 +17,13 @@ documentation = "https://docs.terra.money"
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
+cw2 = { version = "0.8.0" }
 cw20 = { version = "0.8.0" }
-cosmwasm-std = { version = "0.16.0" }
-cosmwasm-storage = { version = "0.16.0" }
-terra-cosmwasm = "2.2.0" 
+cosmwasm-bignumber = "2.2.0"
+cosmwasm-std = { version = "0.16.0", features = ["iterator"] }
+cosmwasm-storage = { version = "0.16.0", features = ["iterator"] }
+pylon-utils = { version = "0.2.0" }
+terra-cosmwasm = "2.2.0"
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 

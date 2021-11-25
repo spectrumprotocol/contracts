@@ -13,7 +13,9 @@ use crate::querier::query_pylon_reward_info;
 use cw20::Cw20ExecuteMsg;
 
 use crate::state::{pool_info_read, pool_info_store, read_state, Config, PoolInfo};
-use pylon_token::gov::Cw20HookMsg as PylonGovCw20HookMsg;
+use pylon_token::gov_msg::{
+    Cw20HookMsg as PylonGovCw20HookMsg
+};
 use pylon_token::staking::{
     Cw20HookMsg as PylonStakingCw20HookMsg, ExecuteMsg as PylonStakingExecuteMsg,
 };
@@ -316,7 +318,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 contract: pylon_gov.to_string(),
                 amount: total_mine_stake_amount,
-                msg: to_binary(&PylonGovCw20HookMsg::StakeVotingTokens {})?,
+                msg: to_binary(&PylonGovCw20HookMsg::Stake {})?,
             })?,
         });
         messages.push(stake_mine);
