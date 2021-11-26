@@ -17,3 +17,5 @@ pub mod orion_farm;
 pub mod nexus_nasset_psi_farm;
 pub mod kujira_farm;
 pub mod anchor_astroport_farm;
+pub mod astroport_farm;
+pub mod astroport_gov_proxy;
