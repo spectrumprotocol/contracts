@@ -1,21 +1,18 @@
-use cosmwasm_std::{Binary, CanonicalAddr, Deps, QueryRequest, StdResult, Uint128, WasmQuery, to_binary};
-
-use anchor_token::staking::{QueryMsg as AnchorStakingQueryMsg, StakerInfoResponse};
+use cosmwasm_std::{CanonicalAddr, Deps, QueryRequest, StdResult, Uint128, WasmQuery, to_binary};
 use astroport::generator::{
-    QueryMsg as AstroportQueryMsg
+    QueryMsg as AstroportQueryMsg, RewardInfoResponse
 };
 
 pub fn query_anchor_reward_info(
     deps: Deps,
-    anchor_staking: &CanonicalAddr,
+    lp_token: &CanonicalAddr,
     staker: &CanonicalAddr,
-    block_height: Option<u64>,
-) -> StdResult<StakerInfoResponse> {
-    let res: StakerInfoResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: deps.api.addr_humanize(anchor_staking)?.to_string(),
-        msg: to_binary(&AnchorStakingQueryMsg::StakerInfo {
-            staker: deps.api.addr_humanize(staker)?.to_string(),
-            block_height,
+    astroport_generator: &CanonicalAddr
+) -> StdResult<RewardInfoResponse> {
+    let res = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: deps.api.addr_humanize(astroport_generator)?.to_string(),
+        msg: to_binary(&AstroportQueryMsg::RewardInfo {
+            lp_token: deps.api.addr_humanize(lp_token)?
         })?,
     }))?;
 
@@ -24,14 +21,15 @@ pub fn query_anchor_reward_info(
 
 pub fn query_anchor_pool_balance(
     deps: Deps,
-    anchor_staking: &CanonicalAddr,
+    lp_token: &CanonicalAddr,
     staker: &CanonicalAddr,
     astroport_generator: &CanonicalAddr
-) -> StdResult<Binary> {
+) -> StdResult<Uint128> {
     let res = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: deps.api.addr_humanize(astroport_generator)?.to_string(),
-        msg: to_binary(&AstroportQueryMsg::Deposit{
-
+        msg: to_binary(&AstroportQueryMsg::Deposit {
+            lp_token: deps.api.addr_humanize(lp_token)?,
+            user: deps.api.addr_humanize(staker)?,
         })?,
     }))?;
     

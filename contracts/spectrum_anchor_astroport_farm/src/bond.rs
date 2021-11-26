@@ -19,7 +19,7 @@ use anchor_token::gov::{
 //     Cw20HookMsg as AnchorCw20HookMsg, ExecuteMsg as AnchorStakingExecuteMsg,
 // };
 use astroport::generator::{
-    QueryMsg as AstroportQueryMsg
+    QueryMsg as AstroportQueryMsg, ExecuteMsg as AstroportExecuteMsg
 };
 use spectrum_protocol::anchor_astroport_farm::{RewardInfoResponse, RewardInfoResponseItem};
 use spectrum_protocol::common::compute_deposit_time;
@@ -117,8 +117,9 @@ pub fn bond(
 
     let lp_balance = query_anchor_pool_balance(
         deps.as_ref(),
-        &config.anchor_staking,
+        &pool_info.staking_token,
         &deps.api.addr_canonicalize(env.contract.address.as_str())?,
+        &config.astroport_generator
     )?;
 
     bond_internal(
@@ -133,13 +134,16 @@ pub fn bond(
         false,
     )?;
 
+    //TODO has to increase allowance on this contract?
+
     stake_token(
         deps.api,
-        config.anchor_staking,
+        config.astroport_generator,
         pool_info.staking_token,
-        asset_token_raw,
         amount,
     )
+
+    //TODO update increase_allowance ANC, ASTRO
 }
 
 pub fn deposit_farm_share(
@@ -312,29 +316,24 @@ fn increase_bond_amount(
 // stake LP token to Anchor Staking
 fn stake_token(
     api: &dyn Api,
-    anchor_staking: CanonicalAddr,
-    staking_token: CanonicalAddr,
-    asset_token: CanonicalAddr,
+    astroport_generator: CanonicalAddr,
+    lp_token: CanonicalAddr,
     amount: Uint128,
 ) -> StdResult<Response> {
-    let asset_token = api.addr_humanize(&asset_token)?;
-    let anchor_staking = api.addr_humanize(&anchor_staking)?;
-    let staking_token = api.addr_humanize(&staking_token)?;
+    let lp_token = api.addr_humanize(&lp_token)?;
 
     Ok(Response::new()
         .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: staking_token.to_string(),
+            contract_addr: astroport_generator.to_string(),
             funds: vec![],
-            msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: anchor_staking.to_string(),
-                amount,
-                msg: to_binary(&AnchorCw20HookMsg::Bond {})?,
+            msg: to_binary(&AstroportExecuteMsg::Deposit {
+                 lp_token,
+                 amount 
             })?,
         })])
         .add_attributes(vec![
             attr("action", "bond"),
-            attr("staking_token", staking_token),
-            attr("asset_token", asset_token),
+            attr("lp_token", lp_token),
             attr("amount", amount),
         ]))
 }
@@ -434,10 +433,13 @@ pub fn unbond(
 
     let config = read_config(deps.storage)?;
 
+    let pool_info_readonly = pool_info_read(deps.storage).load(asset_token_raw.as_slice())?;
+
     let lp_balance = query_anchor_pool_balance(
         deps.as_ref(),
-        &config.anchor_staking,
+        &pool_info_readonly.staking_token,
         &deps.api.addr_canonicalize(env.contract.address.as_str())?,
+        &config.astroport_generator
     )?;
 
     let pool_info = unbond_internal(
@@ -451,12 +453,17 @@ pub fn unbond(
         false,
     )?;
 
+    //TODO update reward as withdraw also claim reward
+
     Ok(Response::new()
         .add_messages(vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: deps.api.addr_humanize(&config.anchor_staking)?.to_string(),
+                contract_addr: deps.api.addr_humanize(&config.astroport_generator)?.to_string(),
                 funds: vec![],
-                msg: to_binary(&AnchorStakingExecuteMsg::Unbond { amount })?,
+                msg: to_binary(&AstroportExecuteMsg::Withdraw {
+                    lp_token: deps.api.addr_humanize(&pool_info.staking_token)?,
+                    amount 
+                })?,
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: deps
@@ -493,10 +500,14 @@ pub fn update_bond(
     let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
 
     let amount = amount_to_auto + amount_to_stake;
+
+    let pool_info_readonly = pool_info_read(deps.storage).load(asset_token_raw.as_slice())?;
+
     let lp_balance = query_anchor_pool_balance(
         deps.as_ref(),
-        &config.anchor_staking,
+        &pool_info_readonly.staking_token,
         &deps.api.addr_canonicalize(env.contract.address.as_str())?,
+        &config.astroport_generator
     )?;
 
     unbond_internal(
@@ -609,6 +620,7 @@ pub fn withdraw(
     ]))
 }
 
+//TOOD pending overhaul with gov proxy?
 #[allow(clippy::too_many_arguments)]
 fn withdraw_reward(
     deps: DepsMut,
@@ -625,6 +637,7 @@ fn withdraw_reward(
 
     // single reward withdraw; or all rewards
     let reward_pairs: Vec<(CanonicalAddr, RewardInfo)>;
+    let staking_token: &CanonicalAddr;
     if let Some(asset_token) = asset_token {
         let key = asset_token.as_slice();
         let reward_info = rewards_bucket.may_load(key)?;
@@ -633,6 +646,8 @@ fn withdraw_reward(
         } else {
             vec![]
         };
+        let pool_info_readonly = pool_info_read(deps.storage).load(asset_token.as_slice())?;
+        staking_token = &pool_info_readonly.staking_token;
     } else {
         reward_pairs = rewards_bucket
             .range(None, None, Order::Ascending)
@@ -641,8 +656,16 @@ fn withdraw_reward(
                 Ok((CanonicalAddr::from(k), v))
             })
             .collect::<StdResult<Vec<(CanonicalAddr, RewardInfo)>>>()?;
+        let pool_infos = pool_info_read(deps.storage).range(None, None, Order::Ascending)
+            .map(|item| {
+                let (k, v) = item?;
+                Ok((CanonicalAddr::from(k), v))
+            })
+            .collect::<StdResult<Vec<(CanonicalAddr, PoolInfo)>>>()?;
+            staking_token = &pool_infos[0].1.staking_token;
     }
 
+    //TODO implement proxy?
     let farm_staked: AnchorStakerResponse =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: deps.api.addr_humanize(&config.anchor_gov)?.to_string(),
@@ -651,10 +674,14 @@ fn withdraw_reward(
             })?,
         }))?;
 
+    // let asset_token_raw = deps.api.addr_canonicalize(asset_token)?;
+    // let pool_info_readonly = pool_info_read(deps.storage).load(asset_token_raw.as_slice())?;
+
     let lp_balance = query_anchor_pool_balance(
         deps.as_ref(),
-        &config.anchor_staking,
+        staking_token,
         &state.contract_addr,
+        &config.astroport_generator
     )?;
 
     let mut spec_amount = Uint128::zero();
@@ -797,6 +824,7 @@ fn read_reward_infos(
     env: Env,
     config: &Config,
     state: &State,
+    staking_token: 
     staker_addr: &CanonicalAddr,
     spec_staked: &SpecBalanceResponse,
 ) -> StdResult<Vec<RewardInfoResponseItem>> {
@@ -810,6 +838,7 @@ fn read_reward_infos(
         })
         .collect::<StdResult<Vec<(CanonicalAddr, RewardInfo)>>>()?;
 
+    //TODO implement gov interface?
     let farm_staked: AnchorStakerResponse =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: deps.api.addr_humanize(&config.anchor_gov)?.to_string(),
@@ -818,8 +847,10 @@ fn read_reward_infos(
             })?,
         }))?;
 
-    let lp_balance =
-        query_anchor_pool_balance(deps, &config.anchor_staking, &state.contract_addr)?;
+
+    //TODO how to get staking token
+    let lp_balance = 
+        query_anchor_pool_balance(deps, staking_token, &state.contract_addr, &config.astroport_generator)?;
 
     let bucket = pool_info_read(deps.storage);
     let reward_infos: Vec<RewardInfoResponseItem> = reward_pair
