@@ -427,12 +427,7 @@ pub fn upsert_vault(
     vault.weight = weight;
 
     state_store(deps.storage).save(&state)?;
-
-    if weight == 0 {
-        vault_store(deps.storage).remove(key);
-    } else {
-        vault_store(deps.storage).save(key, &vault)?;
-    }
+    vault_store(deps.storage).save(key, &vault)?;
 
     Ok(Response::new().add_attributes(vec![attr(
         "new_total_weight",
