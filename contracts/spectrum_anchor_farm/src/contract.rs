@@ -12,12 +12,15 @@ use crate::{
 };
 
 use cw20::Cw20ReceiveMsg;
+use terraswap::asset::AssetInfo;
+use terraswap::querier::query_pair_info;
 
 use crate::bond::{deposit_spec_reward, query_reward_info, unbond, withdraw, update_bond};
 use crate::state::{pool_info_read, pool_info_store, read_state};
 use spectrum_protocol::anchor_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
+use crate::compound::send_fee;
 
 /// (we require 0-1)
 fn validate_percentage(value: Decimal, field: &str) -> StdResult<()> {
@@ -44,7 +47,6 @@ pub fn instantiate(
         deps.storage,
         &Config {
             owner: deps.api.addr_canonicalize(&msg.owner)?,
-            terraswap_factory: deps.api.addr_canonicalize(&msg.terraswap_factory)?,
             spectrum_token: deps.api.addr_canonicalize(&msg.spectrum_token)?,
             spectrum_gov: deps.api.addr_canonicalize(&msg.spectrum_gov)?,
             anchor_token: deps.api.addr_canonicalize(&msg.anchor_token)?,
@@ -57,6 +59,9 @@ pub fn instantiate(
             platform_fee: msg.platform_fee,
             controller_fee: msg.controller_fee,
             deposit_fee: msg.deposit_fee,
+            anchor_market: deps.api.addr_canonicalize(&msg.anchor_market)?,
+            aust_token: deps.api.addr_canonicalize(&msg.aust_token)?,
+            pair_contract: deps.api.addr_canonicalize(&msg.pair_contract)?,
         },
     )?;
 
@@ -112,6 +117,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::stake { asset_token } => stake(deps, env, info, asset_token),
         ExecuteMsg::compound {} => compound(deps, env, info),
         ExecuteMsg::update_bond { asset_token, amount_to_auto, amount_to_stake } => update_bond(deps, env, info, asset_token, amount_to_auto, amount_to_stake),
+        ExecuteMsg::send_fee {} => send_fee(deps, env, info),
     }
 }
 
@@ -258,10 +264,6 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
     let config = read_config(deps.storage)?;
     let resp = ConfigInfo {
         owner: deps.api.addr_humanize(&config.owner)?.to_string(),
-        terraswap_factory: deps
-            .api
-            .addr_humanize(&config.terraswap_factory)?
-            .to_string(),
         spectrum_token: deps.api.addr_humanize(&config.spectrum_token)?.to_string(),
         anchor_token: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
         anchor_staking: deps.api.addr_humanize(&config.anchor_staking)?.to_string(),
@@ -274,6 +276,9 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         platform_fee: config.platform_fee,
         controller_fee: config.controller_fee,
         deposit_fee: config.deposit_fee,
+        anchor_market: deps.api.addr_humanize(&config.anchor_market)?.to_string(),
+        aust_token: deps.api.addr_humanize(&config.aust_token)?.to_string(),
+        pair_contract: deps.api.addr_humanize(&config.pair_contract)?.to_string(),
     };
 
     Ok(resp)
@@ -320,6 +325,26 @@ fn query_state(deps: Deps) -> StdResult<StateInfo> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
+    let mut config = read_config(deps.storage)?;
+    config.anchor_market = deps.api.addr_canonicalize(&msg.anchor_market)?;
+    config.aust_token = deps.api.addr_canonicalize(&msg.aust_token)?;
+
+    let pair_info = query_pair_info(
+        &deps.querier,
+        deps.api.addr_validate(&msg.terraswap_factory)?,
+        &[
+            AssetInfo::NativeToken {
+                denom: config.base_denom.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
+            },
+        ],
+    )?;
+
+    config.pair_contract = deps.api.addr_canonicalize(&pair_info.contract_addr)?;
+    store_config(deps.storage, &config)?;
+
     Ok(Response::default())
 }

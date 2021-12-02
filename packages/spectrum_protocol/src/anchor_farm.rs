@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigInfo {
     pub owner: String,
-    pub terraswap_factory: String,
     pub spectrum_token: String,
     pub spectrum_gov: String,
     pub anchor_token: String,
@@ -20,6 +19,9 @@ pub struct ConfigInfo {
     pub platform_fee: Decimal,
     pub controller_fee: Decimal,
     pub deposit_fee: Decimal,
+    pub anchor_market: String,
+    pub aust_token: String,
+    pub pair_contract: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -60,6 +62,7 @@ pub enum ExecuteMsg {
         amount_to_stake: Uint128,
         amount_to_auto: Uint128,
     },
+    send_fee {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -139,4 +142,8 @@ pub struct StateInfo {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub anchor_market: String,
+    pub aust_token: String,
+    pub terraswap_factory: String,
+}
