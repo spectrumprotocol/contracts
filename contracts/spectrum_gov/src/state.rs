@@ -237,11 +237,11 @@ impl Account {
         if days == 0u64 {
             self.share += share;
         } else {
-            let state_pool = state.pools.iter()
-                .find(|it| it.days == days)
-                .ok_or_else(|| StdError::not_found("pool"))?;
             let mut account_pool = self.pools.iter_mut().find(|it| it.days == days);
             if account_pool.is_none() {
+                let state_pool = state.pools.iter()
+                    .find(|it| it.days == days)
+                    .ok_or_else(|| StdError::not_found("pool"))?;
                 self.pools.push(BalancePool {
                     days,
                     share: Uint128::zero(),

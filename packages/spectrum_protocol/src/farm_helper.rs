@@ -40,6 +40,5 @@ pub fn compute_provide_after_swap(
     let offer_amount = offer_amount + offer.amount;
     let ask_amount = ask_amount.checked_sub(return_amt)?;
 
-    let lp = ask_reinvest_amt.multiply_ratio(pool.total_share, ask_amount);
-    Ok(lp.multiply_ratio(offer_amount, pool.total_share))
+    Ok(ask_reinvest_amt.multiply_ratio(offer_amount, ask_amount))
 }

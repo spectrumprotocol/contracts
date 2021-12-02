@@ -403,6 +403,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response
             account.deduct_share(0u64, share, None)?;
             state.deduct_share(0u64, share, amount)?;
             vault.balance = amount;
+            state.vault_balances += amount;
             vault_store(deps.storage).save(key, &vault)?;
             account_store(deps.storage).save(key, &account)?;
         }
