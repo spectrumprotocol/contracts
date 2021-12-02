@@ -40,7 +40,8 @@ fn test() {
     let stake = test_poll_expired(&mut deps, stake);
 
     let stake = test_reward(&mut deps, stake);
-    test_pools(&mut deps, stake);
+    let stake = test_pools(&mut deps, stake);
+    test_aust(&mut deps, stake);
 }
 
 fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> ConfigInfo {
@@ -1260,7 +1261,7 @@ fn test_reward(
 fn test_pools(
     deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>,
     total_amount: Uint128,
-) {
+) -> Uint128 {
     // invalid owner cannot add pool
     let mut env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
@@ -1475,6 +1476,75 @@ fn test_pools(
     assert_eq!(res.pools[2].balance, Uint128::from(468u128));
     assert_eq!(res.balance, Uint128::from(691u128));
     assert_eq!(res.pools[2].unlock - env.block.time.seconds(), 648000 + 15 * seconds_per_day);
+
+    total_amount
+}
+
+fn test_aust(
+    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>,
+    total_amount: Uint128,
+) {
+    // add aust
+    let env = mock_env();
+    let info = mock_info(TEST_VOTER, &[]);
+    deps.querier.with_token_balances(&[
+        (&AUST_TOKEN.to_string(), &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(600u128))]),
+        (&VOTING_TOKEN.to_string(), &[(&MOCK_CONTRACT_ADDR.to_string(), &total_amount)]),
+    ]);
+
+    // pool 0 -> 0: 200 * 1286 (pool 0) / 1754 (total) = 146
+    // pool 0 -> 2: 200 * 468 (pool 2) / 1754 (total) = 53 + 1 (remain) = 54
+    // pool 1 -> 2: 200
+    // pool 2 -> 2: 200
+
+    // pool 0: 146
+    // pool 2: 454
+
+    let msg = QueryMsg::balance { address: TEST_VOTER.to_string() };
+    let res: BalanceResponse = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+    assert_eq!(res.pools[0].pending_aust, Uint128::from(25u128));  // 146 (pool 0) * 25 (share) / 144 (total share)
+    assert_eq!(res.pools[1].pending_aust, Uint128::from(0u128));
+    assert_eq!(res.pools[2].pending_aust, Uint128::from(453u128));
+
+    // cannot withdraw more than available
+    let msg = ExecuteMsg::harvest { aust_amount: Some(Uint128::from(26u128)), days: Some(0u64)};
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    assert!(res.is_err());
+
+    // withdraw all
+    let msg = ExecuteMsg::harvest { aust_amount: None, days: Some(0u64)};
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    assert!(res.is_ok());
+    deps.querier.with_token_balances(&[
+        (&AUST_TOKEN.to_string(), &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(575u128))]),
+        (&VOTING_TOKEN.to_string(), &[(&MOCK_CONTRACT_ADDR.to_string(), &total_amount)]),
+    ]);
+
+    // withdraw some
+    let msg = ExecuteMsg::harvest { aust_amount: Some(Uint128::from(200u128)), days: Some(45u64)};
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+    assert!(res.is_ok());
+    deps.querier.with_token_balances(&[
+        (&AUST_TOKEN.to_string(), &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(375u128))]),
+        (&VOTING_TOKEN.to_string(), &[(&MOCK_CONTRACT_ADDR.to_string(), &total_amount)]),
+    ]);
+
+    let msg = QueryMsg::balance { address: TEST_VOTER.to_string() };
+    let res: BalanceResponse = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+    assert_eq!(res.pools[0].pending_aust, Uint128::from(0u128));
+    assert_eq!(res.pools[1].pending_aust, Uint128::from(0u128));
+    assert_eq!(res.pools[2].pending_aust, Uint128::from(253u128));
+
+    // add more
+    deps.querier.with_token_balances(&[
+        (&AUST_TOKEN.to_string(), &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(975u128))]),
+        (&VOTING_TOKEN.to_string(), &[(&MOCK_CONTRACT_ADDR.to_string(), &total_amount)]),
+    ]);
+    let msg = QueryMsg::balance { address: TEST_VOTER.to_string() };
+    let res: BalanceResponse = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+    assert_eq!(res.pools[0].pending_aust, Uint128::from(25u128));  // 146 (pool 0) * 25 (share) / 144 (total share)
+    assert_eq!(res.pools[1].pending_aust, Uint128::from(0u128));
+    assert_eq!(res.pools[2].pending_aust, Uint128::from(706u128));
 }
 
 #[test]

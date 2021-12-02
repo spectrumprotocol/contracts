@@ -25,12 +25,18 @@ fn reconcile_aust(deps: &Deps, state: &mut State, config: &Config) -> StdResult<
         return Ok(());
     }
     let mut changes = distribute_reward(state, diff)?;
-    state.aust_index = state.aust_index + Decimal::from_ratio(changes.pop().unwrap(), state.total_share);
+    let change = changes.pop().unwrap();
+    if !state.total_share.is_zero() {
+        state.aust_index = state.aust_index + Decimal::from_ratio(change, state.total_share);
+    }
     for pool in state.pools.iter_mut() {
         if !pool.active {
             continue;
         }
-        pool.aust_index = pool.aust_index + Decimal::from_ratio(changes.pop().unwrap(), pool.total_share);
+        let change = changes.pop().unwrap();
+        if !pool.total_share.is_zero() {
+            pool.aust_index = pool.aust_index + Decimal::from_ratio(change, pool.total_share);
+        }
     }
     state.prev_aust_balance = balance;
 
@@ -611,6 +617,8 @@ pub fn query_balances(deps: Deps, address: String, height: u64) -> StdResult<Bal
                         share: account.share,
                         balance: state.calc_balance(0u64, account.share)?,
                         unlock: 0u64,
+                        aust_index: account.aust_index,
+                        pending_aust: account.pending_aust,
                     },
                 ],
                 account.pools.into_iter().map(|it| BalancePoolInfo {
@@ -618,6 +626,8 @@ pub fn query_balances(deps: Deps, address: String, height: u64) -> StdResult<Bal
                     share: it.share,
                     unlock: it.unlock,
                     balance: state.calc_balance(it.days, it.share).unwrap(),
+                    aust_index: it.aust_index,
+                    pending_aust: it.pending_aust,
                 }).collect()
             ].concat()
         })

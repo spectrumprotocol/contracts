@@ -166,6 +166,8 @@ pub struct BalancePoolInfo {
     pub share: Uint128,
     pub balance: Uint128,
     pub unlock: u64,
+    pub aust_index: Decimal,
+    pub pending_aust: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
