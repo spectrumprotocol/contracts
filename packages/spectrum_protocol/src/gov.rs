@@ -22,7 +22,7 @@ pub struct ConfigInfo {
     pub warchest_address: Option<String>,
     pub warchest_ratio: Decimal,
     pub aust_token: String,
-    pub burnvault_address: String,
+    pub burnvault_address: Option<String>,
     pub burnvault_ratio: Decimal,
 }
 
@@ -59,6 +59,8 @@ pub enum ExecuteMsg {
         expiration_period: Option<u64>,
         proposal_deposit: Option<Uint128>,
         warchest_address: Option<String>,
+        burnvault_address: Option<String>,
+        burnvault_ratio: Option<Decimal>,
     },
     update_stake {
         amount: Uint128,
@@ -166,8 +168,8 @@ pub struct BalancePoolInfo {
     pub share: Uint128,
     pub balance: Uint128,
     pub unlock: u64,
-    pub aust_index: Decimal,
-    pub pending_aust: Uint128,
+    #[serde(default)] pub aust_index: Decimal,
+    #[serde(default)] pub pending_aust: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]

@@ -450,6 +450,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "moneymarket"
+version = "0.3.1"
+dependencies = [
+ "cosmwasm-bignumber",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+]
+
+[[package]]
 name = "nexus-token"
 version = "1.0.0"
 dependencies = [

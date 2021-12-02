@@ -13,7 +13,7 @@ use cw20::Cw20ExecuteMsg;
 use crate::querier::query_kujira_pool_balance;
 use kujira::gov::{MockGovStakerInfoResponse};
 use kujira::staking::{Cw20HookMsg as KujiraCw20HookMsg, ExecuteMsg as KujiraStakingExecuteMsg};
-use spectrum_protocol::common::compute_deposit_time;
+use spectrum_protocol::farm_helper::compute_deposit_time;
 use spectrum_protocol::gov::{
     BalanceResponse as SpecBalanceResponse, ExecuteMsg as SpecExecuteMsg, QueryMsg as SpecQueryMsg,
 };

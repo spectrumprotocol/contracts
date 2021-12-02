@@ -35,6 +35,7 @@ pub fn instantiate(
     validate_percentage(msg.quorum, "quorum")?;
     validate_percentage(msg.threshold, "threshold")?;
     validate_percentage(msg.warchest_ratio, "warchest_ratio")?;
+    validate_percentage(msg.burnvault_ratio, "burnvault_ratio")?;
     validate_effective_delay(msg.effective_delay)?;
 
     if msg.mint_end < msg.mint_start {
@@ -64,7 +65,11 @@ pub fn instantiate(
         },
         warchest_ratio: msg.warchest_ratio,
         aust_token: deps.api.addr_canonicalize(&msg.aust_token)?,
-        burnvault_address: deps.api.addr_canonicalize(&msg.burnvault_address)?,
+        burnvault_address: if let Some(burnvault_address) = msg.burnvault_address {
+            deps.api.addr_canonicalize(&burnvault_address)?
+        } else {
+            CanonicalAddr::from(vec![])
+        },
         burnvault_ratio: msg.burnvault_ratio,
     };
 
@@ -127,6 +132,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             expiration_period,
             proposal_deposit,
             warchest_address,
+            burnvault_address,
+            burnvault_ratio,
         } => update_config(
             deps,
             env,
@@ -140,6 +147,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             expiration_period,
             proposal_deposit,
             warchest_address,
+            burnvault_address,
+            burnvault_ratio,
         ),
         ExecuteMsg::update_stake { amount, from_days, to_days } => update_stake(deps, env, info, amount, from_days, to_days),
         ExecuteMsg::upsert_pool { days, active } => upsert_pool(deps, env, info, days, active),
@@ -204,6 +213,8 @@ fn update_config(
     expiration_period: Option<u64>,
     proposal_deposit: Option<Uint128>,
     warchest_address: Option<String>,
+    burnvault_address: Option<String>,
+    burnvault_ratio: Option<Decimal>,
 ) -> StdResult<Response> {
     let mut config = config_store(deps.storage).load()?;
     if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
@@ -261,6 +272,20 @@ fn update_config(
         config.warchest_address = deps.api.addr_canonicalize(&warchest_address)?;
     }
 
+    if let Some(burnvault_address) = burnvault_address {
+        if config.burnvault_address != CanonicalAddr::from(vec![]) {
+            return Err(StdError::generic_err("Burn vault address is already assigned"));
+        }
+        let state = read_state(deps.storage)?;
+        validate_minted(&state, &config, env.block.height)?;
+        config.burnvault_address = deps.api.addr_canonicalize(&burnvault_address)?;
+    }
+
+    if let Some(burnvault_ratio) = burnvault_ratio {
+        validate_percentage(burnvault_ratio, "burnvault_ratio")?;
+        config.burnvault_ratio = burnvault_ratio;
+    }
+
     config_store(deps.storage).save(&config)?;
 
     Ok(Response::default())
@@ -314,7 +339,11 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         },
         warchest_ratio: config.warchest_ratio,
         aust_token: deps.api.addr_humanize(&config.aust_token)?.to_string(),
-        burnvault_address: deps.api.addr_humanize(&config.burnvault_address)?.to_string(),
+        burnvault_address: if config.burnvault_address == CanonicalAddr::from(vec![]) {
+            None
+        } else {
+            Some(deps.api.addr_humanize(&config.burnvault_address)?.to_string())
+        },
         burnvault_ratio: config.burnvault_ratio,
     })
 }

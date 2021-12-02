@@ -101,7 +101,6 @@ pub struct PoolItem {
     pub farm_share_index: Decimal,       // per stake bond share
     pub stake_spec_share_index: Decimal, // per stake bond share
     pub auto_spec_share_index: Decimal,  // per auto bond share
-    pub reinvest_allowance: Uint128,
 }
 
 // We define a custom struct for each query response
@@ -137,10 +136,7 @@ pub struct StateInfo {
     pub total_farm_share: Uint128,
     pub total_weight: u32,
     pub earning: Uint128,
-    pub earning_spec: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {
-    pub earning_spec: Uint128,
-}
+pub struct MigrateMsg {}

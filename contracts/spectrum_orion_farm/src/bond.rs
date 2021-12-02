@@ -13,7 +13,7 @@ use cw20::Cw20ExecuteMsg;
 use crate::querier::query_orion_pool_balance;
 use orion::orion_staking::{ExecuteMsg as OrionGovExecuteMsg, StakerInfoResponse as OrionGovStakerInfoResponse};
 use orion::lp_staking::{Cw20HookMsg as OrionCw20HookMsg, ExecuteMsg as OrionStakingExecuteMsg};
-use spectrum_protocol::common::compute_deposit_time;
+use spectrum_protocol::farm_helper::compute_deposit_time;
 use spectrum_protocol::gov::{
     BalanceResponse as SpecBalanceResponse, ExecuteMsg as SpecExecuteMsg, QueryMsg as SpecQueryMsg,
 };

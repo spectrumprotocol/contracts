@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, Deps, DepsMut, Env,
+    attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, DepsMut, Env,
     MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
 };
 
@@ -24,13 +24,12 @@ use terraswap::pair::{
     Cw20HookMsg as TerraswapCw20HookMsg, ExecuteMsg as TerraswapExecuteMsg, SimulationResponse,
 };
 use terraswap::querier::{query_pair_info, query_token_balance, simulate};
+use spectrum_protocol::farm_helper::deduct_tax;
 
 pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
     let config = read_config(deps.storage)?;
 
-    if config.controller != CanonicalAddr::from(vec![])
-        && config.controller != deps.api.addr_canonicalize(info.sender.as_str())?
-    {
+    if config.controller != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(StdError::generic_err("unauthorized"));
     }
 
@@ -51,7 +50,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let mut total_anc_swap_amount = Uint128::zero();
     let mut total_anc_stake_amount = Uint128::zero();
     let mut total_anc_commission = Uint128::zero();
-    let mut compound_amount: Uint128 = Uint128::zero();
+    let mut compound_amount = Uint128::zero();
 
     let mut attributes: Vec<Attribute> = vec![];
     let community_fee = config.community_fee;
@@ -91,11 +90,13 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         total_anc_stake_amount,
     )?;
     state_store(deps.storage).save(&state)?;
+    pool_info_store(deps.storage).save(config.anchor_token.as_slice(), &pool_info)?;
 
     // get reinvest amount
-    let reinvest_allowance = pool_info.reinvest_allowance + compound_amount;
+    let reinvest_allowance = query_token_balance(&deps.querier, anchor_token.clone(), env.contract.address.clone())?;
+    let reinvest_amount = reinvest_allowance + compound_amount;
     // split reinvest amount
-    let swap_amount = reinvest_allowance.multiply_ratio(1u128, 2u128);
+    let swap_amount = reinvest_amount.multiply_ratio(1u128, 2u128);
     // add commission to reinvest ANC to total swap amount
     total_anc_swap_amount += swap_amount;
 
@@ -160,9 +161,6 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     // calculate provided ANC from provided UST
     let provide_anc = swap_anc_rate.return_amount + swap_anc_rate.commission_amount;
 
-    pool_info.reinvest_allowance = swap_amount.checked_sub(provide_anc)?;
-    pool_info_store(deps.storage).save(config.anchor_token.as_slice(), &pool_info)?;
-
     attributes.push(attr("total_ust_return_amount", total_ust_return_amount));
 
     let mut messages: Vec<CosmosMsg> = vec![];
@@ -226,7 +224,6 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
 
         let mut state = read_state(deps.storage)?;
         state.earning += net_commission.amount;
-        state.earning_spec += spec_swap_rate.return_amount;
         state_store(deps.storage).save(&state)?;
 
         attributes.push(attr("net_commission", net_commission.amount));
@@ -373,31 +370,13 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
 
     attributes.push(attr("action", "compound"));
     attributes.push(attr("asset_token", anchor_token));
-    attributes.push(attr("reinvest_allowance", reinvest_allowance));
+    attributes.push(attr("reinvest_amount", reinvest_amount));
     attributes.push(attr("provide_token_amount", provide_anc));
     attributes.push(attr("provide_ust_amount", net_reinvest_ust));
-    attributes.push(attr(
-        "remaining_reinvest_allowance",
-        pool_info.reinvest_allowance,
-    ));
 
     Ok(Response::new()
         .add_messages(messages)
         .add_attributes(attributes))
-}
-
-fn deduct_tax(deps: Deps, amount: Uint128, base_denom: String) -> Uint128 {
-    let asset = Asset {
-        info: AssetInfo::NativeToken {
-            denom: base_denom.clone(),
-        },
-        amount,
-    };
-    let after_tax = Asset {
-        info: AssetInfo::NativeToken { denom: base_denom },
-        amount: asset.deduct_tax(&deps.querier).unwrap().amount,
-    };
-    after_tax.amount
 }
 
 pub fn stake(

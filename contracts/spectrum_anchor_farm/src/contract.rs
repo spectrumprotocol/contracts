@@ -67,7 +67,6 @@ pub fn instantiate(
         total_farm_share: Uint128::zero(),
         total_weight: 0u32,
         earning: Uint128::zero(),
-        earning_spec: Uint128::zero(),
     })?;
 
     Ok(Response::default())
@@ -231,7 +230,6 @@ fn register_asset(
             state_spec_share_index: state.spec_share_index,
             auto_spec_share_index: Decimal::zero(),
             stake_spec_share_index: Decimal::zero(),
-            reinvest_allowance: Uint128::zero(),
         });
     state.total_weight = state.total_weight + weight - pool_info.weight;
     pool_info.weight = weight;
@@ -304,7 +302,6 @@ fn query_pools(deps: Deps) -> StdResult<PoolsResponse> {
                 farm_share_index: pool_info.farm_share_index,
                 stake_spec_share_index: pool_info.stake_spec_share_index,
                 auto_spec_share_index: pool_info.auto_spec_share_index,
-                reinvest_allowance: pool_info.reinvest_allowance,
             })
         })
         .collect::<StdResult<Vec<PoolItem>>>()?;
@@ -319,14 +316,10 @@ fn query_state(deps: Deps) -> StdResult<StateInfo> {
         total_farm_share: state.total_farm_share,
         total_weight: state.total_weight,
         earning: state.earning,
-        earning_spec: state.earning_spec,
     })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
-    let mut state = read_state(deps.storage)?;
-    state.earning_spec = msg.earning_spec;
-    state_store(deps.storage).save(&state)?;
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
 }

@@ -63,7 +63,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         warchest_address: None,
         warchest_ratio: Decimal::percent(DEFAULT_WARCHEST_RATIO),
         aust_token: AUST_TOKEN.to_string(),
-        burnvault_address: BURNVAULT.to_string(),
+        burnvault_address: Some(BURNVAULT.to_string()),
         burnvault_ratio: Decimal::percent(50),
     };
 
@@ -128,6 +128,8 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         expiration_period: Some(DEFAULT_EXPIRATION_PERIOD),
         proposal_deposit: Some(Uint128::from(DEFAULT_PROPOSAL_DEPOSIT)),
         warchest_address: None,
+        burnvault_address: None,
+        burnvault_ratio: None,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
@@ -156,6 +158,8 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         expiration_period: None,
         proposal_deposit: None,
         warchest_address: None,
+        burnvault_address: None,
+        burnvault_ratio: None,
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
     assert_eq!(res, Err(StdError::generic_err("threshold must be 0 to 1")));
@@ -171,6 +175,8 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         expiration_period: None,
         proposal_deposit: None,
         warchest_address: None,
+        burnvault_address: None,
+        burnvault_ratio: None,
     };
     let res = execute(deps.as_mut(), env, info, msg);
     assert_eq!(res, Err(StdError::generic_err("minimum effective_delay is 12342")));
@@ -1078,6 +1084,8 @@ fn test_reward(
         expiration_period: None,
         proposal_deposit: None,
         warchest_address: Some(WARCHEST.to_string()),
+        burnvault_address: None,
+        burnvault_ratio: None,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());

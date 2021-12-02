@@ -44,7 +44,6 @@ pub struct State {
     pub total_farm_share: Uint128,
     pub total_weight: u32,
     pub earning: Uint128,
-    #[serde(default)] pub earning_spec: Uint128,
 }
 
 impl State {
@@ -79,7 +78,6 @@ pub struct PoolInfo {
     pub farm_share_index: Decimal,
     pub auto_spec_share_index: Decimal,
     pub stake_spec_share_index: Decimal,
-    pub reinvest_allowance: Uint128,
 }
 
 impl PoolInfo {
