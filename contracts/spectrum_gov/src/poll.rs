@@ -146,18 +146,10 @@ pub fn poll_vote(
     }
 
     // reconcile
-    let total_balance = query_token_balance(
-        &deps.querier,
-        deps.api.addr_humanize(&config.spec_token)?,
-        deps.api.addr_humanize(&state.contract_addr)?,
-    )?
-    .checked_sub(state.poll_deposit)?;
-    reconcile_balance(&mut state, total_balance)?;
+    reconcile_balance(&deps.as_ref(), &mut state, &config, Uint128::zero())?;
 
     let key = sender_address_raw.as_slice();
-    let mut account = account_store(deps.storage)
-        .may_load(key)?
-        .unwrap_or_default();
+    let mut account = account_store(deps.storage).load(key)?;
 
     // convert share to amount
     if account.calc_total_balance(&state)? < amount {
@@ -218,7 +210,8 @@ pub fn poll_end(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
         deps.api.addr_humanize(&config.spec_token)?,
         deps.api.addr_humanize(&state.contract_addr)?,
     )?
-    .checked_sub(state.poll_deposit)?;
+        .checked_sub(state.poll_deposit)?
+        .checked_sub(state.vault_balances)?;
 
     let quorum = if staked.is_zero() {
         Decimal::zero()
@@ -251,7 +244,7 @@ pub fn poll_end(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
         if !passed {
             validate_minted(&state, &config, env.block.height)?;
         }
-        let return_amount = if passed {
+        let return_amount = if passed || a_poll.execute_msgs.is_empty() {
             a_poll.deposit_amount
         } else if quorum.is_zero() {
             Uint128::zero()

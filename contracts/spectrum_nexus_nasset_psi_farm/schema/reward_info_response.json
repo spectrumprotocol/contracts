@@ -55,6 +55,24 @@
         "bond_amount": {
           "$ref": "#/definitions/Uint128"
         },
+        "deposit_amount": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Uint128"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "deposit_time": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        },
         "farm_share": {
           "$ref": "#/definitions/Uint128"
         },

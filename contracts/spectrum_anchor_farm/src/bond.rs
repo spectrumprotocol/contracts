@@ -19,7 +19,7 @@ use anchor_token::staking::{
     Cw20HookMsg as AnchorCw20HookMsg, ExecuteMsg as AnchorStakingExecuteMsg,
 };
 use spectrum_protocol::anchor_farm::{RewardInfoResponse, RewardInfoResponseItem};
-use spectrum_protocol::common::compute_deposit_time;
+use spectrum_protocol::farm_helper::compute_deposit_time;
 use spectrum_protocol::gov::{
     BalanceResponse as SpecBalanceResponse, ExecuteMsg as SpecExecuteMsg, QueryMsg as SpecQueryMsg,
 };

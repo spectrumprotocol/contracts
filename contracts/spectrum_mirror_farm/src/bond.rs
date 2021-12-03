@@ -24,7 +24,7 @@ use spectrum_protocol::gov::{
 use spectrum_protocol::math::UDec128;
 use spectrum_protocol::mirror_farm::{RewardInfoResponse, RewardInfoResponseItem};
 use std::collections::HashMap;
-use spectrum_protocol::common::compute_deposit_time;
+use spectrum_protocol::farm_helper::compute_deposit_time;
 
 #[allow(clippy::too_many_arguments)]
 fn bond_internal(

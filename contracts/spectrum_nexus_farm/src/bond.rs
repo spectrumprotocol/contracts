@@ -13,7 +13,7 @@ use cw20::Cw20ExecuteMsg;
 use crate::querier::query_nexus_pool_balance;
 use nexus_token::governance::{AnyoneMsg, ExecuteMsg as NexusGovExecuteMsg, QueryMsg as NexusGovQueryMsg, StakerResponse as NexusStakerResponse};
 use nexus_token::staking::{Cw20HookMsg as NexusCw20HookMsg, ExecuteMsg as NexusStakingExecuteMsg};
-use spectrum_protocol::common::compute_deposit_time;
+use spectrum_protocol::farm_helper::compute_deposit_time;
 use spectrum_protocol::gov::{
     BalanceResponse as SpecBalanceResponse, ExecuteMsg as SpecExecuteMsg, QueryMsg as SpecQueryMsg,
 };

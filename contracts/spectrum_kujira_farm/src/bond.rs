@@ -1,4 +1,3 @@
-use std::convert::TryFrom;
 use cosmwasm_std::{
     attr, to_binary, Api, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
     Order, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
@@ -14,6 +13,7 @@ use cw20::Cw20ExecuteMsg;
 use crate::querier::query_kujira_pool_balance;
 use kujira::gov::{MockGovStakerInfoResponse};
 use kujira::staking::{Cw20HookMsg as KujiraCw20HookMsg, ExecuteMsg as KujiraStakingExecuteMsg};
+use spectrum_protocol::farm_helper::compute_deposit_time;
 use spectrum_protocol::gov::{
     BalanceResponse as SpecBalanceResponse, ExecuteMsg as SpecExecuteMsg, QueryMsg as SpecQueryMsg,
 };
@@ -874,16 +874,4 @@ fn read_reward_infos(
         .collect::<StdResult<Vec<RewardInfoResponseItem>>>()?;
 
         Ok(reward_infos)
-}
-
-pub fn compute_deposit_time(
-    last_deposit_amount: Uint128,
-    new_deposit_amount: Uint128,
-    last_deposit_time: u64,
-    new_deposit_time: u64,
-) -> StdResult<u64> {
-    let last_weight = last_deposit_amount.u128() * (last_deposit_time as u128);
-    let new_weight = new_deposit_amount.u128() * (new_deposit_time as u128);
-    let weight_avg = (last_weight + new_weight) / (last_deposit_amount.u128() + new_deposit_amount.u128());
-    u64::try_from(weight_avg).map_err(|_| StdError::generic_err("Overflow in compute_deposit_time"))
 }

@@ -1,0 +1,35 @@
+[package]
+name = "moneymarket"
+version = "0.3.1"
+authors = ["Terraform Labs, PTE."]
+edition = "2018"
+description = "Common helpers for other moneymarket specs"
+license = "Apache-2.0"
+repository = "https://github.com/anchor-protocol/money-market-contracts"
+homepage = "https://terra.money"
+documentation = "https://docs.terra.money"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+# for quicker tests, cargo test --lib
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+
+[dependencies]
+cw20 = "0.8.0"
+cosmwasm-bignumber = "2.2.0"
+cosmwasm-storage = "0.16.0"
+terra-cosmwasm = "2.2.0"
+cosmwasm-std = "0.16.0"
+schemars = "0.8.1"
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+
+[dev-dependencies]
+cosmwasm-schema = "0.16.0"
+
+[profile.dev]
+overflow-checks = true
+
+[profile.release]
+overflow-checks = true

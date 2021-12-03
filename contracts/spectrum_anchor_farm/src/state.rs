@@ -6,12 +6,15 @@ use cosmwasm_storage::{
     bucket, bucket_read, singleton, singleton_read, Bucket, ReadonlyBucket, Singleton,
 };
 
+pub fn default_addr() -> CanonicalAddr {
+    CanonicalAddr::from(vec![])
+}
+
 static KEY_CONFIG: &[u8] = b"config";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     pub owner: CanonicalAddr,
-    pub terraswap_factory: CanonicalAddr,
     pub spectrum_token: CanonicalAddr,
     pub spectrum_gov: CanonicalAddr,
     pub anchor_token: CanonicalAddr,
@@ -24,6 +27,9 @@ pub struct Config {
     pub platform_fee: Decimal,
     pub controller_fee: Decimal,
     pub deposit_fee: Decimal,
+    #[serde(default = "default_addr")] pub anchor_market: CanonicalAddr,
+    #[serde(default = "default_addr")] pub aust_token: CanonicalAddr,
+    #[serde(default = "default_addr")] pub pair_contract: CanonicalAddr,
 }
 
 pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {
@@ -44,7 +50,6 @@ pub struct State {
     pub total_farm_share: Uint128,
     pub total_weight: u32,
     pub earning: Uint128,
-    #[serde(default)] pub earning_spec: Uint128,
 }
 
 impl State {
@@ -79,7 +84,6 @@ pub struct PoolInfo {
     pub farm_share_index: Decimal,
     pub auto_spec_share_index: Decimal,
     pub stake_spec_share_index: Decimal,
-    pub reinvest_allowance: Uint128,
 }
 
 impl PoolInfo {

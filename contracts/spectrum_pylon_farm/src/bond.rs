@@ -18,7 +18,7 @@ use pylon_token::gov_resp::{
     StakerResponse as PylonStakerResponse
 };
 use pylon_token::staking::{Cw20HookMsg as PylonCw20HookMsg, ExecuteMsg as PylonStakingExecuteMsg};
-use spectrum_protocol::common::compute_deposit_time;
+use spectrum_protocol::farm_helper::compute_deposit_time;
 use spectrum_protocol::gov::{
     BalanceResponse as SpecBalanceResponse, ExecuteMsg as SpecExecuteMsg, QueryMsg as SpecQueryMsg,
 };

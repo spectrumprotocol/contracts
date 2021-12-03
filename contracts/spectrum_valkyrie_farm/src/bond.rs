@@ -9,7 +9,7 @@ use crate::state::{
 };
 
 use cw20::Cw20ExecuteMsg;
-use spectrum_protocol::common::compute_deposit_time;
+use spectrum_protocol::farm_helper::compute_deposit_time;
 
 use crate::querier::query_valkyrie_pool_balance;
 use valkyrie::governance::execute_msgs::{

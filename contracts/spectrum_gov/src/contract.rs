@@ -10,10 +10,9 @@ use crate::poll::{
     poll_end, poll_execute, poll_expire, poll_start, poll_vote, query_poll, query_polls,
     query_voters,
 };
-use crate::stake::{calc_mintable, mint, query_balances, query_vaults, stake_tokens, upsert_vault, withdraw, validate_minted, reconcile_balance, update_stake, upsert_pool};
-use crate::state::{config_store, read_config, read_state, state_store, Config, State};
+use crate::stake::{calc_mintable, mint, query_balances, query_vaults, stake_tokens, upsert_vault, withdraw, validate_minted, reconcile_balance, update_stake, upsert_pool, harvest};
+use crate::state::{config_store, read_config, read_state, state_store, Config, State, read_vaults, read_account, vault_store, account_store};
 use cw20::Cw20ReceiveMsg;
-use terraswap::querier::query_token_balance;
 
 // minimum effective delay around 1 day at 7 second per block
 const MINIMUM_EFFECTIVE_DELAY: u64 = 12342u64;
@@ -36,6 +35,7 @@ pub fn instantiate(
     validate_percentage(msg.quorum, "quorum")?;
     validate_percentage(msg.threshold, "threshold")?;
     validate_percentage(msg.warchest_ratio, "warchest_ratio")?;
+    validate_percentage(msg.burnvault_ratio, "burnvault_ratio")?;
     validate_effective_delay(msg.effective_delay)?;
 
     if msg.mint_end < msg.mint_start {
@@ -64,6 +64,13 @@ pub fn instantiate(
             CanonicalAddr::from(vec![])
         },
         warchest_ratio: msg.warchest_ratio,
+        aust_token: deps.api.addr_canonicalize(&msg.aust_token)?,
+        burnvault_address: if let Some(burnvault_address) = msg.burnvault_address {
+            deps.api.addr_canonicalize(&burnvault_address)?
+        } else {
+            CanonicalAddr::from(vec![])
+        },
+        burnvault_ratio: msg.burnvault_ratio,
     };
 
     let state = State {
@@ -78,7 +85,10 @@ pub fn instantiate(
         },
         total_weight: 0,
         prev_balance: Uint128::zero(),
+        prev_aust_balance: Uint128::zero(),
         total_balance: Uint128::zero(),
+        aust_index: Decimal::zero(),
+        vault_balances: Uint128::zero(),
         pools: vec![],
     };
 
@@ -101,6 +111,7 @@ fn validate_percentage(value: Decimal, field: &str) -> StdResult<()> {
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
+        ExecuteMsg::harvest { aust_amount, days } => harvest(deps, info, aust_amount, days.unwrap_or(0u64)),
         ExecuteMsg::mint {} => mint(deps, env),
         ExecuteMsg::poll_end { poll_id } => poll_end(deps, env, poll_id),
         ExecuteMsg::poll_execute { poll_id } => poll_execute(deps, env, poll_id),
@@ -121,6 +132,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             expiration_period,
             proposal_deposit,
             warchest_address,
+            burnvault_address,
+            burnvault_ratio,
         } => update_config(
             deps,
             env,
@@ -134,6 +147,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             expiration_period,
             proposal_deposit,
             warchest_address,
+            burnvault_address,
+            burnvault_ratio,
         ),
         ExecuteMsg::update_stake { amount, from_days, to_days } => update_stake(deps, env, info, amount, from_days, to_days),
         ExecuteMsg::upsert_pool { days, active } => upsert_pool(deps, env, info, days, active),
@@ -198,6 +213,8 @@ fn update_config(
     expiration_period: Option<u64>,
     proposal_deposit: Option<Uint128>,
     warchest_address: Option<String>,
+    burnvault_address: Option<String>,
+    burnvault_ratio: Option<Decimal>,
 ) -> StdResult<Response> {
     let mut config = config_store(deps.storage).load()?;
     if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
@@ -255,6 +272,20 @@ fn update_config(
         config.warchest_address = deps.api.addr_canonicalize(&warchest_address)?;
     }
 
+    if let Some(burnvault_address) = burnvault_address {
+        if config.burnvault_address != CanonicalAddr::from(vec![]) {
+            return Err(StdError::generic_err("Burn vault address is already assigned"));
+        }
+        let state = read_state(deps.storage)?;
+        validate_minted(&state, &config, env.block.height)?;
+        config.burnvault_address = deps.api.addr_canonicalize(&burnvault_address)?;
+    }
+
+    if let Some(burnvault_ratio) = burnvault_ratio {
+        validate_percentage(burnvault_ratio, "burnvault_ratio")?;
+        config.burnvault_ratio = burnvault_ratio;
+    }
+
     config_store(deps.storage).save(&config)?;
 
     Ok(Response::default())
@@ -304,39 +335,44 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         warchest_address: if config.warchest_address == CanonicalAddr::from(vec![]) {
             None
         } else {
-            Some(
-                deps.api
-                    .addr_humanize(&config.warchest_address)?
-                    .to_string(),
-            )
+            Some(deps.api.addr_humanize(&config.warchest_address)?.to_string())
         },
         warchest_ratio: config.warchest_ratio,
+        aust_token: deps.api.addr_humanize(&config.aust_token)?.to_string(),
+        burnvault_address: if config.burnvault_address == CanonicalAddr::from(vec![]) {
+            None
+        } else {
+            Some(deps.api.addr_humanize(&config.burnvault_address)?.to_string())
+        },
+        burnvault_ratio: config.burnvault_ratio,
     })
 }
 
 fn query_state(deps: Deps, height: u64) -> StdResult<StateInfo> {
     let mut state = read_state(deps.storage)?;
     let config = read_config(deps.storage)?;
-    let balance = query_token_balance(
-        &deps.querier,
-        deps.api.addr_humanize(&config.spec_token)?,
-        deps.api.addr_humanize(&state.contract_addr)?,
-    )?.checked_sub(state.poll_deposit)?;
-    reconcile_balance(&mut state, balance)?;
+
+    let balance = reconcile_balance(&deps, &mut state, &config, Uint128::zero())?;
     let mintable = calc_mintable(&state, &config, height);
+    let to_burnvault = mintable * config.burnvault_ratio;
+    let to_warchest = mintable.checked_sub(to_burnvault)? * config.warchest_ratio;
+
     Ok(StateInfo {
         poll_count: state.poll_count,
         poll_deposit: state.poll_deposit,
         last_mint: state.last_mint,
         total_weight: state.total_weight,
-        total_staked: balance + mintable,
+        total_staked: balance + to_burnvault + to_warchest,
         prev_balance: state.prev_balance,
+        prev_aust_balance: state.prev_aust_balance,
+        vault_balances: state.vault_balances,
         pools: vec![
             vec![
                 StatePoolInfo {
                     days: 0u64,
                     total_share: state.total_share,
                     total_balance: state.total_balance,
+                    aust_index: state.aust_index,
                     active: true
                 },
             ],
@@ -344,6 +380,7 @@ fn query_state(deps: Deps, height: u64) -> StdResult<StateInfo> {
                 days: it.days,
                 total_share: it.total_share,
                 total_balance: it.total_balance,
+                aust_index: it.aust_index,
                 active: it.active,
             }).collect(),
         ].concat(),
@@ -351,6 +388,31 @@ fn query_state(deps: Deps, height: u64) -> StdResult<StateInfo> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
+<<<<<<< HEAD
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+=======
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    let vaults = read_vaults(deps.storage)?;
+    let mut state = read_state(deps.storage)?;
+    let config = read_config(deps.storage)?;
+    reconcile_balance(&deps.as_ref(), &mut state, &config, Uint128::zero())?;
+
+    for (addr, mut vault) in vaults {
+        let key = addr.as_slice();
+        let account = read_account(deps.storage, key)?;
+        if let Some(mut account) = account {
+            let amount = account.calc_balance(0u64, &state)?;
+            let share = account.share;
+            account.deduct_share(0u64, share, None)?;
+            state.deduct_share(0u64, share, amount)?;
+            vault.balance = amount;
+            state.vault_balances += amount;
+            vault_store(deps.storage).save(key, &vault)?;
+            account_store(deps.storage).save(key, &account)?;
+        }
+    }
+    state_store(deps.storage).save(&state)?;
+
+>>>>>>> origin/feat/tokenomics
     Ok(Response::default())
 }
