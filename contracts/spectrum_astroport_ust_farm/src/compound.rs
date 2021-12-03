@@ -5,28 +5,33 @@ use cosmwasm_std::{
 
 use crate::{
     bond::deposit_farm_share,
-    state::{read_config, state_store},
+    state::{read_config, state_store}, querier::query_astroport_pool_balance,
 };
 
-use crate::querier::{query_anchor_reward_info, query_astroport_pending_token};
+use crate::querier::{query_astroport_pending_token};
 
 use cw20::Cw20ExecuteMsg;
 
 use crate::state::{pool_info_read, pool_info_store, read_state, Config, PoolInfo};
-use anchor_token::gov::Cw20HookMsg as AnchorGovCw20HookMsg;
-use anchor_token::staking::{
-    Cw20HookMsg as AnchorStakingCw20HookMsg, ExecuteMsg as AnchorStakingExecuteMsg,
+use spectrum_protocol::gov_proxy::{
+    StakerInfoGovResponse, ExecuteMsg as GovProxyExecuteMsg
+};
+use astroport::generator::{
+    ExecuteMsg as AstroportExecuteMsg, PendingTokenResponse, Cw20HookMsg as AstroportCw20HookMsg
 };
 use spectrum_protocol::astroport_ust_farm::ExecuteMsg;
 use spectrum_protocol::gov::{Cw20HookMsg as GovCw20HookMsg, ExecuteMsg as GovExecuteMsg};
-use terraswap::asset::{Asset, AssetInfo};
-use terraswap::pair::{
-    Cw20HookMsg as TerraswapCw20HookMsg, ExecuteMsg as TerraswapExecuteMsg, SimulationResponse,
+use astroport::asset::{Asset, AssetInfo};
+use astroport::pair::{
+    Cw20HookMsg as AstroportPairCw20HookMsg, ExecuteMsg as TerraswapExecuteMsg, SimulationResponse,
 };
-use terraswap::querier::{query_pair_info, query_token_balance, simulate};
-use astroport::generator::PendingTokenResponse;
+use astroport::querier::{query_pair_info, simulate};
 
-pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
+pub fn compound(deps: DepsMut, env: Env, info: MessageInfo, threshold_compound_astro: Uint128) -> StdResult<Response> {
+
+    // let lp_asset_info = AssetInfo::cw20(&config.pair.share_token);
+    // let prev_lp_amount = lp_asset_info.query_balfarm_tokene(&deps.querier, &env.contract.address)?;
+
     let config = read_config(deps.storage)?;
 
     if config.controller != CanonicalAddr::from(vec![])
@@ -36,22 +41,32 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     }
 
     let terraswap_factory = deps.api.addr_humanize(&config.astroport_factory)?;
-    let anchor_staking = deps.api.addr_humanize(&config.astroport_generator)?;
-    let anchor_token = deps.api.addr_humanize(&config.farm_token)?;
-    let anchor_gov = deps.api.addr_humanize(&config.gov_proxy)?;
+    let astroport_generator = deps.api.addr_humanize(&config.astroport_generator)?;
+    let astroport_token = deps.api.addr_humanize(&config.farm_token)?;
+    //let gov_proxy = deps.api.addr_humanize(&config.gov_proxy)?;
     let spectrum_token = deps.api.addr_humanize(&config.spectrum_token)?;
     let spectrum_gov = deps.api.addr_humanize(&config.spectrum_gov)?;
 
-    let anchor_reward_info = query_anchor_reward_info(
+    let mut pool_info = pool_info_read(deps.storage).load(config.farm_token.as_slice())?;
+
+
+    let reward_info = query_astroport_pending_token(
         deps.as_ref(),
-        &config.astroport_generator,
+        &pool_info.staking_token,
         &deps.api.addr_canonicalize(env.contract.address.as_str())?,
-        Some(env.block.height),
+        &config.astroport_generator
     )?;
 
-    let mut total_anc_swap_amount = Uint128::zero();
-    let mut total_anc_stake_amount = Uint128::zero();
-    let mut total_anc_commission = Uint128::zero();
+    let lp_balance = query_astroport_pool_balance(
+        deps.as_ref(),
+        &pool_info.staking_token,
+        &deps.api.addr_canonicalize(env.contract.address.as_str())?,
+        &config.astroport_generator
+    )?;
+
+    let mut total_farm_token_swap_amount = Uint128::zero();
+    let mut total_farm_token_stake_amount = Uint128::zero();
+    let mut total_farm_token_commission = Uint128::zero();
     let mut compound_amount: Uint128 = Uint128::zero();
 
     let mut attributes: Vec<Attribute> = vec![];
@@ -60,47 +75,65 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let controller_fee = config.controller_fee;
     let total_fee = community_fee + platform_fee + controller_fee;
 
-    // calculate auto-compound, auto-Stake, and commission in ANC
-    let mut pool_info = pool_info_read(deps.storage).load(config.farm_token.as_slice())?;
-    let reward = anchor_reward_info.pending_reward;
-    if !reward.is_zero() && !anchor_reward_info.bond_amount.is_zero() {
+    // calculate auto-compound, auto-Stake, and commission in farm token
+    let reward = reward_info.pending;
+    if !reward.is_zero() && !lp_balance.is_zero() {
         let commission = reward * total_fee;
-        let anchor_amount = reward.checked_sub(commission)?;
+        let astroport_amount = reward.checked_sub(commission)?;
         // add commission to total swap amount
-        total_anc_commission += commission;
-        total_anc_swap_amount += commission;
+        total_farm_token_commission += commission;
+        total_farm_token_swap_amount += commission;
 
-        let auto_bond_amount = anchor_reward_info
+        let auto_bond_amount = reward_info
             .bond_amount
             .checked_sub(pool_info.total_stake_bond_amount)?;
         compound_amount =
-            anchor_amount.multiply_ratio(auto_bond_amount, anchor_reward_info.bond_amount);
-        let stake_amount = anchor_amount.checked_sub(compound_amount)?;
+            astroport_amount.multiply_ratio(auto_bond_amount, reward_info.bond_amount);
+        let stake_amount = astroport_amount.checked_sub(compound_amount)?;
 
         attributes.push(attr("commission", commission));
         attributes.push(attr("compound_amount", compound_amount));
         attributes.push(attr("stake_amount", stake_amount));
 
-        total_anc_stake_amount += stake_amount;
+        total_farm_token_stake_amount += stake_amount;
     }
+
+    // if staked.pending_reward > threshold_compound_gov {
+    //     let withdraw_pending_reward_gov: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
+    //         contract_addr: deps.api.addr_humanize(&config.terraworld_gov)?.to_string(),
+    //         funds: vec![],
+    //         msg: to_binary(&TerraworldGovExecuteMsg::Withdraw {})?,
+    //     });
+    //     attributes.push(attr("gov_pending_reward", staked.pending_reward));
+    //     messages.push(withdraw_pending_reward_gov);
+
+    //     let reward = staked.pending_reward;
+    //     let commission = reward * total_fee;
+    //     let gov_reward = reward.checked_sub(commission)?;
+    //     total_twd_commission += commission;
+    //     total_twd_swap_amount += commission;
+    //     total_twd_stake_amount += gov_reward;
+    // }
+
+
     let mut state = read_state(deps.storage)?;
     deposit_farm_share(
         deps.as_ref(),
         &mut state,
         &mut pool_info,
         &config,
-        total_anc_stake_amount,
+        total_farm_token_stake_amount,
     )?;
     state_store(deps.storage).save(&state)?;
 
     // get reinvest amount
-    let reinvest_allowance = pool_info.reinvest_allowance + compound_amount;
+    let reinvest_allowfarm_tokene = pool_info.reinvest_allowfarm_tokene + compound_amount;
     // split reinvest amount
-    let swap_amount = reinvest_allowance.multiply_ratio(1u128, 2u128);
-    // add commission to reinvest ANC to total swap amount
-    total_anc_swap_amount += swap_amount;
+    let swap_amount = reinvest_allowfarm_tokene.multiply_ratio(1u128, 2u128);
+    // add commission to reinvest farm token to total swap amount
+    total_farm_token_swap_amount += swap_amount;
 
-    let anc_pair_info = query_pair_info(
+    let farm_token_pair_info = query_pair_info(
         &deps.querier,
         terraswap_factory.clone(),
         &[
@@ -108,33 +141,33 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
                 denom: config.base_denom.clone(),
             },
             AssetInfo::Token {
-                contract_addr: anchor_token.to_string(),
+                contract_addr: astroport_token.to_string(),
             },
         ],
     )?;
 
-    // find ANC swap rate
-    let anc = Asset {
+    // find farm token swap rate
+    let farm_token = Asset {
         info: AssetInfo::Token {
-            contract_addr: anchor_token.to_string(),
+            contract_addr: astroport_token.to_string(),
         },
-        amount: total_anc_swap_amount,
+        amount: total_farm_token_swap_amount,
     };
-    let anc_swap_rate = simulate(
+    let farm_token_swap_rate = simulate(
         &deps.querier,
-        deps.api.addr_validate(&anc_pair_info.contract_addr)?,
-        &anc,
+        deps.api.addr_validate(&farm_token_pair_info.contract_addr)?,
+        &farm_token,
     )?;
     let return_asset = Asset {
         info: AssetInfo::NativeToken {
             denom: config.base_denom.clone(),
         },
-        amount: anc_swap_rate.return_amount,
+        amount: farm_token_swap_rate.return_amount,
     };
 
     let total_ust_return_amount = return_asset.deduct_tax(&deps.querier)?.amount;
-    let total_ust_commission_amount = if total_anc_swap_amount != Uint128::zero() {
-        total_ust_return_amount.multiply_ratio(total_anc_commission, total_anc_swap_amount)
+    let total_ust_commission_amount = if total_farm_token_swap_amount != Uint128::zero() {
+        total_ust_return_amount.multiply_ratio(total_farm_token_commission, total_farm_token_swap_amount)
     } else {
         Uint128::zero()
     };
@@ -153,34 +186,34 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         },
         amount: net_reinvest_ust,
     };
-    let swap_anc_rate = simulate(
+    let swap_farm_token_rate = simulate(
         &deps.querier,
-        deps.api.addr_validate(&anc_pair_info.contract_addr)?,
+        deps.api.addr_validate(&farm_token_pair_info.contract_addr)?,
         &net_reinvest_asset,
     )?;
-    // calculate provided ANC from provided UST
-    let provide_anc = swap_anc_rate.return_amount + swap_anc_rate.commission_amount;
+    // calculate provided farm token from provided UST
+    let provide_farm_token = swap_farm_token_rate.return_amount + swap_farm_token_rate.commission_amount;
 
-    pool_info.reinvest_allowance = swap_amount.checked_sub(provide_anc)?;
+    pool_info.reinvest_allowfarm_tokene = swap_amount.checked_sub(provide_farm_token)?;
     pool_info_store(deps.storage).save(config.farm_token.as_slice(), &pool_info)?;
 
     attributes.push(attr("total_ust_return_amount", total_ust_return_amount));
 
     let mut messages: Vec<CosmosMsg> = vec![];
-    let withdraw_all_anc: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: anchor_staking.to_string(),
+    let withdraw_all_farm_token: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: astroport_generator.to_string(),
         funds: vec![],
-        msg: to_binary(&AnchorStakingExecuteMsg::Withdraw {})?,
+        msg: to_binary(&astroportStakingExecuteMsg::Withdraw {})?,
     });
-    messages.push(withdraw_all_anc);
+    messages.push(withdraw_all_farm_token);
 
-    if !total_anc_swap_amount.is_zero() {
-        let swap_anc: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: anchor_token.to_string(),
+    if !total_farm_token_swap_amount.is_zero() {
+        let swap_farm_token: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: astroport_token.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: anc_pair_info.contract_addr.clone(),
-                amount: total_anc_swap_amount,
-                msg: to_binary(&TerraswapCw20HookMsg::Swap {
+                contract: farm_token_pair_info.contract_addr.clone(),
+                amount: total_farm_token_swap_amount,
+                msg: to_binary(&AstroportPairCw20HookMsg::Swap {
                     max_spread: None,
                     belief_price: None,
                     to: None,
@@ -188,7 +221,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
             })?,
             funds: vec![],
         });
-        messages.push(swap_anc);
+        messages.push(swap_farm_token);
     }
 
     if !total_ust_commission_amount.is_zero() {
@@ -310,40 +343,40 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         }
     }
 
-    if !total_anc_stake_amount.is_zero() {
-        let stake_anc = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: anchor_token.to_string(),
+    if !total_farm_token_stake_amount.is_zero() {
+        let stake_farm_token = CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: astroport_token.to_string(),
             funds: vec![],
             msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: anchor_gov.to_string(),
-                amount: total_anc_stake_amount,
-                msg: to_binary(&AnchorGovCw20HookMsg::StakeVotingTokens {})?,
+                contract: astroport_gov.to_string(),
+                amount: total_farm_token_stake_amount,
+                msg: to_binary(&astroportGovCw20HookMsg::StakeVotingTokens {})?,
             })?,
         });
-        messages.push(stake_anc);
+        messages.push(stake_farm_token);
     }
 
-    if !provide_anc.is_zero() {
-        let increase_allowance = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: anchor_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-                spender: anc_pair_info.contract_addr.to_string(),
-                amount: provide_anc,
+    if !provide_farm_token.is_zero() {
+        let increase_allowfarm_tokene = CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: astroport_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowfarm_tokene {
+                spender: farm_token_pair_info.contract_addr.to_string(),
+                amount: provide_farm_token,
                 expires: None,
             })?,
             funds: vec![],
         });
-        messages.push(increase_allowance);
+        messages.push(increase_allowfarm_tokene);
 
         let provide_liquidity = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: anc_pair_info.contract_addr,
+            contract_addr: farm_token_pair_info.contract_addr,
             msg: to_binary(&TerraswapExecuteMsg::ProvideLiquidity {
                 assets: [
                     Asset {
                         info: AssetInfo::Token {
-                            contract_addr: anchor_token.to_string(),
+                            contract_addr: astroport_token.to_string(),
                         },
-                        amount: provide_anc,
+                        amount: provide_farm_token,
                     },
                     Asset {
                         info: AssetInfo::NativeToken {
@@ -352,7 +385,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
                         amount: net_reinvest_ust,
                     },
                 ],
-                slippage_tolerance: None,
+                slippage_tolerfarm_tokene: None,
                 receiver: None,
             })?,
             funds: vec![Coin {
@@ -365,7 +398,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         let stake = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: env.contract.address.to_string(),
             msg: to_binary(&ExecuteMsg::stake {
-                asset_token: anchor_token.to_string(),
+                asset_token: astroport_token.to_string(),
             })?,
             funds: vec![],
         });
@@ -373,13 +406,13 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     }
 
     attributes.push(attr("action", "compound"));
-    attributes.push(attr("asset_token", anchor_token));
-    attributes.push(attr("reinvest_allowance", reinvest_allowance));
-    attributes.push(attr("provide_token_amount", provide_anc));
+    attributes.push(attr("asset_token", astroport_token));
+    attributes.push(attr("reinvest_allowfarm_tokene", reinvest_allowfarm_tokene));
+    attributes.push(attr("provide_token_amount", provide_farm_token));
     attributes.push(attr("provide_ust_amount", net_reinvest_ust));
     attributes.push(attr(
-        "remaining_reinvest_allowance",
-        pool_info.reinvest_allowance,
+        "remaining_reinvest_allowfarm_tokene",
+        pool_info.reinvest_allowfarm_tokene,
     ));
 
     Ok(Response::new()
@@ -407,26 +440,26 @@ pub fn stake(
     info: MessageInfo,
     asset_token: String,
 ) -> StdResult<Response> {
-    // only anchor farm contract can execute this message
+    // only astroport farm contract can execute this message
     if info.sender != env.contract.address {
         return Err(StdError::generic_err("unauthorized"));
     }
     let config: Config = read_config(deps.storage)?;
-    let anchor_staking = deps.api.addr_humanize(&config.astroport_generator)?;
+    let astroport_staking = deps.api.addr_humanize(&config.astroport_generator)?;
     let asset_token_raw: CanonicalAddr = deps.api.addr_canonicalize(&asset_token)?;
     let pool_info: PoolInfo = pool_info_read(deps.storage).load(asset_token_raw.as_slice())?;
     let staking_token = deps.api.addr_humanize(&pool_info.staking_token)?;
 
-    let amount = query_token_balance(&deps.querier, staking_token.clone(), env.contract.address)?;
+    let amount = query_token_balfarm_tokene(&deps.querier, staking_token.clone(), env.contract.address)?;
 
     Ok(Response::new()
         .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: staking_token.to_string(),
             funds: vec![],
             msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: anchor_staking.to_string(),
+                contract: astroport_staking.to_string(),
                 amount,
-                msg: to_binary(&AnchorStakingCw20HookMsg::Bond {})?,
+                msg: to_binary(&astroportStakingCw20HookMsg::Bond {})?,
             })?,
         })])
         .add_attributes(vec![

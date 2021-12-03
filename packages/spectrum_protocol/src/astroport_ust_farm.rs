@@ -56,7 +56,9 @@ pub enum ExecuteMsg {
     stake {
         asset_token: String,
     },
-    compound {},
+    compound {
+        threshold_compound_astro: Uint128
+    },
     update_bond {
         asset_token: String,
         amount_to_stake: Uint128,
