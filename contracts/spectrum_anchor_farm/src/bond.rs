@@ -19,6 +19,7 @@ use anchor_token::staking::{
     Cw20HookMsg as AnchorCw20HookMsg, ExecuteMsg as AnchorStakingExecuteMsg,
 };
 use spectrum_protocol::anchor_farm::{RewardInfoResponse, RewardInfoResponseItem};
+use spectrum_protocol::common::compute_deposit_time;
 use spectrum_protocol::gov::{
     BalanceResponse as SpecBalanceResponse, ExecuteMsg as SpecExecuteMsg, QueryMsg as SpecQueryMsg,
 };
@@ -27,13 +28,14 @@ use spectrum_protocol::math::UDec128;
 #[allow(clippy::too_many_arguments)]
 fn bond_internal(
     deps: DepsMut,
+    env: Env,
     sender_addr_raw: CanonicalAddr,
     asset_token_raw: CanonicalAddr,
     amount_to_auto: Uint128,
     amount_to_stake: Uint128,
-    deposit_fee: Decimal,
     lp_balance: Uint128,
     config: &Config,
+    reallocate: bool,
 ) -> StdResult<PoolInfo> {
     let mut pool_info = pool_info_read(deps.storage).load(asset_token_raw.as_slice())?;
     let mut state = read_state(deps.storage)?;
@@ -55,18 +57,27 @@ fn bond_internal(
             stake_bond_share: Uint128::zero(),
             spec_share: Uint128::zero(),
             farm_share: Uint128::zero(),
+            deposit_amount: Uint128::zero(),
+            deposit_time: 0u64,
         });
-    before_share_change(&pool_info, &mut reward_info)?;
+    before_share_change(&pool_info, &mut reward_info, lp_balance, env.block.time.seconds());
 
     // increase bond_amount
     increase_bond_amount(
         &mut pool_info,
         &mut reward_info,
-        deposit_fee,
+        if reallocate { Decimal::zero() } else { config.deposit_fee },
         amount_to_auto,
         amount_to_stake,
         lp_balance,
     )?;
+
+    if !reallocate {
+        let last_deposit_amount = reward_info.deposit_amount;
+        let new_deposit_amount = amount_to_auto + amount_to_stake;
+        reward_info.deposit_amount = last_deposit_amount + new_deposit_amount;
+        reward_info.deposit_time = compute_deposit_time(last_deposit_amount, new_deposit_amount, reward_info.deposit_time, env.block.time.seconds())?;
+    }
 
     rewards_store(deps.storage, &sender_addr_raw)
         .save(asset_token_raw.as_slice(), &reward_info)?;
@@ -109,13 +120,14 @@ pub fn bond(
 
     bond_internal(
         deps.branch(),
+        env,
         staker_addr_raw,
         asset_token_raw.clone(),
         amount_to_auto,
         amount_to_stake,
-        config.deposit_fee,
         lp_balance,
         &config,
+        false,
     )?;
 
     stake_token(
@@ -228,7 +240,7 @@ fn spec_reward_to_pool(
 }
 
 // withdraw reward to pending reward
-fn before_share_change(pool_info: &PoolInfo, reward_info: &mut RewardInfo) -> StdResult<()> {
+fn before_share_change(pool_info: &PoolInfo, reward_info: &mut RewardInfo, lp_balance: Uint128, time: u64) {
     let farm_share =
         (pool_info.farm_share_index - reward_info.farm_share_index) * reward_info.stake_bond_share;
     reward_info.farm_share += farm_share;
@@ -243,7 +255,12 @@ fn before_share_change(pool_info: &PoolInfo, reward_info: &mut RewardInfo) -> St
     reward_info.stake_spec_share_index = pool_info.stake_spec_share_index;
     reward_info.auto_spec_share_index = pool_info.auto_spec_share_index;
 
-    Ok(())
+    if reward_info.deposit_amount.is_zero() && (!reward_info.auto_bond_share.is_zero() || !reward_info.stake_bond_share.is_zero()) {
+        let auto_bond_amount = pool_info.calc_user_auto_balance(lp_balance, reward_info.auto_bond_share);
+        let stake_bond_amount = pool_info.calc_user_stake_balance(reward_info.stake_bond_share);
+        reward_info.deposit_amount = auto_bond_amount + stake_bond_amount;
+        reward_info.deposit_time = time;
+    }
 }
 
 // increase share amount in pool and reward info
@@ -319,13 +336,16 @@ fn stake_token(
         ]))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn unbond_internal(
     deps: DepsMut,
+    env: Env,
     staker_addr_raw: CanonicalAddr,
     asset_token_raw: CanonicalAddr,
     amount: Uint128,
     lp_balance: Uint128,
     config: &Config,
+    reallocate: bool,
 ) -> StdResult<PoolInfo> {
     let mut state = read_state(deps.storage)?;
     let mut pool_info = pool_info_read(deps.storage).load(asset_token_raw.as_slice())?;
@@ -344,7 +364,7 @@ fn unbond_internal(
     // distribute reward to pending reward; before changing share
     deposit_spec_reward(deps.as_ref(), &mut state, config, false)?;
     spec_reward_to_pool(&state, &mut pool_info, lp_balance)?;
-    before_share_change(&pool_info, &mut reward_info)?;
+    before_share_change(&pool_info, &mut reward_info, lp_balance, env.block.time.seconds());
 
     // decrease bond amount
     let auto_bond_amount = if reward_info.stake_bond_share.is_zero() {
@@ -375,6 +395,10 @@ fn unbond_internal(
         .checked_sub(stake_bond_share)?;
     reward_info.auto_bond_share = reward_info.auto_bond_share.checked_sub(auto_bond_share)?;
     reward_info.stake_bond_share = reward_info.stake_bond_share.checked_sub(stake_bond_share)?;
+
+    if !reallocate {
+        reward_info.deposit_amount = reward_info.deposit_amount.multiply_ratio(user_balance.checked_sub(amount)?, user_balance);
+    }
 
     // update rewards info
     if reward_info.spec_share.is_zero()
@@ -415,11 +439,13 @@ pub fn unbond(
 
     let pool_info = unbond_internal(
         deps.branch(),
+        env,
         staker_addr_raw,
         asset_token_raw,
         amount,
         lp_balance,
         &config,
+        false,
     )?;
 
     Ok(Response::new()
@@ -472,22 +498,25 @@ pub fn update_bond(
 
     unbond_internal(
         deps.branch(),
+        env.clone(),
         staker_addr_raw.clone(),
         asset_token_raw.clone(),
         amount,
         lp_balance,
         &config,
+        true,
     )?;
 
     bond_internal(
         deps,
+        env,
         staker_addr_raw,
         asset_token_raw,
         amount_to_auto,
         amount_to_stake,
-        Decimal::zero(),
         lp_balance.checked_sub(amount)?,
         &config,
+        true,
     )?;
 
     Ok(Response::new().add_attributes(vec![
@@ -500,6 +529,7 @@ pub fn update_bond(
 
 pub fn withdraw(
     mut deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     asset_token: Option<String>,
     spec_amount: Option<Uint128>,
@@ -516,6 +546,7 @@ pub fn withdraw(
 
     let (spec_amount, spec_share, farm_amount, farm_share) = withdraw_reward(
         deps.branch(),
+        env,
         &config,
         &state,
         &staker_addr,
@@ -578,6 +609,7 @@ pub fn withdraw(
 #[allow(clippy::too_many_arguments)]
 fn withdraw_reward(
     deps: DepsMut,
+    env: Env,
     config: &Config,
     state: &State,
     staker_addr: &CanonicalAddr,
@@ -633,7 +665,7 @@ fn withdraw_reward(
         let key = asset_token_raw.as_slice();
         let mut pool_info = pool_info_read(deps.storage).load(key)?;
         spec_reward_to_pool(state, &mut pool_info, lp_balance)?;
-        before_share_change(&pool_info, &mut reward_info)?;
+        before_share_change(&pool_info, &mut reward_info, lp_balance, env.block.time.seconds());
 
         // update withdraw
         let (asset_farm_share, asset_farm_amount) = if let Some(request_amount) = request_farm_amount {
@@ -734,6 +766,7 @@ fn calc_spec_share(amount: Uint128, stated: &SpecBalanceResponse) -> Uint128 {
 
 pub fn query_reward_info(
     deps: Deps,
+    env: Env,
     staker_addr: String,
 ) -> StdResult<RewardInfoResponse> {
     let staker_addr_raw = deps.api.addr_canonicalize(&staker_addr)?;
@@ -743,6 +776,7 @@ pub fn query_reward_info(
     let spec_staked = deposit_spec_reward(deps, &mut state, &config, true)?;
     let reward_infos = read_reward_infos(
         deps,
+        env,
         &config,
         &state,
         &staker_addr_raw,
@@ -757,6 +791,7 @@ pub fn query_reward_info(
 
 fn read_reward_infos(
     deps: Deps,
+    env: Env,
     config: &Config,
     state: &State,
     staker_addr: &CanonicalAddr,
@@ -795,8 +830,10 @@ fn read_reward_infos(
             let auto_spec_index = reward_info.auto_spec_share_index;
             let stake_spec_index = reward_info.stake_spec_share_index;
 
+            let has_deposit_amount = !reward_info.deposit_amount.is_zero();
+
             spec_reward_to_pool(state, &mut pool_info, lp_balance)?;
-            before_share_change(&pool_info, &mut reward_info)?;
+            before_share_change(&pool_info, &mut reward_info, lp_balance, env.block.time.seconds());
 
             let auto_bond_amount =
                 pool_info.calc_user_auto_balance(lp_balance, reward_info.auto_bond_share);
@@ -819,6 +856,16 @@ fn read_reward_infos(
                     farm_staked.balance,
                     state.total_farm_share,
                 ),
+                deposit_amount: if has_deposit_amount {
+                    Some(reward_info.deposit_amount)
+                } else {
+                    None
+                },
+                deposit_time: if has_deposit_amount {
+                    Some(reward_info.deposit_time)
+                } else {
+                    None
+                },
             })
         })
         .collect::<StdResult<Vec<RewardInfoResponseItem>>>()?;
