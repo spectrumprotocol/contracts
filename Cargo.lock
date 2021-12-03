@@ -712,6 +712,7 @@ dependencies = [
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw20",
+ "moneymarket",
  "schemars",
  "serde",
  "spectrum-protocol",

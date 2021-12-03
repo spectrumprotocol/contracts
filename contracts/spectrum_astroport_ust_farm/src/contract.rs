@@ -4,12 +4,15 @@ use cosmwasm_std::{
     attr, from_binary, to_binary, Binary, CanonicalAddr, Decimal, Deps, DepsMut, Env, MessageInfo,
     Order, Response, StdError, StdResult, Uint128,
 };
+use terraswap::asset::AssetInfo;
+use terraswap::querier::query_pair_info;
 
 use crate::{
     bond::bond,
     compound::{compound, stake},
     state::{read_config, state_store, store_config, Config, PoolInfo, State},
 };
+use crate::compound::send_fee;
 
 use cw20::Cw20ReceiveMsg;
 
@@ -42,7 +45,7 @@ pub fn instantiate(
         deps.storage,
         &Config {
             owner: deps.api.addr_canonicalize(&msg.owner)?,
-            astroport_factory: deps.api.addr_canonicalize(&msg.terraswap_factory)?,
+            astroport_factory: deps.api.addr_canonicalize(&msg.astroport_factory)?, //TODO check if it is no longer required
             spectrum_token: deps.api.addr_canonicalize(&msg.spectrum_token)?,
             spectrum_gov: deps.api.addr_canonicalize(&msg.spectrum_gov)?,
             astro_token: deps.api.addr_canonicalize(&msg.astro_token)?,
@@ -60,6 +63,9 @@ pub fn instantiate(
             platform_fee: msg.platform_fee,
             controller_fee: msg.controller_fee,
             deposit_fee: msg.deposit_fee,
+            anchor_market: deps.api.addr_canonicalize(&msg.anchor_market)?,
+            aust_token: deps.api.addr_canonicalize(&msg.aust_token)?,
+            pair_contract: deps.api.addr_canonicalize(&msg.pair_contract)?,
         },
     )?;
 
@@ -315,7 +321,6 @@ fn query_pools(deps: Deps) -> StdResult<PoolsResponse> {
                 farm_share_index: pool_info.farm_share_index,
                 stake_spec_share_index: pool_info.stake_spec_share_index,
                 auto_spec_share_index: pool_info.auto_spec_share_index,
-                reinvest_allowance: pool_info.reinvest_allowance,
             })
         })
         .collect::<StdResult<Vec<PoolItem>>>()?;
@@ -330,7 +335,6 @@ fn query_state(deps: Deps) -> StdResult<StateInfo> {
         total_farm_share: state.total_farm_share,
         total_weight: state.total_weight,
         earning: state.earning,
-        earning_spec: state.earning_spec,
     })
 }
 
