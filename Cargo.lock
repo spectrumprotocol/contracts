@@ -833,6 +833,7 @@ dependencies = [
 name = "spectrum-protocol"
 version = "0.2.0"
 dependencies = [
+ "astroport",
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw20",
