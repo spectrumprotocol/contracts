@@ -1,23 +1,22 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
-use cosmwasm_std::{
-    attr, from_binary, to_binary, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
-    QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
-};
+use cosmwasm_std::{attr, to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery};
 
-use crate::state::{config_store, read_config, read_reward, read_rewards, read_state, reward_store, state_store, Config, RewardInfo, State};
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use spectrum_protocol::gov::{
-    BalanceResponse as GovBalanceResponse, Cw20HookMsg as GovCw20HookMsg,
-    ExecuteMsg as GovExecuteMsg, QueryMsg as GovQueryMsg, StateInfo as GovStateInfo, VoteOption,
-};
-use spectrum_protocol::wallet::{BalanceResponse, ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, QueryMsg, ShareInfo, SharesResponse, StateInfo, SharePoolInfo, StatePoolInfo};
+use crate::state::{config_store, read_config, read_reward, read_rewards, reward_store, Config, state_store, read_state};
+use cw20::{Cw20ExecuteMsg};
+use terraswap::asset::{Asset, AssetInfo};
+use terraswap::pair::{PoolResponse, QueryMsg as PairQueryMsg, ExecuteMsg as PairExecuteMsg};
+use terraswap::querier::{query_pair_info, query_token_balance};
+use spectrum_protocol::gov::{BalanceResponse as GovBalanceResponse, Cw20HookMsg as GovCw20HookMsg, ExecuteMsg as GovExecuteMsg, QueryMsg as GovQueryMsg, VoteOption};
+use spectrum_protocol::wallet::{BalanceResponse, ConfigInfo, ExecuteMsg, MigrateMsg, QueryMsg, ShareInfo, SharesResponse, StateInfo};
+use spectrum_protocol::spec_farm::{ExecuteMsg as SpecFarmExecuteMsg, Cw20HookMsg as SpecFarmCw20HookMsg};
+use moneymarket::market::{Cw20HookMsg as MarketCw20HookMsg};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     _info: MessageInfo,
     msg: ConfigInfo,
 ) -> StdResult<Response> {
@@ -25,14 +24,14 @@ pub fn instantiate(
         owner: deps.api.addr_canonicalize(&msg.owner)?,
         spectrum_token: deps.api.addr_canonicalize(&msg.spectrum_token)?,
         spectrum_gov: deps.api.addr_canonicalize(&msg.spectrum_gov)?,
+        aust_token: deps.api.addr_canonicalize(&msg.aust_token)?,
+        anchor_market: deps.api.addr_canonicalize(&msg.anchor_market)?,
+        terraswap_factory: deps.api.addr_canonicalize(&msg.terraswap_factory)?,
+        spectrum_farm: deps.api.addr_canonicalize(&msg.spectrum_farm)?,
     })?;
 
-    state_store(deps.storage).save(&State {
-        contract_addr: deps.api.addr_canonicalize(env.contract.address.as_str())?,
-        previous_share: Uint128::zero(),
-        share_index: Decimal::zero(),
-        total_weight: 0u32,
-        pools: vec![],
+    state_store(deps.storage).save(&StateInfo {
+        total_burn: Uint128::zero(),
     })?;
 
     Ok(Response::default())
@@ -46,52 +45,33 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             vote,
             amount,
         } => poll_vote(deps, info, poll_id, vote, amount),
-        ExecuteMsg::receive(msg) => receive_cw20(deps, info, msg),
         ExecuteMsg::stake { amount, days } => stake(deps, info, amount, days),
         ExecuteMsg::unstake { amount, days } => unstake(deps, info, amount, days),
         ExecuteMsg::upsert_share {
             address,
-            weight,
             lock_start,
             lock_end,
             lock_amount,
+            disable_withdraw,
         } => upsert_share(
             deps,
             info,
             address,
-            weight,
             lock_start,
             lock_end,
             lock_amount,
+            disable_withdraw,
         ),
         ExecuteMsg::update_config { owner } => update_config(deps, info, owner),
         ExecuteMsg::update_stake { amount, from_days, to_days } => update_stake(deps, info, amount, from_days, to_days),
-        ExecuteMsg::withdraw { amount } => withdraw(deps, env, info, amount),
+        ExecuteMsg::withdraw { spec_amount, aust_amount } => withdraw(deps, env, info, spec_amount, aust_amount),
+        ExecuteMsg::gov_claim { aust_amount, days } => harvest(deps, info, aust_amount, days),
+        ExecuteMsg::burn { spec_amount } => burn(deps, env, info, spec_amount),
+        ExecuteMsg::specfarm_claim { } => specfarm_claim(deps, info),
+        ExecuteMsg::aust_redeem { aust_amount } => aust_redeem(deps, env, info, aust_amount),
+        ExecuteMsg::provide_liquidity { ust_amount } => provide_liquidity(deps, env, info, ust_amount),
+        ExecuteMsg::bond { lp_amount } => bond(deps, env, info, lp_amount),
     }
-}
-
-fn receive_cw20(
-    deps: DepsMut,
-    info: MessageInfo,
-    cw20_msg: Cw20ReceiveMsg,
-) -> StdResult<Response> {
-    // only asset contract can execute this message
-    let config = read_config(deps.storage)?;
-    if config.spectrum_token != deps.api.addr_canonicalize(info.sender.as_str())? {
-        return Err(StdError::generic_err("unauthorized"));
-    }
-    match from_binary(&cw20_msg.msg) {
-        Ok(Cw20HookMsg::deposit {}) => deposit(deps, cw20_msg.sender, cw20_msg.amount),
-        Err(_) => Err(StdError::generic_err("data should be given")),
-    }
-}
-
-fn deposit(deps: DepsMut, sender: String, amount: Uint128) -> StdResult<Response> {
-    let staker_addr = deps.api.addr_canonicalize(&sender)?;
-    let mut reward_info = read_reward(deps.storage, &staker_addr)?;
-    reward_info.amount += amount;
-    reward_store(deps.storage).save(staker_addr.as_slice(), &reward_info)?;
-    Ok(Response::new().add_attributes(vec![attr("action", "dep"), attr("amount", amount)]))
 }
 
 fn poll_vote(
@@ -102,52 +82,33 @@ fn poll_vote(
     amount: Uint128,
 ) -> StdResult<Response> {
     // anyone in shared wallet can vote
-    let shares = read_rewards(deps.storage)?;
     let sender_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
-    let found = shares.into_iter().any(|(key, _)| key == sender_addr);
+    let found = reward_store(deps.storage).may_load(&sender_addr)?.is_some();
     if !found {
         return Err(StdError::generic_err("unauthorized"));
     }
 
     let config = read_config(deps.storage)?;
-
-    Ok(
-        Response::new().add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
-            msg: to_binary(&GovExecuteMsg::poll_vote {
-                poll_id,
-                vote,
-                amount,
-            })?,
-            funds: vec![],
-        })]),
-    )
+    Ok(Response::new()
+           .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
+                msg: to_binary(&GovExecuteMsg::poll_vote {
+                    poll_id,
+                    vote,
+                    amount,
+                })?,
+                funds: vec![],
+            })]))
 }
 
 fn stake(deps: DepsMut, info: MessageInfo, amount: Uint128, days: Option<u64>) -> StdResult<Response> {
-    // record reward before any share change
-    let mut state = read_state(deps.storage)?;
+    let sender_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let found = reward_store(deps.storage).may_load(&sender_addr)?.is_some();
+    if !found {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
     let config = read_config(deps.storage)?;
-    deposit_reward(deps.as_ref(), &mut state, &config, false)?;
-
-    let staker_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
-    let mut reward_info = read_reward(deps.storage, &staker_addr)?;
-    before_share_change(&state, &mut reward_info)?;
-
-    // calculate new stake share
-    let gov_state: GovStateInfo = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
-        msg: to_binary(&GovQueryMsg::state {})?,
-    }))?;
-    let days_index = days.unwrap_or(0u64);
-
-    // move from amount to staked share
-    reward_info.amount = reward_info.amount.checked_sub(amount)?;
-    add_amount(days_index, &mut state, &mut reward_info, gov_state, amount)?;
-
-    reward_store(deps.storage).save(staker_addr.as_slice(), &reward_info)?;
-    state_store(deps.storage).save(&state)?;
-
     Ok(Response::new()
         .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.spectrum_token)?.to_string(),
@@ -157,102 +118,45 @@ fn stake(deps: DepsMut, info: MessageInfo, amount: Uint128, days: Option<u64>) -
                 msg: to_binary(&GovCw20HookMsg::stake_tokens { staker_addr: None, days })?,
             })?,
             funds: vec![],
-        })])
-        .add_attributes(vec![
-            attr("action", "stake"),
-            attr("amount", amount),
-            attr("days", days_index.to_string()),
-        ]))
+        })]))
 }
 
-fn add_amount(days: u64, state: &mut State, reward_info: &mut RewardInfo, gov_state: GovStateInfo, amount: Uint128) -> StdResult<()> {
-    let pool = gov_state.pools.into_iter().find(|it| it.days == days).ok_or_else(|| StdError::not_found("pool"))?;
-    let new_share = amount.multiply_ratio(pool.total_share, pool.total_balance);
-
-    if days == 0u64 {
-        reward_info.share += new_share;
-        state.previous_share += new_share;
-    } else {
-        let mut state_pool = state.pools.iter_mut().find(|it| it.days == days);
-        if state_pool.is_none() {
-            state.pools.push(StatePoolInfo {
-                days,
-                previous_share: Uint128::zero(),
-                share_index: Decimal::zero(),
-            });
-            state_pool = state.pools.iter_mut().find(|it| it.days == days);
-        }
-        let state_pool = state_pool.unwrap();
-        state_pool.previous_share += new_share;
-
-        let mut reward_pool = reward_info.pools.iter_mut().find(|it| it.days == days);
-        if reward_pool.is_none() {
-            reward_info.pools.push(SharePoolInfo {
-                days,
-                share: Uint128::zero(),
-                share_index: state_pool.share_index,
-            });
-            reward_pool = reward_info.pools.iter_mut().find(|it| it.days == days);
-        }
-        let reward_pool = reward_pool.unwrap();
-        reward_pool.share += new_share;
+fn unstake(deps: DepsMut, info: MessageInfo, amount: Option<Uint128>, days: Option<u64>) -> StdResult<Response> {
+    let sender_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let found = reward_store(deps.storage).may_load(&sender_addr)?.is_some();
+    if !found {
+        return Err(StdError::generic_err("unauthorized"));
     }
 
-    Ok(())
-}
-
-fn unstake(deps: DepsMut, info: MessageInfo, amount: Uint128, days: Option<u64>) -> StdResult<Response> {
-    // record reward before any share change
-    let mut state = read_state(deps.storage)?;
     let config = read_config(deps.storage)?;
-    let staked = deposit_reward(deps.as_ref(), &mut state, &config, false)?;
-
-    let staker_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
-    let mut reward_info = read_reward(deps.storage, &staker_addr)?;
-    before_share_change(&state, &mut reward_info)?;
-
-    let days_index = days.unwrap_or(0u64);
-    deduct_amount(days_index, &mut state, &mut reward_info, staked, amount)?;
-
-    reward_info.amount += amount;
-    reward_store(deps.storage).save(staker_addr.as_slice(), &reward_info)?;
-    state_store(deps.storage).save(&state)?;
-
     Ok(Response::new()
         .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
             msg: to_binary(&GovExecuteMsg::withdraw {
-                amount: Some(amount),
+                amount,
                 days,
             })?,
             funds: vec![],
-        })])
-        .add_attributes(vec![
-            attr("action", "unstake"),
-            attr("amount", amount),
-            attr("days", days_index.to_string()),
-        ]))
+        })]))
 }
 
-fn deduct_amount(days: u64, state: &mut State, reward_info: &mut RewardInfo, staked: GovBalanceResponse, amount: Uint128) -> StdResult<()> {
-    let pool = staked.pools.into_iter().find(|it| it.days == days).ok_or_else(|| StdError::not_found("pool"))?;
-    let mut share = amount.multiply_ratio(pool.share, pool.balance);
-    if share.multiply_ratio(pool.balance, pool.share) < amount {
-        share += Uint128::from(1u128);
+fn harvest(deps: DepsMut, info: MessageInfo, aust_amount: Option<Uint128>, days: Option<u64>) -> StdResult<Response> {
+    let sender_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let found = reward_store(deps.storage).may_load(&sender_addr)?.is_some();
+    if !found {
+        return Err(StdError::generic_err("unauthorized"));
     }
 
-    if days == 0u64 {
-        reward_info.share = reward_info.share.checked_sub(share)?;
-        state.previous_share = state.previous_share.checked_sub(share)?;
-    } else {
-        let reward_pool = reward_info.pools.iter_mut().find(|it| it.days == days).ok_or_else(|| StdError::not_found("pool"))?;
-        reward_pool.share = reward_pool.share.checked_sub(share)?;
-
-        let state_pool = state.pools.iter_mut().find(|it| it.days == days).ok_or_else(|| StdError::not_found("pool"))?;
-        state_pool.previous_share = state_pool.previous_share.checked_sub(share)?;
-    }
-
-    Ok(())
+    let config = read_config(deps.storage)?;
+    Ok(Response::new()
+        .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
+            msg: to_binary(&GovExecuteMsg::harvest {
+                aust_amount,
+                days,
+            })?,
+            funds: vec![],
+        })]))
 }
 
 fn update_stake(
@@ -262,27 +166,13 @@ fn update_stake(
     from_days: u64,
     to_days: u64,
 ) -> StdResult<Response> {
-    // record reward before any share change
-    let mut state = read_state(deps.storage)?;
+    let sender_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let found = reward_store(deps.storage).may_load(&sender_addr)?.is_some();
+    if !found {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
     let config = read_config(deps.storage)?;
-    let staked = deposit_reward(deps.as_ref(), &mut state, &config, false)?;
-
-    let staker_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
-    let mut reward_info = read_reward(deps.storage, &staker_addr)?;
-    before_share_change(&state, &mut reward_info)?;
-
-    deduct_amount(from_days, &mut state, &mut reward_info, staked, amount)?;
-
-    // calculate new stake share
-    let gov_state: GovStateInfo = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
-        msg: to_binary(&GovQueryMsg::state {})?,
-    }))?;
-    add_amount(to_days, &mut state, &mut reward_info, gov_state, amount)?;
-
-    reward_store(deps.storage).save(staker_addr.as_slice(), &reward_info)?;
-    state_store(deps.storage).save(&state)?;
-
     Ok(Response::new()
         .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
@@ -292,36 +182,37 @@ fn update_stake(
                 to_days
             })?,
             funds: vec![],
-        })])
-        .add_attributes(vec![
-            attr("action", "update_stake"),
-            attr("amount", amount),
-            attr("from_days", from_days.to_string()),
-            attr("to_days", to_days.to_string()),
-        ]))
-
+        })]))
 }
 
 fn withdraw(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    amount: Option<Uint128>,
+    spec_amount: Option<Uint128>,
+    aust_amount: Option<Uint128>,
 ) -> StdResult<Response> {
-    // record reward before any share change
-    let mut state = read_state(deps.storage)?;
+    let sender_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let reward_info = read_reward(deps.storage, &sender_addr)?;
+    if reward_info.disable_withdraw {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
     let config = read_config(deps.storage)?;
-    let staked = deposit_reward(deps.as_ref(), &mut state, &config, false)?;
 
-    let staker_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
-    let mut reward_info = read_reward(deps.storage, &staker_addr)?;
-    before_share_change(&state, &mut reward_info)?;
+    let spectrum_token = deps.api.addr_humanize(&config.spectrum_token)?;
+    let spec_onhand = query_token_balance(&deps.querier, spectrum_token.clone(), env.contract.address.clone())?;
+    let balance: GovBalanceResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
+        msg: to_binary(&GovQueryMsg::balance {
+            address: env.contract.address.to_string(),
+        })?,
+    }))?;
 
-    let staked_amount = calc_balance(&reward_info, &staked)?;
-    let total_amount = staked_amount + reward_info.amount;
+    let total_amount = spec_onhand + balance.balance;
     let locked_amount = reward_info.calc_locked_amount(env.block.height);
     let withdrawable = total_amount.checked_sub(locked_amount)?;
-    let withdraw_amount = if let Some(amount) = amount {
+    let spec_withdraw_amount = if let Some(amount) = spec_amount {
         if amount > withdrawable {
             return Err(StdError::generic_err("not enough amount to withdraw"));
         }
@@ -330,111 +221,222 @@ fn withdraw(
         withdrawable
     };
 
-    reward_info.amount = reward_info.amount.checked_sub(withdraw_amount)?;
-    reward_store(deps.storage).save(staker_addr.as_slice(), &reward_info)?;
+    let mut messages: Vec<CosmosMsg> = vec![];
+    if !spec_withdraw_amount.is_zero() {
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: spectrum_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: info.sender.to_string(),
+                amount: spec_withdraw_amount,
+            })?,
+            funds: vec![],
+        }));
+    }
+
+    let aust_token = deps.api.addr_humanize(&config.aust_token)?;
+    let aust_onhand = query_token_balance(&deps.querier, aust_token.clone(), env.contract.address)?;
+    let aust_withdraw_amount = aust_amount.unwrap_or(aust_onhand);
+    if !aust_withdraw_amount.is_zero() {
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: aust_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: info.sender.to_string(),
+                amount: aust_withdraw_amount,
+            })?,
+            funds: vec![],
+        }));
+    }
+
+    Ok(Response::new()
+        .add_messages(messages))
+}
+
+fn burn(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    spec_amount: Option<Uint128>,
+) -> StdResult<Response> {
+    let sender_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let found = reward_store(deps.storage).may_load(&sender_addr)?.is_some();
+    if !found {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    let config = read_config(deps.storage)?;
+    let spectrum_token = deps.api.addr_humanize(&config.spectrum_token)?;
+    let spec_onhand = query_token_balance(&deps.querier, spectrum_token.clone(), env.contract.address)?;
+    let burn_amount = spec_amount.unwrap_or(spec_onhand);
+
+    let mut state = read_state(deps.storage)?;
+    state.total_burn += burn_amount;
     state_store(deps.storage).save(&state)?;
 
     Ok(Response::new()
         .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: deps.api.addr_humanize(&config.spectrum_token)?.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: info.sender.to_string(),
-                amount: withdraw_amount,
+            contract_addr: spectrum_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Burn {
+                amount: burn_amount,
             })?,
             funds: vec![],
-        })])
-        .add_attributes(vec![
-            attr("action", "withdraw"),
-            attr("amount", withdraw_amount),
+        })]))
+}
+
+fn specfarm_claim(
+    deps: DepsMut,
+    info: MessageInfo,
+) -> StdResult<Response> {
+    let sender_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let found = reward_store(deps.storage).may_load(&sender_addr)?.is_some();
+    if !found {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    let config = read_config(deps.storage)?;
+    Ok(Response::new()
+        .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: deps.api.addr_humanize(&config.spectrum_farm)?.to_string(),
+            msg: to_binary(&SpecFarmExecuteMsg::withdraw {
+                asset_token: None,
+                spec_amount: None,
+            })?,
+            funds: vec![],
+        })]))
+}
+
+fn aust_redeem(deps: DepsMut, env: Env, info: MessageInfo, aust_amount: Option<Uint128>) -> StdResult<Response> {
+    let sender_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let found = reward_store(deps.storage).may_load(&sender_addr)?.is_some();
+    if !found {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    let config = read_config(deps.storage)?;
+    let aust_token = deps.api.addr_humanize(&config.aust_token)?;
+    let aust_balance = query_token_balance(
+        &deps.querier,
+        aust_token,
+        env.contract.address)?;
+    let amount = aust_amount.unwrap_or(aust_balance);
+
+    Ok(Response::new()
+        .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: deps.api.addr_humanize(&config.aust_token)?.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: deps.api.addr_humanize(&config.anchor_market)?.to_string(),
+                amount,
+                msg: to_binary(&MarketCw20HookMsg::RedeemStable { })?,
+            })?,
+            funds: vec![],
+        })]))
+}
+
+fn provide_liquidity(deps: DepsMut, env: Env, info: MessageInfo, ust_amount: Option<Uint128>) -> StdResult<Response> {
+    let sender_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let found = reward_store(deps.storage).may_load(&sender_addr)?.is_some();
+    if !found {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    let config = read_config(deps.storage)?;
+    let factory_contract = deps.api.addr_humanize(&config.terraswap_factory)?;
+    let spectrum_token = deps.api.addr_humanize(&config.spectrum_token)?;
+    let spec_info = AssetInfo::Token {
+        contract_addr: spectrum_token.to_string(),
+    };
+    let ust_info = AssetInfo::NativeToken {
+        denom: "uusd".to_string()
+    };
+    let pair_info = query_pair_info(&deps.querier, factory_contract, &[spec_info.clone(), ust_info.clone()])?;
+    let pool: PoolResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: pair_info.contract_addr.to_string(),
+        msg: to_binary(&PairQueryMsg::Pool {})?,
+    }))?;
+    let ust_amount = if let Some(ust_amount) = ust_amount {
+        ust_amount
+    } else {
+        let ust_balance = deps.querier.query_balance(env.contract.address, "uusd")?;
+        let ust_asset = Asset {
+            info: ust_info.clone(),
+            amount: ust_balance.amount,
+        };
+        ust_asset.deduct_tax(&deps.querier)?.amount
+    };
+    let (pool_ust, pool_spec) = if pool.assets[0].info == ust_info {
+        (pool.assets[0].amount, pool.assets[1].amount)
+    } else {
+        (pool.assets[1].amount, pool.assets[0].amount)
+    };
+    let spec_amount = ust_amount.multiply_ratio(pool_spec, pool_ust);
+
+    Ok(Response::new()
+        .add_messages(vec![
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: spectrum_token.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+                    spender: pair_info.contract_addr.clone(),
+                    amount: spec_amount,
+                    expires: None,
+                })?,
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: pair_info.contract_addr,
+                msg: to_binary(&PairExecuteMsg::ProvideLiquidity {
+                    assets: [
+                        Asset {
+                            info: spec_info,
+                            amount: spec_amount,
+                        },
+                        Asset {
+                            info: ust_info,
+                            amount: ust_amount,
+                        },
+                    ],
+                    receiver: None,
+                    slippage_tolerance: None,
+                })?,
+                funds: vec![],
+            }),
         ]))
 }
 
-fn deposit_reward(
-    deps: Deps,
-    state: &mut State,
-    config: &Config,
-    query: bool,
-) -> StdResult<GovBalanceResponse> {
-    if state.total_weight == 0u32 {
-        return Ok(GovBalanceResponse {
-            share: Uint128::zero(),
-            balance: Uint128::zero(),
-            locked_balance: vec![],
-            pools: vec![],
-        });
+fn bond(deps: DepsMut, env: Env, info: MessageInfo, lp_amount: Option<Uint128>) -> StdResult<Response> {
+    let sender_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let found = reward_store(deps.storage).may_load(&sender_addr)?.is_some();
+    if !found {
+        return Err(StdError::generic_err("unauthorized"));
     }
 
-    let staked: GovBalanceResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
-        msg: to_binary(&GovQueryMsg::balance {
-            address: deps.api.addr_humanize(&state.contract_addr)?.to_string(),
-        })?,
-    }))?;
-
-    let diff = staked.share.checked_sub(state.previous_share);
-    let deposit_share = if query {
-        diff.unwrap_or_else(|_| Uint128::zero())
-    } else {
-        diff?
+    let config = read_config(deps.storage)?;
+    let factory_contract = deps.api.addr_humanize(&config.terraswap_factory)?;
+    let spectrum_token = deps.api.addr_humanize(&config.spectrum_token)?;
+    let spec_info = AssetInfo::Token {
+        contract_addr: spectrum_token.to_string(),
     };
-    let share_per_weight = Decimal::from_ratio(deposit_share, state.total_weight);
-    state.share_index = state.share_index + share_per_weight;
-    state.previous_share = staked.share;
+    let ust_info = AssetInfo::NativeToken {
+        denom: "uusd".to_string()
+    };
+    let pair_info = query_pair_info(&deps.querier, factory_contract, &[spec_info, ust_info])?;
+    let lp_balance = query_token_balance(
+        &deps.querier,
+        deps.api.addr_validate(&pair_info.liquidity_token)?,
+        env.contract.address)?;
+    let amount = lp_amount.unwrap_or(lp_balance);
 
-    for pool in staked.pools.iter() {
-        if pool.days == 0u64 {
-            continue;
-        }
-        let mut state_pool = state.pools.iter_mut().find(|it| it.days == pool.days);
-        if state_pool.is_none() {
-            state.pools.push(StatePoolInfo {
-                days: pool.days,
-                previous_share: Uint128::zero(),
-                share_index: Decimal::zero(),
-            });
-            state_pool = state.pools.iter_mut().find(|it| it.days == pool.days);
-        }
-        let state_pool = state_pool.unwrap();
-
-        let diff = pool.share.checked_sub(state_pool.previous_share);
-        let deposit_share = if query {
-            diff.unwrap_or_else(|_| Uint128::zero())
-        } else {
-            diff?
-        };
-        let share_per_weight = Decimal::from_ratio(deposit_share, state.total_weight);
-        state_pool.share_index = state_pool.share_index + share_per_weight;
-        state_pool.previous_share = pool.share;
-    }
-
-    Ok(staked)
-}
-
-fn before_share_change(state: &State, reward_info: &mut RewardInfo) -> StdResult<()> {
-    let share =
-        Uint128::from(reward_info.weight as u128) * (state.share_index - reward_info.share_index);
-    reward_info.share += share;
-    reward_info.share_index = state.share_index;
-
-    for state_pool in state.pools.iter() {
-        let mut reward_pool = reward_info.pools.iter_mut().find(|it| it.days == state_pool.days);
-        if reward_pool.is_none() {
-            reward_info.pools.push(SharePoolInfo {
-                days: state_pool.days,
-                share: Uint128::zero(),
-                share_index: state_pool.share_index,
-            });
-            reward_pool = reward_info.pools.iter_mut().find(|it| it.days == state_pool.days);
-        }
-        let reward_pool = reward_pool.unwrap();
-
-        let share =
-            Uint128::from(reward_info.weight as u128) * (state_pool.share_index - reward_pool.share_index);
-        reward_pool.share += share;
-        reward_pool.share_index = state_pool.share_index;
-    }
-
-    Ok(())
+    Ok(Response::new()
+        .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: pair_info.liquidity_token,
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: deps.api.addr_humanize(&config.spectrum_farm)?.to_string(),
+                amount,
+                msg: to_binary(&SpecFarmCw20HookMsg::bond {
+                    asset_token: spectrum_token.to_string(),
+                    staker_addr: None,
+                })?,
+            })?,
+            funds: vec![],
+        })]))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -442,48 +444,40 @@ fn upsert_share(
     deps: DepsMut,
     info: MessageInfo,
     address: String,
-    weight: u32,
     lock_start: Option<u64>,
     lock_end: Option<u64>,
     lock_amount: Option<Uint128>,
+    disable_withdraw: Option<bool>,
 ) -> StdResult<Response> {
 
-    let lock_start = lock_start.unwrap_or(0u64);
-    let lock_end = lock_end.unwrap_or(0u64);
+    let lock_start = lock_start.unwrap_or_default();
+    let lock_end = lock_end.unwrap_or_default();
     if lock_end < lock_start {
         return Err(StdError::generic_err("invalid lock parameters"));
     }
+    let disable_withdraw = disable_withdraw.unwrap_or_default();
 
     let config = read_config(deps.storage)?;
     if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(StdError::generic_err("unauthorized"));
     }
-    let mut state = state_store(deps.storage).load()?;
-    deposit_reward(deps.as_ref(), &mut state, &config, false)?;
 
+    // allow only 1 share
     let address_raw = deps.api.addr_canonicalize(&address)?;
     let key = address_raw.as_slice();
-    let mut reward_info = reward_store(deps.storage)
-        .may_load(key)?
-        .unwrap_or_default();
+    let reward_info_op = reward_store(deps.storage).may_load(key)?;
+    if reward_info_op.is_none() && !read_rewards(deps.storage)?.is_empty() {
+        return Err(StdError::generic_err("allow only 1 share"));
+    }
 
-    state.total_weight = state.total_weight + weight - reward_info.weight;
-    reward_info.weight = weight;
+    let mut reward_info = reward_info_op.unwrap_or_default();
     reward_info.lock_start = lock_start;
     reward_info.lock_end = lock_end;
     reward_info.lock_amount = lock_amount.unwrap_or_else(Uint128::zero);
+    reward_info.disable_withdraw = disable_withdraw;
 
-    state_store(deps.storage).save(&state)?;
-
-    if weight == 0 {
-        reward_store(deps.storage).remove(key);
-    } else {
-        reward_store(deps.storage).save(key, &reward_info)?;
-    }
-    Ok(Response::new().add_attributes(vec![attr(
-        "new_total_weight",
-        state.total_weight.to_string(),
-    )]))
+    reward_store(deps.storage).save(key, &reward_info)?;
+    Ok(Response::default())
 }
 
 fn update_config(
@@ -512,7 +506,7 @@ fn update_config(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::config {} => to_binary(&query_config(deps)?),
-        QueryMsg::balance { address } => to_binary(&query_balance(deps, address, env.block.height)?),
+        QueryMsg::balance { address } => to_binary(&query_balance(deps, env, address)?),
         QueryMsg::shares {} => to_binary(&query_shares(deps)?),
         QueryMsg::state {} => to_binary(&query_state(deps)?),
     }
@@ -524,53 +518,41 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         owner: deps.api.addr_humanize(&config.owner)?.to_string(),
         spectrum_token: deps.api.addr_humanize(&config.spectrum_token)?.to_string(),
         spectrum_gov: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
+        aust_token: deps.api.addr_humanize(&config.aust_token)?.to_string(),
+        anchor_market: deps.api.addr_humanize(&config.anchor_market)?.to_string(),
+        terraswap_factory: deps.api.addr_humanize(&config.terraswap_factory)?.to_string(),
+        spectrum_farm: deps.api.addr_humanize(&config.spectrum_farm)?.to_string(),
     };
 
     Ok(resp)
 }
 
-fn query_balance(deps: Deps, staker_addr: String, height: u64) -> StdResult<BalanceResponse> {
-    let staker_addr_raw = deps.api.addr_canonicalize(&staker_addr)?;
-    let mut state = read_state(deps.storage)?;
+fn query_balance(deps: Deps, env: Env, staker_addr: String) -> StdResult<BalanceResponse> {
 
+    let staker_addr_raw = deps.api.addr_canonicalize(&staker_addr)?;
+    let reward_info = read_reward(deps.storage, &staker_addr_raw)?;
     let config = read_config(deps.storage)?;
-    let staked = deposit_reward(deps, &mut state, &config, true)?;
-    let mut reward_info = read_reward(deps.storage, &staker_addr_raw)?;
-    before_share_change(&state, &mut reward_info)?;
+
+    let spectrum_token = deps.api.addr_humanize(&config.spectrum_token)?;
+    let unstaked_amount = query_token_balance(&deps.querier, spectrum_token, env.contract.address.clone())?;
+    let balance: GovBalanceResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
+        msg: to_binary(&GovQueryMsg::balance {
+            address: env.contract.address.to_string(),
+        })?,
+    }))?;
 
     Ok(BalanceResponse {
-        share: reward_info.share,
-        staked_amount: calc_balance(&reward_info, &staked)?,
-        unstaked_amount: reward_info.amount,
-        locked_amount: reward_info.calc_locked_amount(height),
+        share: balance.share,
+        staked_amount: balance.balance,
+        unstaked_amount,
+        locked_amount: reward_info.calc_locked_amount(env.block.height),
     })
-}
-
-fn calc_balance(reward_info: &RewardInfo, staked: &GovBalanceResponse) -> StdResult<Uint128> {
-    let mut amount = if staked.share.is_zero() {
-        Uint128::zero()
-    } else {
-        reward_info.share.multiply_ratio(staked.balance, staked.share)
-    };
-    for reward_pool in reward_info.pools.iter() {
-        let pool = staked.pools.iter().find(|it| it.days == reward_pool.days).ok_or_else(|| StdError::not_found("pool"))?;
-        amount += if pool.share.is_zero() {
-            Uint128::zero()
-        } else {
-            reward_pool.share.multiply_ratio(pool.balance, pool.share)
-        };
-    }
-    Ok(amount)
 }
 
 fn query_state(deps: Deps) -> StdResult<StateInfo> {
     let state = read_state(deps.storage)?;
-    Ok(StateInfo {
-        previous_share: state.previous_share,
-        share_index: state.share_index,
-        total_weight: state.total_weight,
-        pools: state.pools,
-    })
+    Ok(state)
 }
 
 fn query_shares(deps: Deps) -> StdResult<SharesResponse> {
@@ -580,20 +562,22 @@ fn query_shares(deps: Deps) -> StdResult<SharesResponse> {
             .into_iter()
             .map(|it| ShareInfo {
                 address: deps.api.addr_humanize(&it.0).unwrap().to_string(),
-                weight: it.1.weight,
-                share_index: it.1.share_index,
-                share: it.1.share,
-                amount: it.1.amount,
                 lock_start: it.1.lock_start,
                 lock_end: it.1.lock_end,
                 lock_amount: it.1.lock_amount,
-                pools: it.1.pools,
             })
             .collect(),
     })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
+    let mut config = read_config(deps.storage)?;
+    config.aust_token = deps.api.addr_canonicalize(&msg.aust_token)?;
+    config.anchor_market = deps.api.addr_canonicalize(&msg.anchor_market)?;
+    config.spectrum_farm = deps.api.addr_canonicalize(&msg.spectrum_farm)?;
+    config.terraswap_factory = deps.api.addr_canonicalize(&msg.terraswap_factory)?;
+    config_store(deps.storage).save(&config)?;
+
     Ok(Response::default())
 }

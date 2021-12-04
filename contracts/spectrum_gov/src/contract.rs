@@ -388,10 +388,10 @@ fn query_state(deps: Deps, height: u64) -> StdResult<StateInfo> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
     let vaults = read_vaults(deps.storage)?;
     let mut state = read_state(deps.storage)?;
-    let config = read_config(deps.storage)?;
+    let mut config = read_config(deps.storage)?;
     reconcile_balance(&deps.as_ref(), &mut state, &config, Uint128::zero())?;
 
     for (addr, mut vault) in vaults {
@@ -409,6 +409,9 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response
         }
     }
     state_store(deps.storage).save(&state)?;
+
+    config.aust_token = deps.api.addr_canonicalize(&msg.aust_token)?;
+    config_store(deps.storage).save(&config)?;
 
     Ok(Response::default())
 }

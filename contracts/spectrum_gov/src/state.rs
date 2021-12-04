@@ -12,11 +12,11 @@ use spectrum_protocol::common::{
 use spectrum_protocol::gov::{PollExecuteMsg, PollStatus, VoterInfo};
 use std::convert::TryInto;
 
-static KEY_CONFIG: &[u8] = b"config";
-
 pub fn default_addr() -> CanonicalAddr {
     CanonicalAddr::from(vec![])
 }
+
+static KEY_CONFIG: &[u8] = b"config";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
