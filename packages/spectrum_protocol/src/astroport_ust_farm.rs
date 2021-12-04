@@ -9,6 +9,7 @@ pub struct ConfigInfo {
     pub owner: String,
     pub astroport_factory: String, //TODO
     pub astroport_generator: String,
+    pub xastro_proxy: String,
     pub astro_token: String,
     pub spectrum_token: String,
     pub spectrum_gov: String,
@@ -55,6 +56,7 @@ pub enum ExecuteMsg {
         asset_token: Option<String>,
         spec_amount: Option<Uint128>,
         farm_amount: Option<Uint128>,
+        farm2_amount: Option<Uint128>,
     },
     stake {
         asset_token: String,
@@ -105,8 +107,10 @@ pub struct PoolItem {
     pub total_stake_bond_amount: Uint128, // amount stake
     pub weight: u32,
     pub farm_share: Uint128, // MIR share
+    pub farm2_share: Uint128,
     pub state_spec_share_index: Decimal,
     pub farm_share_index: Decimal,       // per stake bond share
+    pub farm2_share_index: Decimal,       // per stake bond share
     pub stake_spec_share_index: Decimal, // per stake bond share
     pub auto_spec_share_index: Decimal,  // per auto bond share
 }
@@ -128,10 +132,12 @@ pub struct RewardInfoResponseItem {
     pub auto_bond_amount: Uint128,
     pub stake_bond_amount: Uint128,
     pub farm_share: Uint128,
+    pub farm2_share: Uint128,
     pub spec_share: Uint128,
     pub auto_bond_share: Uint128,
     pub stake_bond_share: Uint128,
     pub pending_farm_reward: Uint128,
+    pub pending_farm2_reward: Uint128,
     pub pending_spec_reward: Uint128,
     pub deposit_amount: Option<Uint128>,
     pub deposit_time: Option<u64>,
@@ -142,6 +148,7 @@ pub struct StateInfo {
     pub previous_spec_share: Uint128,
     pub spec_share_index: Decimal, // per weight
     pub total_farm_share: Uint128,
+    pub total_farm2_share: Uint128,
     pub total_weight: u32,
     pub earning: Uint128,
 }

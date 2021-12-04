@@ -21,6 +21,7 @@ pub struct Config {
     pub astro_token: CanonicalAddr,
     pub farm_token: CanonicalAddr,
     pub astroport_generator: CanonicalAddr,
+    pub xastro_proxy: CanonicalAddr,
     pub gov_proxy: Option<CanonicalAddr>,
     pub controller: CanonicalAddr,
     pub platform: CanonicalAddr,
@@ -46,10 +47,10 @@ static KEY_STATE: &[u8] = b"state";
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
 pub struct State {
-    pub contract_addr: CanonicalAddr,
     pub previous_spec_share: Uint128,
     pub spec_share_index: Decimal,
-    pub total_farm_share: Uint128,
+    pub total_farm_share: Uint128,  // XASTRO
+    pub total_farm2_share: Uint128, // ANC
     pub total_weight: u32,
     pub earning: Uint128,
 }
@@ -60,6 +61,14 @@ impl State {
             farm_amount
         } else {
             farm_amount.multiply_ratio(self.total_farm_share, total_farm_amount)
+        }
+    }
+
+    pub fn calc_farm2_share(&self, farm2_amount: Uint128, total_farm2_amount: Uint128) -> Uint128 {
+        if self.total_farm2_share.is_zero() || total_farm2_amount.is_zero() {
+            farm2_amount
+        } else {
+            farm2_amount.multiply_ratio(self.total_farm2_share, total_farm2_amount)
         }
     }
 }
@@ -82,8 +91,10 @@ pub struct PoolInfo {
     pub total_stake_bond_amount: Uint128,
     pub weight: u32,
     pub farm_share: Uint128,
+    pub farm2_share: Uint128,
     pub state_spec_share_index: Decimal,
     pub farm_share_index: Decimal,
+    pub farm2_share_index: Decimal,
     pub auto_spec_share_index: Decimal,
     pub stake_spec_share_index: Decimal,
 }
@@ -143,11 +154,13 @@ static PREFIX_REWARD: &[u8] = b"reward";
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfo {
     pub farm_share_index: Decimal,
+    pub farm2_share_index: Decimal,
     pub auto_spec_share_index: Decimal,
     pub stake_spec_share_index: Decimal,
     pub auto_bond_share: Uint128,
     pub stake_bond_share: Uint128,
     pub farm_share: Uint128,
+    pub farm2_share: Uint128,
     pub spec_share: Uint128,
     #[serde(default)] pub deposit_amount: Uint128,
     #[serde(default)] pub deposit_time: u64,
