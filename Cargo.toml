@@ -2,7 +2,8 @@
 members = [
     "packages/*",
     "contracts/core/*",
-    "contracts/farms/*"
+    "contracts/farms/*",
+    "contracts/gov_proxies/*"
 ]
 
 [profile.release.package.spectrum-protocol]
