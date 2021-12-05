@@ -18,6 +18,7 @@ use spectrum_protocol::mirror_farm::{
 };
 
 use crate::bond::{deposit_spec_reward, query_reward_info, spec_reward_to_pool, unbond, withdraw, update_bond};
+use crate::harvest::send_fee;
 use crate::querier::query_mirror_pool_balance;
 use crate::state::{pool_info_read, pool_info_store, read_state};
 
@@ -33,7 +34,7 @@ fn validate_percentage(value: Decimal, field: &str) -> StdResult<()> {
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     _info: MessageInfo,
     msg: ConfigInfo,
 ) -> StdResult<Response> {
@@ -60,17 +61,17 @@ pub fn instantiate(
             platform_fee: msg.platform_fee,
             controller_fee: msg.controller_fee,
             deposit_fee: msg.deposit_fee,
+            anchor_market: deps.api.addr_canonicalize(&msg.anchor_market)?,
+            aust_token: deps.api.addr_canonicalize(&msg.aust_token)?,
         },
     )?;
 
     state_store(deps.storage).save(&State {
-        contract_addr: deps.api.addr_canonicalize(env.contract.address.as_str())?,
         previous_spec_share: Uint128::zero(),
         spec_share_index: Decimal::zero(),
         total_farm_share: Uint128::zero(),
         total_weight: 0u32,
         earning: Uint128::zero(),
-        earning_spec: Uint128::zero(),
     })?;
 
     Ok(Response::default())
@@ -103,6 +104,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             weight,
         } => register_asset(
             deps,
+            env,
             info,
             asset_token,
             staking_token,
@@ -118,6 +120,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::re_invest { asset_token } => re_invest(deps, env, info, asset_token),
         ExecuteMsg::stake { asset_token } => stake(deps, env, info, asset_token),
         ExecuteMsg::update_bond { asset_token, amount_to_auto, amount_to_stake } => update_bond(deps, env, info, asset_token, amount_to_auto, amount_to_stake),
+        ExecuteMsg::send_fee {} => send_fee(deps, env, info),
     }
 }
 
@@ -200,6 +203,7 @@ pub fn update_config(
 
 pub fn register_asset(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     asset_token: String,
     staking_token: String,
@@ -213,7 +217,7 @@ pub fn register_asset(
     }
 
     let mut state = read_state(deps.storage)?;
-    deposit_spec_reward(deps.as_ref(), &mut state, &config, false)?;
+    deposit_spec_reward(deps.as_ref(), &env, &mut state, &config, false)?;
 
     let mut pool_info = pool_info_read(deps.storage)
         .may_load(asset_token_raw.as_slice())?
@@ -235,7 +239,7 @@ pub fn register_asset(
             deps.as_ref(),
             &config.mirror_staking,
             &asset_token_raw,
-            &state.contract_addr,
+            &env.contract.address,
         )?;
         spec_reward_to_pool(&state, &mut pool_info, lp_balance)?;
     }
@@ -298,6 +302,8 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         platform_fee: config.platform_fee,
         controller_fee: config.controller_fee,
         deposit_fee: config.deposit_fee,
+        anchor_market: deps.api.addr_humanize(&config.anchor_market)?.to_string(),
+        aust_token: deps.api.addr_humanize(&config.aust_token)?.to_string(),
     };
 
     Ok(resp)
@@ -343,11 +349,15 @@ fn query_state(deps: Deps) -> StdResult<StateInfo> {
         total_farm_share: state.total_farm_share,
         total_weight: state.total_weight,
         earning: state.earning,
-        earning_spec: state.earning_spec,
     })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
+    let mut config = read_config(deps.storage)?;
+    config.anchor_market = deps.api.addr_canonicalize(&msg.anchor_market)?;
+    config.aust_token = deps.api.addr_canonicalize(&msg.aust_token)?;
+    store_config(deps.storage, &config)?;
+
     Ok(Response::default())
 }

@@ -1,4 +1,4 @@
-use cosmwasm_std::{to_binary, CanonicalAddr, Deps, QueryRequest, StdResult, Uint128, WasmQuery};
+use cosmwasm_std::{to_binary, CanonicalAddr, Deps, QueryRequest, StdResult, Uint128, WasmQuery, Addr};
 
 use mirror_protocol::staking::{PoolInfoResponse, QueryMsg, RewardInfoResponse};
 
@@ -7,24 +7,21 @@ pub fn query_mirror_reward_info(
     mirror_staking: String,
     staker: String,
 ) -> StdResult<RewardInfoResponse> {
-    let res: RewardInfoResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+    deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: mirror_staking,
         msg: to_binary(&QueryMsg::RewardInfo {
             asset_token: None,
             staker_addr: staker,
         })?,
-    }))?;
-
-    Ok(res)
+    }))
 }
 
 pub fn query_mirror_pool_balance(
     deps: Deps,
     mirror_staking: &CanonicalAddr,
     asset_token: &CanonicalAddr,
-    contract_addr: &CanonicalAddr,
+    staker: &Addr,
 ) -> StdResult<Uint128> {
-    let staker = deps.api.addr_humanize(contract_addr)?;
     let reward_info = query_mirror_reward_info(
         deps,
         deps.api.addr_humanize(mirror_staking)?.to_string(),
@@ -44,10 +41,8 @@ pub fn query_mirror_pool_info(
     mirror_staking: String,
     asset_token: String,
 ) -> StdResult<PoolInfoResponse> {
-    let res: PoolInfoResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+    deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: mirror_staking,
         msg: to_binary(&QueryMsg::PoolInfo { asset_token })?,
-    }))?;
-
-    Ok(res)
+    }))
 }

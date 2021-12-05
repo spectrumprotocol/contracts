@@ -19,6 +19,7 @@ use terraswap::asset::{Asset, AssetInfo};
 use terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg, ExecuteMsg as TerraswapExecuteMsg, QueryMsg as TerraswapQueryMsg, PoolResponse};
 use terraswap::querier::{query_token_balance, simulate};
 use spectrum_protocol::farm_helper::{compute_provide_after_swap, deduct_tax};
+use spectrum_protocol::gov::{ExecuteMsg as GovExecuteMsg};
 use moneymarket::market::{ExecuteMsg as MoneyMarketExecuteMsg};
 
 pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
@@ -46,12 +47,15 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let mut compound_amount = Uint128::zero();
 
     let mut attributes: Vec<Attribute> = vec![];
+    let community_fee = config.community_fee;
+    let platform_fee = config.platform_fee;
+    let controller_fee = config.controller_fee;
+    let total_fee = community_fee + platform_fee + controller_fee;
 
     // calculate auto-compound, auto-Stake, and commission in ANC
     let mut pool_info = pool_info_read(deps.storage).load(config.anchor_token.as_slice())?;
     let reward = anchor_reward_info.pending_reward;
     if !reward.is_zero() && !anchor_reward_info.bond_amount.is_zero() {
-        let total_fee = config.community_fee + config.platform_fee + config.controller_fee;
         let commission = reward * total_fee;
         let anchor_amount = reward.checked_sub(commission)?;
         // add commission to total swap amount
@@ -175,6 +179,11 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
                 denom: config.base_denom.clone(),
                 amount: net_commission_amount,
             }],
+        }));
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
+            msg: to_binary(&GovExecuteMsg::mint {})?,
+            funds: vec![],
         }));
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: env.contract.address.to_string(),
@@ -302,7 +311,7 @@ pub fn send_fee(
     if info.sender != env.contract.address {
         return Err(StdError::generic_err("unauthorized"));
     }
-    let config: Config = read_config(deps.storage)?;
+    let config = read_config(deps.storage)?;
     let aust_token = deps.api.addr_humanize(&config.aust_token)?;
     let spectrum_gov = deps.api.addr_humanize(&config.spectrum_gov)?;
 

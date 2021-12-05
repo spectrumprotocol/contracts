@@ -43,7 +43,7 @@ fn bond_internal(
 
     // update reward index; before changing share
     if !pool_info.total_auto_bond_share.is_zero() || !pool_info.total_stake_bond_share.is_zero() {
-        deposit_spec_reward(deps.as_ref(), &mut state, config, false)?;
+        deposit_spec_reward(deps.as_ref(), &env, &mut state, config, false)?;
         spec_reward_to_pool(&state, &mut pool_info, lp_balance)?;
     }
 
@@ -117,7 +117,7 @@ pub fn bond(
         deps.as_ref(),
         &config.mirror_staking,
         &asset_token_raw,
-        &deps.api.addr_canonicalize(env.contract.address.as_str())?,
+        &env.contract.address,
     )?;
 
     bond_internal(
@@ -143,6 +143,7 @@ pub fn bond(
 
 pub fn deposit_farm_share(
     deps: DepsMut,
+    env: &Env,
     config: &Config,
     pool_pairs: Vec<(String, Uint128)>, // array of (pool address, new MIR amount)
 ) -> StdResult<()> {
@@ -152,7 +153,7 @@ pub fn deposit_farm_share(
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: deps.api.addr_humanize(&config.mirror_gov)?.to_string(),
             msg: to_binary(&MirrorGovQueryMsg::Staker {
-                address: deps.api.addr_humanize(&state.contract_addr)?.to_string(),
+                address: env.contract.address.to_string(),
             })?,
         }))?;
 
@@ -181,6 +182,7 @@ pub fn deposit_farm_share(
 
 pub fn deposit_spec_reward(
     deps: Deps,
+    env: &Env,
     state: &mut State,
     config: &Config,
     query: bool,
@@ -198,7 +200,7 @@ pub fn deposit_spec_reward(
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
             msg: to_binary(&SpecQueryMsg::balance {
-                address: deps.api.addr_humanize(&state.contract_addr)?.to_string(),
+                address: env.contract.address.to_string(),
             })?,
         }))?;
 
@@ -375,7 +377,7 @@ fn unbond_internal(
     }
 
     // distribute reward to pending reward; before changing share
-    deposit_spec_reward(deps.as_ref(), &mut state, config, false)?;
+    deposit_spec_reward(deps.as_ref(), &env, &mut state, config, false)?;
     spec_reward_to_pool(&state, &mut pool_info, lp_balance)?;
     before_share_change(&pool_info, &mut reward_info, lp_balance, env.block.time.seconds());
 
@@ -448,7 +450,7 @@ pub fn unbond(
         deps.as_ref(),
         &config.mirror_staking,
         &asset_token_raw,
-        &deps.api.addr_canonicalize(env.contract.address.as_str())?,
+        &env.contract.address,
     )?;
 
     let pool_info = unbond_internal(
@@ -511,7 +513,7 @@ pub fn update_bond(
         deps.as_ref(),
         &config.mirror_staking,
         &asset_token_raw,
-        &deps.api.addr_canonicalize(env.contract.address.as_str())?,
+        &env.contract.address,
     )?;
 
     unbond_internal(
@@ -560,7 +562,7 @@ pub fn withdraw(
     // update pending reward; before withdraw
     let config = read_config(deps.storage)?;
     let spec_staked =
-        deposit_spec_reward(deps.as_ref(), &mut state, &config, false)?;
+        deposit_spec_reward(deps.as_ref(), &env, &mut state, &config, false)?;
 
     let (spec_amount, spec_share, farm_amount, farm_share) = withdraw_reward(
         deps.branch(),
@@ -662,14 +664,14 @@ fn withdraw_reward(
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: deps.api.addr_humanize(&config.mirror_gov)?.to_string(),
             msg: to_binary(&MirrorGovQueryMsg::Staker {
-                address: deps.api.addr_humanize(&state.contract_addr)?.to_string(),
+                address: env.contract.address.to_string(),
             })?,
         }))?;
 
     let mirror_reward_infos = query_mirror_reward_info(
         deps.as_ref(),
         deps.api.addr_humanize(&config.mirror_staking)?.to_string(),
-        deps.api.addr_humanize(&state.contract_addr)?.to_string(),
+        env.contract.address.to_string(),
     )?;
     let mirror_map: HashMap<_, _> = mirror_reward_infos
         .reward_infos
@@ -798,7 +800,7 @@ pub fn query_reward_info(
     let mut state = read_state(deps.storage)?;
 
     let config = read_config(deps.storage)?;
-    let spec_staked = deposit_spec_reward(deps, &mut state, &config, true)?;
+    let spec_staked = deposit_spec_reward(deps, &env, &mut state, &config, true)?;
     let reward_infos = read_reward_infos(
         deps,
         env,
@@ -851,14 +853,14 @@ fn read_reward_infos(
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: deps.api.addr_humanize(&config.mirror_gov)?.to_string(),
             msg: to_binary(&MirrorGovQueryMsg::Staker {
-                address: deps.api.addr_humanize(&state.contract_addr)?.to_string(),
+                address: env.contract.address.to_string(),
             })?,
         }))?;
 
     let mirror_reward_infos = query_mirror_reward_info(
         deps,
         deps.api.addr_humanize(&config.mirror_staking)?.to_string(),
-        deps.api.addr_humanize(&state.contract_addr)?.to_string(),
+        env.contract.address.to_string(),
     )?;
     let mirror_map: HashMap<_, _> = mirror_reward_infos
         .reward_infos

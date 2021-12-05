@@ -6,6 +6,10 @@ use cosmwasm_storage::{
     bucket, bucket_read, singleton, singleton_read, Bucket, ReadonlyBucket, Singleton,
 };
 
+pub fn default_addr() -> CanonicalAddr {
+    CanonicalAddr::from(vec![])
+}
+
 static KEY_CONFIG: &[u8] = b"config";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -24,6 +28,8 @@ pub struct Config {
     pub platform_fee: Decimal,
     pub controller_fee: Decimal,
     pub deposit_fee: Decimal,
+    #[serde(default = "default_addr")] pub anchor_market: CanonicalAddr,
+    #[serde(default = "default_addr")] pub aust_token: CanonicalAddr,
 }
 
 pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {
@@ -38,9 +44,6 @@ static KEY_STATE: &[u8] = b"state";
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
 pub struct State {
-    // addr for contract, this is for query
-    pub contract_addr: CanonicalAddr,
-
     // this is to reconcile with gov
     pub previous_spec_share: Uint128,
 
@@ -55,9 +58,6 @@ pub struct State {
 
     // earning in ust
     pub earning: Uint128,
-
-    // earning in spec
-    #[serde(default)] pub earning_spec: Uint128,
 }
 
 impl State {

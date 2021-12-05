@@ -12,11 +12,14 @@ use crate::{
 };
 
 use cw20::Cw20ReceiveMsg;
+use terraswap::asset::AssetInfo;
+use terraswap::querier::query_pair_info;
 use crate::bond::{deposit_spec_reward, query_reward_info, unbond, withdraw};
 use crate::state::{pool_info_read, pool_info_store, read_state};
 use spectrum_protocol::orion_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
+use crate::compound::send_fee;
 
 /// (we require 0-1)
 fn validate_percentage(value: Decimal, field: &str) -> StdResult<()> {
@@ -30,7 +33,7 @@ fn validate_percentage(value: Decimal, field: &str) -> StdResult<()> {
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     _info: MessageInfo,
     msg: ConfigInfo,
 ) -> StdResult<Response> {
@@ -43,7 +46,6 @@ pub fn instantiate(
         deps.storage,
         &Config {
             owner: deps.api.addr_canonicalize(&msg.owner)?,
-            terraswap_factory: deps.api.addr_canonicalize(&msg.terraswap_factory)?,
             spectrum_token: deps.api.addr_canonicalize(&msg.spectrum_token)?,
             spectrum_gov: deps.api.addr_canonicalize(&msg.spectrum_gov)?,
             orion_token: deps.api.addr_canonicalize(&msg.orion_token)?,
@@ -56,17 +58,18 @@ pub fn instantiate(
             platform_fee: msg.platform_fee,
             controller_fee: msg.controller_fee,
             deposit_fee: msg.deposit_fee,
+            anchor_market: deps.api.addr_canonicalize(&msg.anchor_market)?,
+            aust_token: deps.api.addr_canonicalize(&msg.aust_token)?,
+            pair_contract: deps.api.addr_canonicalize(&msg.pair_contract)?,
         },
     )?;
 
     state_store(deps.storage).save(&State {
-        contract_addr: deps.api.addr_canonicalize(env.contract.address.as_str())?,
         previous_spec_share: Uint128::zero(),
         spec_share_index: Decimal::zero(),
         total_farm_share: Uint128::zero(),
         total_weight: 0u32,
         earning: Uint128::zero(),
-        earning_spec: Uint128::zero(),
     })?;
 
     Ok(Response::default())
@@ -99,6 +102,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             weight,
         } => register_asset(
             deps,
+            env,
             info,
             asset_token,
             staking_token,
@@ -114,6 +118,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::update_bond { .. } => // asset_token, amount_to_auto, amount_to_stake } =>
             Err(StdError::generic_err("update_bond is disabled")),
             // update_bond(deps, env, info, asset_token, amount_to_auto, amount_to_stake),
+        ExecuteMsg::send_fee {} => send_fee(deps, env, info),
     }
 }
 
@@ -196,6 +201,7 @@ pub fn update_config(
 
 fn register_asset(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     asset_token: String,
     staking_token: String,
@@ -217,7 +223,7 @@ fn register_asset(
     }
 
     let mut state = read_state(deps.storage)?;
-    deposit_spec_reward(deps.as_ref(), &mut state, &config, false)?;
+    deposit_spec_reward(deps.as_ref(), &env, &mut state, &config, false)?;
 
     let mut pool_info = pool_info_read(deps.storage)
         .may_load(asset_token_raw.as_slice())?
@@ -232,7 +238,6 @@ fn register_asset(
             state_spec_share_index: state.spec_share_index,
             auto_spec_share_index: Decimal::zero(),
             stake_spec_share_index: Decimal::zero(),
-            reinvest_allowance: Uint128::zero(),
         });
     state.total_weight = state.total_weight + weight - pool_info.weight;
     pool_info.weight = weight;
@@ -261,10 +266,6 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
     let config = read_config(deps.storage)?;
     let resp = ConfigInfo {
         owner: deps.api.addr_humanize(&config.owner)?.to_string(),
-        terraswap_factory: deps
-            .api
-            .addr_humanize(&config.terraswap_factory)?
-            .to_string(),
         spectrum_token: deps.api.addr_humanize(&config.spectrum_token)?.to_string(),
         orion_token: deps.api.addr_humanize(&config.orion_token)?.to_string(),
         orion_staking: deps.api.addr_humanize(&config.orion_staking)?.to_string(),
@@ -277,6 +278,9 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         platform_fee: config.platform_fee,
         controller_fee: config.controller_fee,
         deposit_fee: config.deposit_fee,
+        anchor_market: deps.api.addr_humanize(&config.anchor_market)?.to_string(),
+        aust_token: deps.api.addr_humanize(&config.aust_token)?.to_string(),
+        pair_contract: deps.api.addr_humanize(&config.pair_contract)?.to_string(),
     };
 
     Ok(resp)
@@ -305,7 +309,6 @@ fn query_pools(deps: Deps) -> StdResult<PoolsResponse> {
                 farm_share_index: pool_info.farm_share_index,
                 stake_spec_share_index: pool_info.stake_spec_share_index,
                 auto_spec_share_index: pool_info.auto_spec_share_index,
-                reinvest_allowance: pool_info.reinvest_allowance,
             })
         })
         .collect::<StdResult<Vec<PoolItem>>>()?;
@@ -320,11 +323,30 @@ fn query_state(deps: Deps) -> StdResult<StateInfo> {
         total_farm_share: state.total_farm_share,
         total_weight: state.total_weight,
         earning: state.earning,
-        earning_spec: state.earning_spec,
     })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
+    let mut config = read_config(deps.storage)?;
+    config.anchor_market = deps.api.addr_canonicalize(&msg.anchor_market)?;
+    config.aust_token = deps.api.addr_canonicalize(&msg.aust_token)?;
+
+    let pair_info = query_pair_info(
+        &deps.querier,
+        deps.api.addr_validate(&msg.terraswap_factory)?,
+        &[
+            AssetInfo::NativeToken {
+                denom: config.base_denom.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: deps.api.addr_humanize(&config.orion_token)?.to_string(),
+            },
+        ],
+    )?;
+
+    config.pair_contract = deps.api.addr_canonicalize(&pair_info.contract_addr)?;
+    store_config(deps.storage, &config)?;
+
     Ok(Response::default())
 }

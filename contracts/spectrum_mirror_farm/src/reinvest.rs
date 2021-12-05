@@ -1,7 +1,4 @@
-use cosmwasm_std::{
-    attr, to_binary, CanonicalAddr, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, Uint128, WasmMsg,
-};
+use cosmwasm_std::{attr, to_binary, CanonicalAddr, Coin, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response, StdError, StdResult, WasmMsg, QueryRequest, WasmQuery};
 
 use crate::state::{read_config, Config, PoolInfo};
 
@@ -13,8 +10,9 @@ use mirror_protocol::staking::Cw20HookMsg as MirrorCw20HookMsg;
 
 use std::str::FromStr;
 use terraswap::asset::{Asset, AssetInfo};
-use terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg, ExecuteMsg as TerraswapExecuteMsg};
+use terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg, ExecuteMsg as TerraswapExecuteMsg, QueryMsg as TerraswapQueryMsg, PoolResponse};
 use terraswap::querier::{query_pair_info, query_token_balance, simulate};
+use spectrum_protocol::farm_helper::{compute_provide_after_swap, deduct_tax};
 
 const TERRASWAP_COMMISSION_RATE: &str = "0.003";
 
@@ -26,9 +24,7 @@ pub fn re_invest(
 ) -> StdResult<Response> {
     let config = read_config(deps.storage)?;
 
-    if config.controller != CanonicalAddr::from(vec![])
-        && config.controller != deps.api.addr_canonicalize(info.sender.as_str())?
-    {
+    if config.controller != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(StdError::generic_err("unauthorized"));
     }
 
@@ -37,20 +33,6 @@ pub fn re_invest(
     } else {
         re_invest_asset(deps, env, config, asset_token)
     }
-}
-
-fn deduct_tax(deps: Deps, amount: Uint128, base_denom: String) -> Uint128 {
-    let asset = Asset {
-        info: AssetInfo::NativeToken {
-            denom: base_denom.clone(),
-        },
-        amount,
-    };
-    let after_tax = Asset {
-        info: AssetInfo::NativeToken { denom: base_denom },
-        amount: asset.deduct_tax(&deps.querier).unwrap().amount,
-    };
-    after_tax.amount
 }
 
 fn re_invest_asset(
@@ -73,9 +55,9 @@ fn re_invest_asset(
     pool_info.reinvest_allowance = commission;
     pool_info_store(deps.storage).save(asset_token_raw.as_slice(), &pool_info)?;
 
-    let net_swap_after_tax = deduct_tax(deps.as_ref(), net_swap, config.base_denom.clone());
+    let net_swap_after_tax = deduct_tax(&deps.querier, net_swap, config.base_denom.clone())?;
     let net_liquidity_after_tax =
-        deduct_tax(deps.as_ref(), net_liquidity, config.base_denom.clone());
+        deduct_tax(&deps.querier, net_liquidity, config.base_denom.clone())?;
 
     let net_swap_asset = Asset {
         info: AssetInfo::NativeToken {
@@ -218,27 +200,26 @@ fn re_invest_mir(
     )?;
 
     let net_reinvest_ust = deduct_tax(
-        deps.as_ref(),
+        &deps.querier,
         deduct_tax(
-            deps.as_ref(),
+            &deps.querier,
             swap_rate.return_amount,
             config.base_denom.clone(),
-        ),
+        )?,
         config.base_denom.clone(),
-    );
-    let net_reinvest_asset = Asset {
-        info: AssetInfo::NativeToken {
-            denom: config.base_denom.clone(),
-        },
-        amount: net_reinvest_ust,
-    };
-    let swap_mir_rate = simulate(
-        &deps.querier,
-        deps.api.addr_validate(&pair_info.contract_addr)?,
-        &net_reinvest_asset,
     )?;
 
-    let provide_mir = swap_mir_rate.return_amount + swap_mir_rate.commission_amount;
+    let pool: PoolResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: pair_info.contract_addr.clone(),
+        msg: to_binary(&TerraswapQueryMsg::Pool {})?,
+    }))?;
+
+    let provide_mir = compute_provide_after_swap(
+        &pool,
+        &swap_asset,
+        swap_rate.return_amount,
+        net_reinvest_ust
+    )?;
 
     pool_info.reinvest_allowance = swap_amount.checked_sub(provide_mir)?;
     pool_info_store(deps.storage).save(mir_token_raw.as_slice(), &pool_info)?;

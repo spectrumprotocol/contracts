@@ -8,15 +8,13 @@ pub fn query_anchor_reward_info(
     staker: &Addr,
     block_height: Option<u64>,
 ) -> StdResult<StakerInfoResponse> {
-    let res: StakerInfoResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+    deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: deps.api.addr_humanize(anchor_staking)?.to_string(),
         msg: to_binary(&AnchorStakingQueryMsg::StakerInfo {
             staker: staker.to_string(),
             block_height,
         })?,
-    }))?;
-
-    Ok(res)
+    }))
 }
 
 pub fn query_anchor_pool_balance(
@@ -24,6 +22,6 @@ pub fn query_anchor_pool_balance(
     anchor_staking: &CanonicalAddr,
     staker: &Addr,
 ) -> StdResult<Uint128> {
-    let res = query_anchor_reward_info(deps, anchor_staking, staker, None)?;
-    Ok(res.bond_amount)
+    query_anchor_reward_info(deps, anchor_staking, staker, None)
+        .map(|it| it.bond_amount)
 }

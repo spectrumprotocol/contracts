@@ -946,10 +946,8 @@ fn test_compound_anc_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMo
                         max_spread: None,
                         belief_price: None,
                         to: None,
-                    })
-                        .unwrap()
-                })
-                    .unwrap(),
+                    }).unwrap()
+                }).unwrap(),
                 funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
@@ -959,6 +957,11 @@ fn test_compound_anc_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMo
                     denom: "uusd".to_string(),
                     amount: Uint128::from(591u128),
                 }],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: SPEC_GOV.to_string(),
+                msg: to_binary(&spectrum_protocol::gov::ExecuteMsg::mint {}).unwrap(),
+                funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: MOCK_CONTRACT_ADDR.to_string(),
