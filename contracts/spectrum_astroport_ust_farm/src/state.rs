@@ -15,7 +15,6 @@ pub fn default_addr() -> CanonicalAddr {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     pub owner: CanonicalAddr,
-    pub astroport_factory: CanonicalAddr,
     pub spectrum_token: CanonicalAddr,
     pub spectrum_gov: CanonicalAddr,
     pub astro_token: CanonicalAddr,

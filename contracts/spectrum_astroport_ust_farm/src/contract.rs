@@ -44,7 +44,6 @@ pub fn instantiate(
         deps.storage,
         &Config {
             owner: deps.api.addr_canonicalize(&msg.owner)?,
-            astroport_factory: deps.api.addr_canonicalize(&msg.astroport_factory)?, //TODO check if it is no longer required
             spectrum_token: deps.api.addr_canonicalize(&msg.spectrum_token)?,
             spectrum_gov: deps.api.addr_canonicalize(&msg.spectrum_gov)?,
             astro_token: deps.api.addr_canonicalize(&msg.astro_token)?,
@@ -66,6 +65,7 @@ pub fn instantiate(
             anchor_market: deps.api.addr_canonicalize(&msg.anchor_market)?,
             aust_token: deps.api.addr_canonicalize(&msg.aust_token)?,
             pair_contract: deps.api.addr_canonicalize(&msg.pair_contract)?,
+            astro_ust_pair_contract: deps.api.addr_canonicalize(&msg.astro_ust_pair_contract)?,
         },
     )?;
 
@@ -283,7 +283,6 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
     let config = read_config(deps.storage)?;
     let resp = ConfigInfo {
         owner: deps.api.addr_humanize(&config.owner)?.to_string(),
-        astroport_factory: "".to_string(),
         astroport_generator: deps
             .api
             .addr_humanize(&config.astroport_generator)?
@@ -311,7 +310,8 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         xastro_proxy: deps.api.addr_humanize(&config.xastro_proxy)?.to_string(),
         anchor_market: deps.api.addr_humanize(&config.anchor_market)?.to_string(),
         aust_token: deps.api.addr_humanize(&config.aust_token)?.to_string(),
-        pair_contract: deps.api.addr_humanize(&config.pair_contract)?.to_string()
+        pair_contract: deps.api.addr_humanize(&config.pair_contract)?.to_string(),
+        astro_ust_pair_contract: deps.api.addr_humanize(&config.astro_ust_pair_contract)?.to_string(),
     };
 
     Ok(resp)

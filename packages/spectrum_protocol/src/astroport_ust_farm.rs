@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigInfo {
     pub owner: String,
-    pub astroport_factory: String, //TODO
     pub astroport_generator: String,
     pub xastro_proxy: String,
     pub astro_token: String,
@@ -26,6 +25,7 @@ pub struct ConfigInfo {
     pub anchor_market: String,
     pub aust_token: String,
     pub pair_contract: String,
+    pub astro_ust_pair_contract: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
