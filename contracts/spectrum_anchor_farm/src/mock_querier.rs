@@ -10,13 +10,14 @@ use cosmwasm_std::{
 use std::collections::HashMap;
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
-use terraswap::pair::SimulationResponse;
+use terraswap::pair::{PoolResponse, SimulationResponse};
 
 use anchor_token::gov::StakerResponse as AnchorStakerResponse;
 use anchor_token::staking::StakerInfoResponse as AnchorStakerInfoResponse;
 use spectrum_protocol::gov::BalanceResponse as SpecBalanceResponse;
 
 const ANC_STAKING: &str = "anc_staking";
+const ANC_TOKEN: &str = "anc_token";
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
@@ -152,6 +153,7 @@ enum MockQueryMsg {
     Simulation {
         offer_asset: Asset,
     },
+    Pool {},
 }
 
 impl WasmMockQuerier {
@@ -241,6 +243,27 @@ impl WasmMockQuerier {
                             ))),
                             Err(_e) => SystemResult::Err(SystemError::Unknown {}),
                         }
+                    }
+                    MockQueryMsg::Pool {} => {
+                        SystemResult::Ok(ContractResult::from(to_binary(
+                            &PoolResponse {
+                                assets: [
+                                    Asset {
+                                        info: AssetInfo::NativeToken {
+                                            denom: "uusd".to_string(),
+                                        },
+                                        amount: Uint128::from(1_000_000_000000u128),
+                                    },
+                                    Asset {
+                                        info: AssetInfo::Token {
+                                            contract_addr: ANC_TOKEN.to_string(),
+                                        },
+                                        amount: Uint128::from(1_000_000_000000u128),
+                                    }
+                                ],
+                                total_share: Uint128::from(1_000_000_000000u128),
+                            }
+                        )))
                     }
                 }
             }

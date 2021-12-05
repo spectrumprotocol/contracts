@@ -247,7 +247,7 @@ impl WasmMockQuerier {
                             Err(_e) => SystemResult::Err(SystemError::Unknown {}),
                         }
                     }
-                    MockQueryMsg::SimulateSwapOperations { offer_amount, operations } => {
+                    MockQueryMsg::SimulateSwapOperations { offer_amount, operations: _ } => {
                         let commission_amount = offer_amount.multiply_ratio(3u128, 1000u128);
                         let return_amount = offer_amount.checked_sub(commission_amount);
                         match return_amount {

@@ -4,7 +4,7 @@ use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
 use crate::state::{pool_info_read, pool_info_store, read_config, read_state, state_store};
 use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    from_binary, to_binary, Api, Coin, CosmosMsg, Decimal, OwnedDeps, Uint128, WasmMsg,
+    from_binary, to_binary, CosmosMsg, Decimal, OwnedDeps, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use nexus_token::governance::{AnyoneMsg, Cw20HookMsg as NexusGovCw20HookMsg};
@@ -19,7 +19,7 @@ use spectrum_protocol::nexus_nasset_psi_farm::{
 use std::fmt::Debug;
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
 use terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg, ExecuteMsg as TerraswapExecuteMsg};
-use terraswap::router::{Cw20HookMsg as TerraswapRouterCw20HookMsg, SimulateSwapOperationsResponse, SwapOperation};
+use terraswap::router::{Cw20HookMsg as TerraswapRouterCw20HookMsg, SwapOperation};
 
 const SPEC_GOV: &str = "SPEC_GOV";
 const SPEC_PLATFORM: &str = "spec_platform";
@@ -28,7 +28,6 @@ const SPEC_LP: &str = "spec_lp";
 const SPEC_POOL: &str = "spec_pool";
 const PSI_GOV: &str = "psi_gov";
 const PSI_TOKEN: &str = "psi_token";
-const PSI_STAKING: &str = "psi_staking";
 const PSI_LP: &str = "psi_lp";
 const PSI_POOL: &str = "psi_pool";
 const TERRA_SWAP: &str = "terra_swap";
@@ -717,14 +716,6 @@ fn test_compound_psi(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
     let env = mock_env();
     let info = mock_info(TEST_CONTROLLER, &[]);
 
-    let asset_token_raw = deps.api.addr_canonicalize(&NASSET_TOKEN.to_string()).unwrap();
-    let mut pool_info = pool_info_read(deps.as_ref().storage)
-        .load(asset_token_raw.as_slice())
-        .unwrap();
-    pool_info_store(deps.as_mut().storage)
-        .save(asset_token_raw.as_slice(), &pool_info)
-        .unwrap();
-
     /*
     pending rewards 12000 PSI
     USER1 7000 (auto 4200, stake 2800)
@@ -738,10 +729,6 @@ fn test_compound_psi(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
     */
     let msg = ExecuteMsg::compound {};
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
-
-    let pool_info = pool_info_read(deps.as_ref().storage)
-        .load(asset_token_raw.as_slice())
-        .unwrap();
 
     assert_eq!(
         res.messages
@@ -914,13 +901,6 @@ fn test_compound_psi_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMo
     assert!(res.is_ok());
 
     let info = mock_info(TEST_CONTROLLER, &[]);
-    let asset_token_raw = deps.api.addr_canonicalize(&NASSET_TOKEN.to_string()).unwrap();
-    let mut pool_info = pool_info_read(deps.as_ref().storage)
-        .load(asset_token_raw.as_slice())
-        .unwrap();
-    pool_info_store(deps.as_mut().storage)
-        .save(asset_token_raw.as_slice(), &pool_info)
-        .unwrap();
 
     /*
     pending rewards 12100 PSI
@@ -941,10 +921,6 @@ fn test_compound_psi_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMo
     */
     let msg = ExecuteMsg::compound {};
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
-
-    let pool_info = pool_info_read(deps.as_ref().storage)
-        .load(asset_token_raw.as_slice())
-        .unwrap();
 
     assert_eq!(
         res.messages
