@@ -36,7 +36,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let anchor_reward_info = query_anchor_reward_info(
         deps.as_ref(),
         &config.anchor_staking,
-        &deps.api.addr_canonicalize(env.contract.address.as_str())?,
+        &env.contract.address,
         Some(env.block.height),
     )?;
 
@@ -74,6 +74,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let mut state = read_state(deps.storage)?;
     deposit_farm_share(
         deps.as_ref(),
+        &env,
         &mut state,
         &mut pool_info,
         &config,

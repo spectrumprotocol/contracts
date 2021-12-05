@@ -44,7 +44,6 @@ static KEY_STATE: &[u8] = b"state";
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
 pub struct State {
-    pub contract_addr: CanonicalAddr,
     pub previous_spec_share: Uint128,
     pub spec_share_index: Decimal,
     pub total_farm_share: Uint128,

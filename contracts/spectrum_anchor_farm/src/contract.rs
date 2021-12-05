@@ -34,7 +34,7 @@ fn validate_percentage(value: Decimal, field: &str) -> StdResult<()> {
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     _info: MessageInfo,
     msg: ConfigInfo,
 ) -> StdResult<Response> {
@@ -66,7 +66,6 @@ pub fn instantiate(
     )?;
 
     state_store(deps.storage).save(&State {
-        contract_addr: deps.api.addr_canonicalize(env.contract.address.as_str())?,
         previous_spec_share: Uint128::zero(),
         spec_share_index: Decimal::zero(),
         total_farm_share: Uint128::zero(),
@@ -104,6 +103,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             weight,
         } => register_asset(
             deps,
+            env,
             info,
             asset_token,
             staking_token,
@@ -200,6 +200,7 @@ pub fn update_config(
 
 fn register_asset(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     asset_token: String,
     staking_token: String,
@@ -221,7 +222,7 @@ fn register_asset(
     }
 
     let mut state = read_state(deps.storage)?;
-    deposit_spec_reward(deps.as_ref(), &mut state, &config, false)?;
+    deposit_spec_reward(deps.as_ref(), &env, &mut state, &config, false)?;
 
     let mut pool_info = pool_info_read(deps.storage)
         .may_load(asset_token_raw.as_slice())?

@@ -385,6 +385,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         .unwrap();
     deposit_farm_share(
         deps_ref,
+        &env,
         &mut state,
         &mut pool_info,
         &config,
@@ -589,6 +590,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         .unwrap();
     deposit_farm_share(
         deps_ref,
+        &env,
         &mut state,
         &mut pool_info,
         &config,
