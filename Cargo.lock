@@ -704,23 +704,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "spectrum-astroport-ust-farm"
-version = "0.2.0"
-dependencies = [
- "astroport",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw20",
- "moneymarket",
- "schemars",
- "serde",
- "spectrum-protocol",
- "terra-cosmwasm",
- "terraswap",
-]
-
-[[package]]
 name = "spectrum-gov"
 version = "0.2.0"
 dependencies = [
