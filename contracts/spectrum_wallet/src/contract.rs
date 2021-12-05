@@ -217,8 +217,10 @@ fn withdraw(
             return Err(StdError::generic_err("not enough amount to withdraw"));
         }
         amount
-    } else {
+    } else if spec_onhand > withdrawable {
         withdrawable
+    } else {
+        spec_onhand
     };
 
     let mut messages: Vec<CosmosMsg> = vec![];
