@@ -3,23 +3,20 @@ use crate::contract::{execute, instantiate, query};
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
 use crate::state::{pool_info_read, pool_info_store, read_config, read_state, state_store};
 use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{
-    from_binary, to_binary, CosmosMsg, Decimal, OwnedDeps, Uint128, WasmMsg,
-};
+use cosmwasm_std::{from_binary, to_binary, CosmosMsg, Decimal, OwnedDeps, Uint128, WasmMsg, Coin};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use nexus_token::governance::{AnyoneMsg, Cw20HookMsg as NexusGovCw20HookMsg};
 use nexus_token::governance::ExecuteMsg as NexusGovExecuteMsg;
 use nexus_token::staking::ExecuteMsg as NexusStakingExecuteMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use spectrum_protocol::gov::{Cw20HookMsg as GovCw20HookMsg, ExecuteMsg as GovExecuteMsg};
+use spectrum_protocol::gov::{ExecuteMsg as GovExecuteMsg};
 use spectrum_protocol::nexus_nasset_psi_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
 use std::fmt::Debug;
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
 use terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg, ExecuteMsg as TerraswapExecuteMsg};
-use terraswap::router::{Cw20HookMsg as TerraswapRouterCw20HookMsg, SwapOperation};
 
 const SPEC_GOV: &str = "SPEC_GOV";
 const SPEC_PLATFORM: &str = "spec_platform";
@@ -30,14 +27,12 @@ const PSI_GOV: &str = "psi_gov";
 const PSI_TOKEN: &str = "psi_token";
 const PSI_LP: &str = "psi_lp";
 const PSI_POOL: &str = "psi_pool";
-const TERRA_SWAP: &str = "terra_swap";
 const TEST_CREATOR: &str = "creator";
 const TEST_CONTROLLER: &str = "controller";
 const FAIL_TOKEN: &str = "fail_token";
 const FAIL_LP: &str = "fail_lp";
 const USER1: &str = "user1";
 const USER2: &str = "user2";
-const TERRASWAP_ROUTER: &str = "terraswap_router";
 const NEXUS_TOKEN: &str = "psi_token";
 const NASSET_STAKING: &str = "nasset_staking";
 const NASSET_LP: &str = "nasset_lp";
@@ -45,8 +40,6 @@ const NASSET_TOKEN: &str = "nasset_token";
 const NASSET_POOL: &str = "nasset_pool";
 const ANC_MARKET: &str = "anc_market";
 const AUST_TOKEN: &str = "aust_token";
-const PAIR_CONTRACT: &str = "pair_contract";
-const UST_PAIR_CONTRACT: &str = "ust_pair_contract";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfoResponse {
@@ -157,8 +150,8 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         deposit_fee: Decimal::zero(),
         anchor_market: ANC_MARKET.to_string(),
         aust_token: AUST_TOKEN.to_string(),
-        pair_contract: PAIR_CONTRACT.to_string(),
-        ust_pair_contract: UST_PAIR_CONTRACT.to_string(),
+        pair_contract: NASSET_POOL.to_string(),
+        ust_pair_contract: PSI_POOL.to_string(),
     };
 
     // success init
@@ -757,10 +750,8 @@ fn test_compound_psi(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
                         max_spread: None,
                         belief_price: None,
                         to: None,
-                    })
-                        .unwrap()
-                })
-                    .unwrap(),
+                    }).unwrap()
+                }).unwrap(),
                 funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
@@ -770,8 +761,7 @@ fn test_compound_psi(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
                     contract: PSI_GOV.to_string(),
                     amount: Uint128::from(7800u128),
                     msg: to_binary(&NexusGovCw20HookMsg::StakeVotingTokens {}).unwrap(),
-                })
-                    .unwrap(),
+                }).unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: PSI_TOKEN.to_string(),
@@ -779,8 +769,7 @@ fn test_compound_psi(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
                     spender: NASSET_POOL.to_string(),
                     amount: Uint128::from(2097u128),
                     expires: None
-                })
-                    .unwrap(),
+                }).unwrap(),
                 funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
@@ -789,8 +778,7 @@ fn test_compound_psi(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
                     spender: NASSET_POOL.to_string(),
                     amount: Uint128::from(2097u128),
                     expires: None
-                })
-                    .unwrap(),
+                }).unwrap(),
                 funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
@@ -812,16 +800,14 @@ fn test_compound_psi(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
                     ],
                     slippage_tolerance: None,
                     receiver: None
-                })
-                    .unwrap(),
+                }).unwrap(),
                 funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: env.contract.address.to_string(),
                 msg: to_binary(&ExecuteMsg::stake {
                     asset_token: NASSET_TOKEN.to_string(),
-                })
-                    .unwrap(),
+                }).unwrap(),
                 funds: vec![],
             }),
         ]
@@ -956,32 +942,23 @@ fn test_compound_psi_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMo
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: NEXUS_TOKEN.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: TERRASWAP_ROUTER.to_string(),
+                    contract: PSI_POOL.to_string(),
                     amount: Uint128::from(605u128),
-                    msg: to_binary(&TerraswapRouterCw20HookMsg::ExecuteSwapOperations {
-                        operations: vec![
-                            SwapOperation::TerraSwap {
-                                offer_asset_info: AssetInfo::Token {
-                                    contract_addr: NEXUS_TOKEN.to_string(),
-                                },
-                                ask_asset_info: AssetInfo::NativeToken {
-                                    denom: "uusd".to_string(),
-                                },
-                            },
-                            SwapOperation::TerraSwap {
-                                offer_asset_info: AssetInfo::NativeToken {
-                                    denom: "uusd".to_string(),
-                                },
-                                ask_asset_info: AssetInfo::Token {
-                                    contract_addr: SPEC_TOKEN.to_string(),
-                                },
-                            },
-                        ],
-                        minimum_receive: None,
+                    msg: to_binary(&TerraswapCw20HookMsg::Swap {
+                        max_spread: None,
                         to: None,
+                        belief_price: None,
                     }).unwrap(),
                 }).unwrap(),
                 funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: ANC_MARKET.to_string(),
+                msg: to_binary(&moneymarket::market::ExecuteMsg::DepositStable {}).unwrap(),
+                funds: vec![Coin {
+                    denom: "uusd".to_string(),
+                    amount: Uint128::from(598u128),
+                }],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: SPEC_GOV.to_string(),
@@ -989,40 +966,8 @@ fn test_compound_psi_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMo
                 funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: SPEC_TOKEN.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: SPEC_GOV.to_string(),
-                    amount: Uint128::from(362u128),
-                })
-                    .unwrap(),
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: SPEC_TOKEN.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: SPEC_GOV.to_string(),
-                    amount: Uint128::from(120u128),
-                    msg: to_binary(&GovCw20HookMsg::stake_tokens {
-                        staker_addr: Some(SPEC_PLATFORM.to_string()),
-                        days: None,
-                    })
-                        .unwrap()
-                })
-                    .unwrap(),
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: SPEC_TOKEN.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: SPEC_GOV.to_string(),
-                    amount: Uint128::from(122u128),
-                    msg: to_binary(&GovCw20HookMsg::stake_tokens {
-                        staker_addr: Some(TEST_CONTROLLER.to_string()),
-                        days: None,
-                    })
-                        .unwrap()
-                })
-                    .unwrap(),
+                contract_addr: MOCK_CONTRACT_ADDR.to_string(),
+                msg: to_binary(&ExecuteMsg::send_fee {}).unwrap(),
                 funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
@@ -1086,4 +1031,52 @@ fn test_compound_psi_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMo
             }),
         ]
     );
+
+    deps.querier.with_token_balances(&[
+        (
+            &AUST_TOKEN.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(590u128))]
+        ),
+    ]);
+
+    // cannot call send fee from others
+    let info = mock_info(SPEC_GOV, &[]);
+    let msg = ExecuteMsg::send_fee {};
+    let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
+    assert!(res.is_err());
+
+    let info = mock_info(MOCK_CONTRACT_ADDR, &[]);
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
+
+    assert_eq!(
+        res.messages
+            .into_iter()
+            .map(|it| it.msg)
+            .collect::<Vec<CosmosMsg>>(),
+        vec![
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: AUST_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: SPEC_GOV.to_string(),
+                    amount: Uint128::from(354u128),
+                }).unwrap(),
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: AUST_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: SPEC_PLATFORM.to_string(),
+                    amount: Uint128::from(118u128),
+                }).unwrap(),
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: AUST_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: TEST_CONTROLLER.to_string(),
+                    amount: Uint128::from(118u128),
+                }).unwrap(),
+                funds: vec![],
+            }),
+        ]);
 }

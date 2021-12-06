@@ -241,6 +241,18 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "send_fee"
+      ],
+      "properties": {
+        "send_fee": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {

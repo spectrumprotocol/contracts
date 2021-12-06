@@ -11,13 +11,13 @@ use mirror_protocol::gov::{
 use mirror_protocol::staking::ExecuteMsg as MirrorStakingExecuteMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use spectrum_protocol::gov::{Cw20HookMsg as GovCw20HookMsg, ExecuteMsg as GovExecuteMsg};
+use spectrum_protocol::gov::{ExecuteMsg as GovExecuteMsg};
 use spectrum_protocol::mirror_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
 use std::fmt::Debug;
-use terraswap::asset::{Asset, AssetInfo, PairInfo};
-use terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg, ExecuteMsg as TerraswapExecuteMsg};
+use terraswap::asset::{AssetInfo, PairInfo};
+use terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg};
 
 const SPEC_GOV: &str = "spec_gov";
 const SPEC_TOKEN: &str = "spec_token";
@@ -609,7 +609,7 @@ fn test_harvest_all(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
     let env = mock_env();
     let info = mock_info(TEST_CONTROLLER, &[]);
     let msg = ExecuteMsg::harvest_all {};
-    let res = execute(deps.as_mut(), env, info, msg).unwrap();
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
     assert_eq!(
         res.messages
@@ -631,26 +631,13 @@ fn test_harvest_all(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
                         max_spread: None,
                         belief_price: None,
                         to: None,
-                    })
-                    .unwrap()
-                })
-                .unwrap(),
+                    }).unwrap()
+                }).unwrap(),
                 funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: SPEC_PAIR_INFO.to_string(),
-                msg: to_binary(&TerraswapExecuteMsg::Swap {
-                    offer_asset: Asset {
-                        info: AssetInfo::NativeToken {
-                            denom: "uusd".to_string(),
-                        },
-                        amount: Uint128::from(1367u128),
-                    },
-                    max_spread: None,
-                    belief_price: None,
-                    to: None,
-                })
-                .unwrap(),
+                contract_addr: ANC_MARKET.to_string(),
+                msg: to_binary(&moneymarket::market::ExecuteMsg::DepositStable {}).unwrap(),
                 funds: vec![Coin {
                     denom: "uusd".to_string(),
                     amount: Uint128::from(1367u128),
@@ -662,40 +649,8 @@ fn test_harvest_all(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
                 funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: SPEC_TOKEN.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: SPEC_GOV.to_string(),
-                    amount: Uint128::from(817u128),
-                })
-                .unwrap(),
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: SPEC_TOKEN.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: SPEC_GOV.to_string(),
-                    amount: Uint128::from(272u128),
-                    msg: to_binary(&GovCw20HookMsg::stake_tokens {
-                        staker_addr: Some(TEST_PLATFORM.to_string()),
-                        days: None,
-                    })
-                    .unwrap()
-                })
-                .unwrap(),
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: SPEC_TOKEN.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: SPEC_GOV.to_string(),
-                    amount: Uint128::from(274u128),
-                    msg: to_binary(&GovCw20HookMsg::stake_tokens {
-                        staker_addr: Some(TEST_CONTROLLER.to_string()),
-                        days: None,
-                    })
-                    .unwrap()
-                })
-                .unwrap(),
+                contract_addr: MOCK_CONTRACT_ADDR.to_string(),
+                msg: to_binary(&ExecuteMsg::send_fee {}).unwrap(),
                 funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
@@ -710,4 +665,52 @@ fn test_harvest_all(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
             }),
         ]
     );
+
+    deps.querier.with_token_balances(&[
+        (
+            &AUST_TOKEN.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(590u128))]
+        ),
+    ]);
+
+    // cannot call send fee from others
+    let info = mock_info(SPEC_GOV, &[]);
+    let msg = ExecuteMsg::send_fee {};
+    let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
+    assert!(res.is_err());
+
+    let info = mock_info(MOCK_CONTRACT_ADDR, &[]);
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
+
+    assert_eq!(
+        res.messages
+            .into_iter()
+            .map(|it| it.msg)
+            .collect::<Vec<CosmosMsg>>(),
+        vec![
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: AUST_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: SPEC_GOV.to_string(),
+                    amount: Uint128::from(354u128),
+                }).unwrap(),
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: AUST_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: TEST_PLATFORM.to_string(),
+                    amount: Uint128::from(118u128),
+                }).unwrap(),
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: AUST_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: TEST_CONTROLLER.to_string(),
+                    amount: Uint128::from(118u128),
+                }).unwrap(),
+                funds: vec![],
+            }),
+        ]);
 }
