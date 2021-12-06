@@ -1,5 +1,5 @@
 [package]
-name = "spectrum-spec-farm"
+name = "spectrum-orion-farm"
 version = "0.2.0"
 authors = ["Spectrum team"]
 edition = "2018"
@@ -37,9 +37,12 @@ backtraces = ["cosmwasm-std/backtraces"]
 cw20 = { version = "0.8.0" }
 cosmwasm-std = { version = "0.16.0" }
 cosmwasm-storage = { version = "0.16.0" }
-spectrum-protocol = { version = "0.2.0", path = "../../packages/spectrum_protocol" }
+spectrum-protocol = { version = "0.2.0", path = "../../../packages/spectrum_protocol" }
+terraswap = "2.4.0"
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+orion = { version = "0.1.0", path = "../../../packages/orion" }
+moneymarket = { version = "0.3.1", path = "../../../packages/anchor_moneymarket" }
 
 [dev-dependencies]
 cosmwasm-schema = "0.16.0"
