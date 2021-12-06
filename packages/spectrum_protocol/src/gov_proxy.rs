@@ -44,6 +44,10 @@ pub enum ExecuteMsg {
     Unstake {
         amount: Option<Uint128>,
     },
+    UpdateConfig {
+        owner: Option<String>,
+        farm_contract: Option<String>
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

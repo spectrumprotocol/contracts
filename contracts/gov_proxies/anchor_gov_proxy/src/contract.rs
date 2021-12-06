@@ -15,6 +15,8 @@ use cw20::Cw20ReceiveMsg;
 use spectrum_protocol::gov_proxy::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, QueryMsg, StateInfo,
 };
+use spectrum_protocol::wallet::ExecuteMsg::unstake;
+use crate::proxy::stake;
 
 /// (we require 0-1)
 fn validate_percentage(value: Decimal, field: &str) -> StdResult<()> {
@@ -52,46 +54,18 @@ pub fn instantiate(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
-    // match msg {
-    //     ExecuteMsg::receive(msg) => receive_cw20(deps, env, info, msg),
-    //     ExecuteMsg::update_config {
-    //         owner,
-    //         controller,
-    //         community_fee,
-    //         platform_fee,
-    //         controller_fee,
-    //         deposit_fee,
-    //     } => update_config(
-    //         deps,
-    //         info,
-    //         owner,
-    //         controller,
-    //         community_fee,
-    //         platform_fee,
-    //         controller_fee,
-    //         deposit_fee,
-    //     ),
-    //     ExecuteMsg::register_asset {
-    //         asset_token,
-    //         staking_token,
-    //         weight,
-    //     } => register_asset(
-    //         deps,
-    //         env,
-    //         info,
-    //         asset_token,
-    //         staking_token,
-    //         weight,
-    //     ),
-    //     ExecuteMsg::unbond {
-    //         asset_token,
-    //         amount,
-    //     } => unbond(deps, env, info, asset_token, amount),
-    //     ExecuteMsg::withdraw { asset_token, spec_amount, farm_amount } => withdraw(deps, env, info, asset_token, spec_amount, farm_amount),
-    //     ExecuteMsg::stake { asset_token } => stake(deps, env, info, asset_token),
-    //     ExecuteMsg::compound {} => compound(deps, env, info),
-    //     ExecuteMsg::update_bond { asset_token, amount_to_auto, amount_to_stake } => update_bond(deps, env, info, asset_token, amount_to_auto, amount_to_stake),
-    //     ExecuteMsg::send_fee {} => send_fee(deps, env, info),
+    match msg {
+        ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
+        ExecuteMsg::UpdateConfig {
+            owner,
+            farm_contract
+        } => update_config(
+            deps,
+            info,
+            owner,
+            farm_contract,
+        ),
+        // ExecuteMsg::Unstake { amount} => unstake () TODO
     }
 }
 
@@ -101,24 +75,22 @@ fn receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> StdResult<Response> {
-    // match from_binary(&cw20_msg.msg) {
-    //     Ok(Cw20HookMsg::Stake {
-    //            staker_addr,
-    //            asset_token,
-    //            compound_rate,
-    //        }) => bond(
-    //         deps,
-    //         env,
-    //         info,
-    //         staker_addr.unwrap_or(cw20_msg.sender),
-    //         asset_token,
-    //         cw20_msg.amount,
-    //         compound_rate,
-    //     ),
-    //     Err(_) => Err(StdError::generic_err("data should be given")),
-    // }
+    match from_binary(&cw20_msg.msg) {
+        Ok(Cw20HookMsg::Stake {}) => stake(
+            deps,
+            env,
+            info,
+            cw20_msg.sender,
+            cw20_msg.amount,
+        ),
+        Err(_) => Err(StdError::generic_err("data should be given")),
+    }
 }
 
+// Deployment sequence
+// 1.gov_proxy without farm contract
+// 2.farm contract with gov_proxy address
+// 3.update_config gov_proxy to add farm contract
 #[allow(clippy::too_many_arguments)]
 pub fn update_config(
     deps: DepsMut,
@@ -144,7 +116,6 @@ pub fn update_config(
     }
 
     store_config(deps.storage, &config)?;
-
     Ok(Response::new().add_attributes(vec![attr("action", "update_config")]))
 }
 
