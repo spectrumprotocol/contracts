@@ -18,6 +18,7 @@ use crate::state::{pool_info_read, pool_info_store, read_state};
 use spectrum_protocol::astroport_ust_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
+use crate::compound::send_fee;
 
 /// (we require 0-1)
 fn validate_percentage(value: Decimal, field: &str) -> StdResult<()> {
@@ -132,7 +133,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             asset_token,
             amount_to_auto,
             amount_to_stake,
-        )
+        ),
+        ExecuteMsg::send_fee {} => send_fee(deps, env, info),
     }
 }
 
