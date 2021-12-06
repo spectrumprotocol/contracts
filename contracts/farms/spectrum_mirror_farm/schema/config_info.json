@@ -3,6 +3,8 @@
   "title": "ConfigInfo",
   "type": "object",
   "required": [
+    "anchor_market",
+    "aust_token",
     "base_denom",
     "community_fee",
     "controller",
@@ -19,6 +21,12 @@
     "terraswap_factory"
   ],
   "properties": {
+    "anchor_market": {
+      "type": "string"
+    },
+    "aust_token": {
+      "type": "string"
+    },
     "base_denom": {
       "type": "string"
     },

@@ -3,6 +3,8 @@
   "title": "ConfigInfo",
   "type": "object",
   "required": [
+    "anchor_market",
+    "aust_token",
     "community_fee",
     "controller",
     "controller_fee",
@@ -12,14 +14,20 @@
     "nexus_gov",
     "nexus_token",
     "owner",
+    "pair_contract",
     "platform",
     "platform_fee",
     "spectrum_gov",
     "spectrum_token",
-    "terraswap_factory",
-    "terraswap_router"
+    "ust_pair_contract"
   ],
   "properties": {
+    "anchor_market": {
+      "type": "string"
+    },
+    "aust_token": {
+      "type": "string"
+    },
     "community_fee": {
       "$ref": "#/definitions/Decimal"
     },
@@ -47,6 +55,9 @@
     "owner": {
       "type": "string"
     },
+    "pair_contract": {
+      "type": "string"
+    },
     "platform": {
       "type": "string"
     },
@@ -59,10 +70,7 @@
     "spectrum_token": {
       "type": "string"
     },
-    "terraswap_factory": {
-      "type": "string"
-    },
-    "terraswap_router": {
+    "ust_pair_contract": {
       "type": "string"
     }
   },

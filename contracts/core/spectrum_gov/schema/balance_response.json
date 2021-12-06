@@ -44,16 +44,19 @@
     "BalancePoolInfo": {
       "type": "object",
       "required": [
-        "aust_index",
         "balance",
         "days",
-        "pending_aust",
         "share",
         "unlock"
       ],
       "properties": {
         "aust_index": {
-          "$ref": "#/definitions/Decimal"
+          "default": "0",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Decimal"
+            }
+          ]
         },
         "balance": {
           "$ref": "#/definitions/Uint128"
@@ -64,7 +67,12 @@
           "minimum": 0.0
         },
         "pending_aust": {
-          "$ref": "#/definitions/Uint128"
+          "default": "0",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Uint128"
+            }
+          ]
         },
         "share": {
           "$ref": "#/definitions/Uint128"
