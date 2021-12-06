@@ -18,7 +18,6 @@ use nexus_token::staking::StakerInfoResponse as NexusStakerInfoResponse;
 use spectrum_protocol::gov::BalanceResponse as SpecBalanceResponse;
 
 const NASSET_STAKING: &str = "nasset_staking";
-const PSI_TOKEN: &str = "psi_token";
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.

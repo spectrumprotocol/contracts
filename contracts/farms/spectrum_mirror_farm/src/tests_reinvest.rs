@@ -345,7 +345,7 @@ fn test_reinvest_mir(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
         .load(asset_token_raw.as_slice())
         .unwrap();
 
-    assert_eq!(Uint128::from(1_132_243u128), pool_info.reinvest_allowance);
+    assert_eq!(Uint128::from(1_127_364u128), pool_info.reinvest_allowance);
 
     assert_eq!(
         res.messages
@@ -362,20 +362,17 @@ fn test_reinvest_mir(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
                         max_spread: None,
                         belief_price: None,
                         to: None,
-                    })
-                    .unwrap()
-                })
-                .unwrap(),
+                    }).unwrap()
+                }).unwrap(),
                 funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: MIR_TOKEN.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
                     spender: "pair0000".to_string(),
-                    amount: Uint128::from(48_867_757u128),
+                    amount: Uint128::from(48_872_636u128),
                     expires: None,
-                })
-                .unwrap(),
+                }).unwrap(),
                 funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
@@ -386,7 +383,7 @@ fn test_reinvest_mir(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
                             info: AssetInfo::Token {
                                 contract_addr: MIR_TOKEN.to_string(),
                             },
-                            amount: Uint128::from(48_867_757u128),
+                            amount: Uint128::from(48_872_636u128),
                         },
                         Asset {
                             info: AssetInfo::NativeToken {
@@ -397,8 +394,7 @@ fn test_reinvest_mir(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
                     ],
                     slippage_tolerance: None,
                     receiver: None
-                })
-                .unwrap(),
+                }).unwrap(),
                 funds: vec![Coin {
                     denom: "uusd".to_string(),
                     amount: Uint128::from(48_867_757u128),
@@ -408,8 +404,7 @@ fn test_reinvest_mir(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
                 contract_addr: env.contract.address.to_string(),
                 msg: to_binary(&ExecuteMsg::stake {
                     asset_token: MIR_TOKEN.to_string(),
-                })
-                .unwrap(),
+                }).unwrap(),
                 funds: vec![],
             }),
         ]
