@@ -26,6 +26,8 @@ const TEST_CONTROLLER: &str = "controller";
 const MIR_LP: &str = "mir_lp";
 const SPY_TOKEN: &str = "spy_token";
 const SPY_LP: &str = "spy_lp";
+const ANC_MARKET: &str = "anc_market";
+const AUST_TOKEN: &str = "aust_token";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfoResponse {
@@ -112,6 +114,8 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         platform_fee: Decimal::zero(),
         controller_fee: Decimal::zero(),
         deposit_fee: Decimal::zero(),
+        anchor_market: ANC_MARKET.to_string(),
+        aust_token: AUST_TOKEN.to_string(),
     };
 
     // success instantiate
@@ -134,7 +138,6 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
             total_weight: 0u32,
             spec_share_index: Decimal::zero(),
             earning: Uint128::zero(),
-            earning_spec: Uint128::zero(),
         }
     );
 

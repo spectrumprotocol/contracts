@@ -18,7 +18,6 @@ const SPEC_GOV: &str = "SPEC_GOV";
 const SPEC_TOKEN: &str = "spec_token";
 const ORION_TOKEN: &str = "orion_token";
 const ORION_STAKING: &str = "orion_staking";
-const TERRA_SWAP: &str = "terra_swap";
 const TEST_CREATOR: &str = "creator";
 const USER1: &str = "user1";
 const USER2: &str = "user2";
@@ -26,6 +25,9 @@ const ORION_LP: &str = "orion_lp";
 const ORION_GOV: &str = "orion_gov";
 const SPY_TOKEN: &str = "spy_token";
 const SPY_LP: &str = "spy_lp";
+const ANC_MARKET: &str = "anc_market";
+const AUST_TOKEN: &str = "aust_token";
+const ORION_POOL: &str = "orion_pool";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfoResponse {
@@ -73,7 +75,6 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         orion_token: ORION_TOKEN.to_string(),
         orion_staking: ORION_STAKING.to_string(),
         orion_gov: ORION_GOV.to_string(),
-        terraswap_factory: TERRA_SWAP.to_string(),
         platform: TEST_CREATOR.to_string(),
         controller: TEST_CREATOR.to_string(),
         base_denom: "uusd".to_string(),
@@ -81,6 +82,9 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         platform_fee: Decimal::zero(),
         controller_fee: Decimal::zero(),
         deposit_fee: Decimal::zero(),
+        anchor_market: ANC_MARKET.to_string(),
+        aust_token: AUST_TOKEN.to_string(),
+        pair_contract: ORION_POOL.to_string(),
     };
 
     // success init
@@ -103,7 +107,6 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
             total_weight: 0u32,
             spec_share_index: Decimal::zero(),
             earning: Uint128::zero(),
-            earning_spec: Uint128::zero(),
         }
     );
 
@@ -168,7 +171,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
                 total_stake_bond_amount: Uint128::zero(),
                 total_stake_bond_share: Uint128::zero(),
                 total_auto_bond_share: Uint128::zero(),
-                reinvest_allowance: Uint128::zero(),
             }]
         }
     );
@@ -218,6 +220,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         .unwrap();
         deposit_farm_share(
             deps_ref,
+            &env,
             &mut state,
             &mut pool_info,
             &config,
@@ -398,6 +401,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         .unwrap();
         deposit_farm_share(
             deps_ref,
+            &env,
             &mut state,
             &mut pool_info,
             &config,

@@ -85,7 +85,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         deposit_fee: Decimal::zero(),
         anchor_market: ANC_MARKET.to_string(),
         aust_token: AUST_TOKEN.to_string(),
-        pair_contract: PAIR_CONTRACT.to_string()
+        pair_contract: PAIR_CONTRACT.to_string(),
     };
 
     // success init

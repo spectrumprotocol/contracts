@@ -17,7 +17,6 @@ use anchor_token::staking::StakerInfoResponse as AnchorStakerInfoResponse;
 use spectrum_protocol::gov::BalanceResponse as SpecBalanceResponse;
 
 const ANC_STAKING: &str = "anc_staking";
-const ANC_TOKEN: &str = "anc_token";
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
@@ -245,19 +244,19 @@ impl WasmMockQuerier {
                         }
                     }
                     MockQueryMsg::Pool {} => {
+                        let pair_info = self.terraswap_factory_querier.pairs.iter()
+                            .map(|it| it.1)
+                            .find(|pair| &pair.contract_addr == contract_addr)
+                            .unwrap();
                         SystemResult::Ok(ContractResult::from(to_binary(
                             &PoolResponse {
                                 assets: [
                                     Asset {
-                                        info: AssetInfo::NativeToken {
-                                            denom: "uusd".to_string(),
-                                        },
+                                        info: pair_info.asset_infos[0].clone(),
                                         amount: Uint128::from(1_000_000_000000u128),
                                     },
                                     Asset {
-                                        info: AssetInfo::Token {
-                                            contract_addr: ANC_TOKEN.to_string(),
-                                        },
+                                        info: pair_info.asset_infos[1].clone(),
                                         amount: Uint128::from(1_000_000_000000u128),
                                     }
                                 ],

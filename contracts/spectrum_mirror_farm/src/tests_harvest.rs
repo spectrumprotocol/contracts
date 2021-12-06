@@ -36,6 +36,8 @@ const SPEC_LP: &str = "spec_lp";
 const SPEC_PAIR_INFO: &str = "spec_pair_info";
 const USER1: &str = "user1";
 const USER2: &str = "user2";
+const ANC_MARKET: &str = "anc_market";
+const AUST_TOKEN: &str = "aust_token";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfoResponse {
@@ -120,6 +122,8 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         platform_fee: Decimal::percent(1u64),
         controller_fee: Decimal::percent(1u64),
         deposit_fee: Decimal::zero(),
+        anchor_market: ANC_MARKET.to_string(),
+        aust_token: AUST_TOKEN.to_string(),
     };
 
     // success instantiate
@@ -142,7 +146,6 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
             total_weight: 0u32,
             spec_share_index: Decimal::zero(),
             earning: Uint128::zero(),
-            earning_spec: Uint128::zero(),
         }
     );
 
@@ -252,6 +255,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let config = read_config(deps.as_ref().storage).unwrap();
     deposit_farm_share(
         deps.as_mut(),
+        &env,
         &config,
         vec![(MIR_TOKEN.to_string(), Uint128::from(1000u128))],
     )
@@ -399,6 +403,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
 
     deposit_farm_share(
         deps.as_mut(),
+        &env,
         &config,
         vec![
             (MIR_TOKEN.to_string(), Uint128::from(500u128)),
@@ -484,6 +489,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
 
     deposit_farm_share(
         deps.as_mut(),
+        &env,
         &config,
         vec![
             (MIR_TOKEN.to_string(), Uint128::from(4000u128)),

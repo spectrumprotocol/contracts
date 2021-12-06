@@ -31,6 +31,10 @@ const SPY_LP: &str = "spy_lp";
 const TERRASWAP_ROUTER: &str = "terraswap_router";
 const SPEC_PLATFORM: &str = "spec_platform";
 const TEST_CONTROLLER: &str = "controller";
+const ANC_MARKET: &str = "anc_market";
+const AUST_TOKEN: &str = "aust_token";
+const PAIR_CONTRACT: &str = "pair_contract";
+const UST_PAIR_CONTRACT: &str = "ust_pair_contract";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfoResponse {
@@ -73,8 +77,6 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
     let info = mock_info(TEST_CREATOR, &[]);
     let mut config = ConfigInfo {
         owner: TEST_CREATOR.to_string(),
-        terraswap_factory: TERRA_SWAP.to_string(),
-        terraswap_router: TERRASWAP_ROUTER.to_string(),
         spectrum_token: SPEC_TOKEN.to_string(),
         spectrum_gov: SPEC_GOV.to_string(),
         nexus_token: NEXUS_TOKEN.to_string(),
@@ -87,6 +89,10 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         platform_fee: Decimal::zero(),
         controller_fee: Decimal::zero(),
         deposit_fee: Decimal::zero(),
+        anchor_market: ANC_MARKET.to_string(),
+        aust_token: AUST_TOKEN.to_string(),
+        pair_contract: PAIR_CONTRACT.to_string(),
+        ust_pair_contract: UST_PAIR_CONTRACT.to_string(),
     };
 
     // success init
@@ -109,7 +115,6 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
             total_weight: 0u32,
             spec_share_index: Decimal::zero(),
             earning: Uint128::zero(),
-            earning_spec: Uint128::zero(),
         }
     );
 
@@ -223,6 +228,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         .unwrap();
     deposit_farm_share(
         deps_ref,
+        &env,
         &mut state,
         &mut pool_info,
         &config,
@@ -427,6 +433,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         .unwrap();
     deposit_farm_share(
         deps_ref,
+        &env,
         &mut state,
         &mut pool_info,
         &config,

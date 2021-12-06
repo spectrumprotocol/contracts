@@ -11,7 +11,7 @@ use cosmwasm_std::{
 use std::collections::HashMap;
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
-use terraswap::pair::SimulationResponse;
+use terraswap::pair::{PoolResponse, SimulationResponse};
 
 
 use terraworld_token::staking::{StakerInfoResponse as TerraworldStakerInfoResponse};
@@ -148,6 +148,7 @@ enum MockQueryMsg {
     Simulation {
         offer_asset: Asset,
     },
+    Pool {},
 }
 
 impl WasmMockQuerier {
@@ -227,6 +228,27 @@ impl WasmMockQuerier {
                             ))),
                             Err(_e) => SystemResult::Err(SystemError::Unknown {}),
                         }
+                    }
+                    MockQueryMsg::Pool {} => {
+                        let pair_info = self.terraswap_factory_querier.pairs.iter()
+                            .map(|it| it.1)
+                            .find(|pair| &pair.contract_addr == contract_addr)
+                            .unwrap();
+                        SystemResult::Ok(ContractResult::from(to_binary(
+                            &PoolResponse {
+                                assets: [
+                                    Asset {
+                                        info: pair_info.asset_infos[0].clone(),
+                                        amount: Uint128::from(1_000_000_000000u128),
+                                    },
+                                    Asset {
+                                        info: pair_info.asset_infos[1].clone(),
+                                        amount: Uint128::from(1_000_000_000000u128),
+                                    }
+                                ],
+                                total_share: Uint128::from(1_000_000_000000u128),
+                            }
+                        )))
                     }
                 }
             }
