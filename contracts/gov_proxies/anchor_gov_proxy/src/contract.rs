@@ -78,8 +78,7 @@ fn receive_cw20(
             deps,
             env,
             info,
-            cw20_msg.sender,
-            cw20_msg.amount,
+            cw20_msg,
         ),
         Err(_) => Err(StdError::generic_err("data should be given")),
     }

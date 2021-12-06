@@ -1,5 +1,5 @@
 use cosmwasm_std::{attr, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, to_binary, Uint128, WasmMsg};
-use cw20::Cw20ExecuteMsg;
+use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use spectrum_protocol::gov_proxy::StakerInfoGovResponse;
 use crate::querier::query_anchor_gov;
 use crate::state::{Config, read_config, read_state, State, state_store};
@@ -25,17 +25,16 @@ pub fn stake(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    _sender: String,
-    amount: Uint128
+    cw20_msg: Cw20ReceiveMsg
 ) -> StdResult<Response> {
     let config: Config = read_config(deps.storage)?;
-    if config.farm_contract.unwrap() != deps.api.addr_canonicalize(info.sender.as_str())? {
+    if config.farm_contract.unwrap() != deps.api.addr_canonicalize(cw20_msg.sender.as_str())? || config.farm_token != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(StdError::generic_err("unauthorized"));
     }
     let anchor_token = deps.api.addr_humanize(&config.farm_token)?;
     let anchor_gov = deps.api.addr_humanize(&config.farm_gov)?;
     let mut state: State = read_state(deps.storage)?;
-    state.total_deposit = state.total_deposit + amount;
+    state.total_deposit = state.total_deposit + cw20_msg.amount;
     state_store(deps.storage).save(&state)?;
 
     Ok(Response::new()
@@ -45,14 +44,15 @@ pub fn stake(
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 contract: anchor_gov.to_string(),
                 msg: to_binary(&AnchorGovCw20HookMsg::StakeVotingTokens {})?,
-                amount
+                amount: cw20_msg.amount
             })?,
         })])
         .add_attributes(vec![
             attr("action", "stake"),
+            attr("sender", info.sender.to_string()),
             attr("contract_addr", anchor_gov),
             attr("token", anchor_token),
-            attr("amount", amount),
+            attr("amount", cw20_msg.amount),
         ]))
 }
 
@@ -98,6 +98,7 @@ pub fn unstake(
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "unstake"),
+        attr("sender", info.sender.to_string()),
         attr("contract_addr", anchor_gov),
         attr("token", anchor_token),
         attr("amount", amount),
