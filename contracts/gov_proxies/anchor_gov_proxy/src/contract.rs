@@ -16,16 +16,11 @@ use spectrum_protocol::gov_proxy::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, QueryMsg, StateInfo,
 };
 use spectrum_protocol::wallet::ExecuteMsg::unstake;
-use crate::proxy::stake;
-
-/// (we require 0-1)
-fn validate_percentage(value: Decimal, field: &str) -> StdResult<()> {
-    if value > Decimal::one() {
-        Err(StdError::generic_err(field.to_string() + " must be 0 to 1"))
-    } else {
-        Ok(())
-    }
-}
+use crate::proxy::{
+    stake, unstake
+};
+use crate::querier::query_anchor_gov;
+use crate::state::read_state;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -65,7 +60,12 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             owner,
             farm_contract,
         ),
-        // ExecuteMsg::Unstake { amount} => unstake () TODO
+        ExecuteMsg::Unstake { amount} => unstake (
+            deps,
+            env,
+            info,
+            amount
+        )
     }
 }
 
@@ -149,10 +149,29 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
 
 fn query_state(deps: Deps) -> StdResult<StateInfo> {
     let state = read_state(deps.storage)?;
+    let config: Config = read_config(deps.storage)?;
+    let gov_response = query_anchor_gov(deps, &config.farm_gov, env.contract.address.to_string())?;
+
+    // withdraw > deposit
+    // deposit 10000
+    // withdraw 11000
+    // available 1000
+    // gain = 11000 - 10000 + 1000 = withdraw - deposit + available = 2000
+    //
+    // deposit > withdraw
+    // deposit 10000
+    // withdraw 8000
+    // available 3000
+    // gain = 8000 + 3000 - 10000 = withdraw + available - deposit = 1000
+    let token_gain = if state.total_withdraw > state.total_deposit {
+        state.total_withdraw.checked_sub(state.total_deposit) + gov_response.balance
+    } else {
+        (state.total_withdraw + gov_response.balance).checked_sub(state.total_deposit)?
+    };
     Ok(StateInfo {
         total_deposit: state.total_deposit,
         total_withdraw: state.total_withdraw,
-        token_gain: Default::default()
+        token_gain
     })
 }
 

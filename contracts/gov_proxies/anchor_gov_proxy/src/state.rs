@@ -1,4 +1,4 @@
-use cosmwasm_storage::{singleton_read, singleton};
+use cosmwasm_storage::{singleton_read, singleton, Singleton};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -29,8 +29,8 @@ pub struct State {
     pub total_withdraw: Uint128,
 }
 
-pub fn store_state(storage: &mut dyn Storage, state: &State) -> StdResult<()> {
-    singleton(storage, KEY_STATE).save(state)
+pub fn state_store(storage: &mut dyn Storage) -> Singleton<State> {
+    singleton(storage, KEY_STATE)
 }
 
 pub fn read_state(storage: &dyn Storage) -> StdResult<State> {
