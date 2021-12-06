@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "packages/*",
-    "contracts/core/*",
+    "contracts/spectrum_*",
     "contracts/farms/*"
 ]
 
