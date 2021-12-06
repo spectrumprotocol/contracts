@@ -1,5 +1,4 @@
-use cosmwasm_std::{to_binary, CanonicalAddr, Deps, QueryRequest, StdResult, WasmQuery, Uint128, Addr};
-
+use cosmwasm_std::{to_binary, CanonicalAddr, Deps, QueryRequest, StdResult, WasmQuery, Addr};
 use anchor_token::gov::{QueryMsg, StakerResponse};
 
 pub fn query_anchor_gov(

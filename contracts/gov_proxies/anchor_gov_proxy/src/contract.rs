@@ -1,8 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Binary, CanonicalAddr, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Order, Response, StdError, StdResult, Uint128,
+    attr, from_binary, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
 };
 
 use crate::{
@@ -15,7 +14,6 @@ use cw20::Cw20ReceiveMsg;
 use spectrum_protocol::gov_proxy::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, QueryMsg, StateInfo,
 };
-use spectrum_protocol::wallet::ExecuteMsg::unstake;
 use crate::proxy::{
     stake, unstake
 };
@@ -123,7 +121,7 @@ pub fn update_config(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
-        QueryMsg::State {} => to_binary(&query_state(deps)?),
+        QueryMsg::State {} => to_binary(&query_state(deps, env)?),
         QueryMsg::StakerInfo {
             staker_addr,
         } => to_binary(&query_staker_info_gov(deps, env, staker_addr)?)
@@ -147,10 +145,13 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
     Ok(resp)
 }
 
-fn query_state(deps: Deps) -> StdResult<StateInfo> {
+fn query_state(
+    deps: Deps,
+    env: Env
+) -> StdResult<StateInfo> {
     let state = read_state(deps.storage)?;
     let config: Config = read_config(deps.storage)?;
-    let gov_response = query_anchor_gov(deps, &config.farm_gov, env.contract.address.to_string())?;
+    let gov_response = query_anchor_gov(deps, &config.farm_gov, &env.contract.address)?;
 
     // withdraw > deposit
     // deposit 10000
@@ -164,7 +165,7 @@ fn query_state(deps: Deps) -> StdResult<StateInfo> {
     // available 3000
     // gain = 8000 + 3000 - 10000 = withdraw + available - deposit = 1000
     let token_gain = if state.total_withdraw > state.total_deposit {
-        state.total_withdraw.checked_sub(state.total_deposit) + gov_response.balance
+        state.total_withdraw.checked_sub(state.total_deposit)? + gov_response.balance
     } else {
         (state.total_withdraw + gov_response.balance).checked_sub(state.total_deposit)?
     };

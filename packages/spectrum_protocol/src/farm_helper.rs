@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 use cosmwasm_std::{QuerierWrapper, StdError, StdResult, Uint128};
 use terraswap::asset::{Asset, AssetInfo};
 use terraswap::pair::PoolResponse;
-use astroport::asset::{Asset as AstroportAsset, AssetInfo as AstroportAssetInfo};
+use astroport::asset::{Asset as AstroportAsset};
 use astroport::pair::{PoolResponse as AstroportPoolResponse};
 
 pub fn compute_deposit_time(

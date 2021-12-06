@@ -2,7 +2,7 @@ use cosmwasm_std::{attr, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, S
 use cw20::Cw20ExecuteMsg;
 use spectrum_protocol::gov_proxy::StakerInfoGovResponse;
 use crate::querier::query_anchor_gov;
-use crate::state::{Config, read_config, read_state, State, store_state};
+use crate::state::{Config, read_config, read_state, State, state_store};
 use anchor_token::gov::{
     Cw20HookMsg as AnchorGovCw20HookMsg,
     ExecuteMsg as AnchorGovExecuteMsg
@@ -10,11 +10,11 @@ use anchor_token::gov::{
 
 pub fn query_staker_info_gov(
     deps: Deps,
-    _env: Env,
+    env: Env,
     _staker_addr: String
 ) -> StdResult<StakerInfoGovResponse> {
     let config: Config = read_config(deps.storage)?;
-    let gov_response = query_anchor_gov(deps, &config.farm_gov, env.contract.address.to_string())?;
+    let gov_response = query_anchor_gov(deps, &config.farm_gov, &env.contract.address)?;
     let proxy_response = StakerInfoGovResponse {
         bond_amount: gov_response.balance
     };
@@ -36,7 +36,7 @@ pub fn stake(
     let anchor_gov = deps.api.addr_humanize(&config.farm_gov)?;
     let mut state: State = read_state(deps.storage)?;
     state.total_deposit = state.total_deposit + amount;
-    store_state(deps.storage).save(&state)?;
+    state_store(deps.storage).save(&state)?;
 
     Ok(Response::new()
         .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
@@ -58,7 +58,7 @@ pub fn stake(
 
 pub fn unstake(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     amount: Option<Uint128>
 ) -> StdResult<Response> {
@@ -72,12 +72,12 @@ pub fn unstake(
     let amount = if amount.is_some(){
         amount.unwrap()
     } else {
-        query_anchor_gov(deps.as_ref(), &config.farm_gov, env.contract.address.to_string())?.balance;
+        query_anchor_gov(deps.as_ref(), &config.farm_gov, &env.contract.address)?.balance
     };
 
     let mut state: State = read_state(deps.storage)?;
     state.total_withdraw = state.total_withdraw + amount;
-    store_state(deps.storage).save(&state)?;
+    state_store(deps.storage).save(&state)?;
 
     let mut messages: Vec<CosmosMsg> = vec![];
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
