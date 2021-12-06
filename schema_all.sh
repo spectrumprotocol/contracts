@@ -1,5 +1,5 @@
 cd contracts
-dirs=($(find . -maxdepth 1 -type d \( ! -name . \)))
+dirs=($(find . -maxdepth 2 -type d \( ! -name . \)))
 for dir in "${dirs[@]}"; do
   cd $dir
   cargo schema

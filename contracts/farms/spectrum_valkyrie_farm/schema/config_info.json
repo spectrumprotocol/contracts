@@ -3,22 +3,30 @@
   "title": "ConfigInfo",
   "type": "object",
   "required": [
+    "anchor_market",
+    "aust_token",
     "base_denom",
     "community_fee",
     "controller",
     "controller_fee",
     "deposit_fee",
     "owner",
+    "pair_contract",
     "platform",
     "platform_fee",
     "spectrum_gov",
     "spectrum_token",
-    "terraswap_factory",
     "valkyrie_gov",
     "valkyrie_staking",
     "valkyrie_token"
   ],
   "properties": {
+    "anchor_market": {
+      "type": "string"
+    },
+    "aust_token": {
+      "type": "string"
+    },
     "base_denom": {
       "type": "string"
     },
@@ -37,6 +45,9 @@
     "owner": {
       "type": "string"
     },
+    "pair_contract": {
+      "type": "string"
+    },
     "platform": {
       "type": "string"
     },
@@ -47,9 +58,6 @@
       "type": "string"
     },
     "spectrum_token": {
-      "type": "string"
-    },
-    "terraswap_factory": {
       "type": "string"
     },
     "valkyrie_gov": {

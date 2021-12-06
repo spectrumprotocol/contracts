@@ -25,7 +25,6 @@
         "auto_spec_share_index",
         "farm_share",
         "farm_share_index",
-        "reinvest_allowance",
         "stake_spec_share_index",
         "staking_token",
         "state_spec_share_index",
@@ -46,9 +45,6 @@
         },
         "farm_share_index": {
           "$ref": "#/definitions/Decimal"
-        },
-        "reinvest_allowance": {
-          "$ref": "#/definitions/Uint128"
         },
         "stake_spec_share_index": {
           "$ref": "#/definitions/Decimal"
