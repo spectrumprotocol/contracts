@@ -697,12 +697,11 @@ dependencies = [
  "anchor-token",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-storage-plus",
- "cw2",
+ "cosmwasm-storage",
  "cw20",
  "schemars",
  "serde",
- "thiserror",
+ "spectrum-protocol",
 ]
 
 [[package]]

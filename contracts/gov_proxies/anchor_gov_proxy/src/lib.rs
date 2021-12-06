@@ -1,3 +1,4 @@
 pub mod contract;
-pub mod error;
+pub mod querier;
+pub mod proxy;
 pub mod state;

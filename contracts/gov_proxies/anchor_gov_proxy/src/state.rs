@@ -1,16 +1,38 @@
+use cosmwasm_storage::{singleton_read, singleton};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::Addr;
-use cw_storage_plus::Item;
+use cosmwasm_std::{CanonicalAddr, Storage, StdResult, Uint128};
 
+static KEY_CONFIG: &[u8] = b"config";
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    pub generator_contract_addr: Addr,
-    pub pair_addr: Addr,
-    pub lp_token_addr: Addr,
-    pub reward_contract_addr: Addr,
-    pub reward_token_addr: Addr,
+    pub owner: CanonicalAddr,
+    pub farm_contract: Option<CanonicalAddr>, // Spectrum Anchor farm address whitelist, only whitelist can execute Stake, Unstake
+    pub farm_token: CanonicalAddr, // ANC token address
+    pub farm_gov: CanonicalAddr, // ANC gov address
+    pub spectrum_gov: CanonicalAddr
 }
 
-pub const CONFIG: Item<Config> = Item::new("config");
+pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {
+    singleton(storage, KEY_CONFIG).save(config)
+}
+
+pub fn read_config(storage: &dyn Storage) -> StdResult<Config> {
+    singleton_read(storage, KEY_CONFIG).load()
+}
+
+static KEY_STATE: &[u8] = b"state";
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct State {
+    pub total_deposit: Uint128,
+    pub total_withdraw: Uint128,
+}
+
+pub fn store_state(storage: &mut dyn Storage, state: &State) -> StdResult<()> {
+    singleton(storage, KEY_STATE).save(state)
+}
+
+pub fn read_state(storage: &dyn Storage) -> StdResult<State> {
+    singleton_read(storage, KEY_STATE).load()
+}
