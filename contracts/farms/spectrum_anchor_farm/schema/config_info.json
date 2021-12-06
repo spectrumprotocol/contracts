@@ -4,28 +4,36 @@
   "type": "object",
   "required": [
     "anchor_gov",
+    "anchor_market",
     "anchor_staking",
     "anchor_token",
+    "aust_token",
     "base_denom",
     "community_fee",
     "controller",
     "controller_fee",
     "deposit_fee",
     "owner",
+    "pair_contract",
     "platform",
     "platform_fee",
     "spectrum_gov",
-    "spectrum_token",
-    "terraswap_factory"
+    "spectrum_token"
   ],
   "properties": {
     "anchor_gov": {
+      "type": "string"
+    },
+    "anchor_market": {
       "type": "string"
     },
     "anchor_staking": {
       "type": "string"
     },
     "anchor_token": {
+      "type": "string"
+    },
+    "aust_token": {
       "type": "string"
     },
     "base_denom": {
@@ -46,6 +54,9 @@
     "owner": {
       "type": "string"
     },
+    "pair_contract": {
+      "type": "string"
+    },
     "platform": {
       "type": "string"
     },
@@ -56,9 +67,6 @@
       "type": "string"
     },
     "spectrum_token": {
-      "type": "string"
-    },
-    "terraswap_factory": {
       "type": "string"
     }
   },
