@@ -20,7 +20,6 @@ use std::fmt::Debug;
 
 const SPEC_GOV: &str = "SPEC_GOV";
 const SPEC_TOKEN: &str = "spec_token";
-const GOV_PROXY: &str = "gov_proxy";
 const FARM_TOKEN: &str = "farm_token";
 const ASTROPORT_GENERATOR: &str = "astroport_generator";
 const TEST_CREATOR: &str = "creator";
@@ -83,7 +82,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         owner: TEST_CREATOR.to_string(),
         spectrum_gov: SPEC_GOV.to_string(),
         spectrum_token: SPEC_TOKEN.to_string(),
-        gov_proxy: Some(GOV_PROXY.to_string()),
+        gov_proxy: None,
         farm_token: FARM_TOKEN.to_string(),
         astroport_generator: ASTROPORT_GENERATOR.to_string(),
         platform: TEST_CREATOR.to_string(),
@@ -211,7 +210,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // bond err
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
-    let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
+    let msg_fail = ExecuteMsg::receive(Cw20ReceiveMsg {
         sender: USER1.to_string(),
         amount: Uint128::from(10000u128),
         msg: to_binary(&Cw20HookMsg::bond {
@@ -221,12 +220,26 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         })
         .unwrap(),
     });
-    let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
+    let res = execute(deps.as_mut(), env.clone(), info, msg_fail.clone());
     assert!(res.is_err());
 
-    // bond success user1 1000 ANC-LP
+    // bond fail due to auto-stake is disabled, user1 1000 ANC-LP
     let info = mock_info(ANC_LP, &[]);
-    let res = execute(deps.as_mut(), env.clone(), info, msg);
+    let res = execute(deps.as_mut(), env.clone(), info, msg_fail);
+    assert!(res.is_err());
+
+    let msg_success = ExecuteMsg::receive(Cw20ReceiveMsg {
+        sender: USER1.to_string(),
+        amount: Uint128::from(10000u128),
+        msg: to_binary(&Cw20HookMsg::bond {
+            staker_addr: None,
+            asset_token: FARM_TOKEN.to_string(),
+            compound_rate: Some(Decimal::percent(100)),
+        })
+            .unwrap(),
+    });
+    let info = mock_info(ANC_LP, &[]);
+    let res = execute(deps.as_mut(), env.clone(), info, msg_success);
     assert!(res.is_ok());
 
     let deps_ref = deps.as_ref();
@@ -244,15 +257,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         Uint128::from(500u128),
     )
     .unwrap();
-    deposit_farm2_share(
-        deps_ref,
-        &env,
-        &mut state,
-        &mut pool_info,
-        &config,
-        Uint128::from(500u128),
-    )
-    .unwrap();
     state_store(deps.as_mut().storage).save(&state).unwrap();
     pool_info_store(deps.as_mut().storage)
         .save(config.farm_token.as_slice(), &pool_info)
@@ -261,10 +265,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         (
             &ASTROPORT_GENERATOR.to_string(),
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(10000u128))],
-        ),
-        (
-            &GOV_PROXY.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(1000u128))],
         ),
         (
             &XASTRO_PROXY.to_string(),
@@ -286,21 +286,21 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         res.reward_infos,
         vec![RewardInfoResponseItem {
             asset_token: FARM_TOKEN.to_string(),
-            pending_farm_reward: Uint128::from(1000u128),
+            pending_farm_reward: Uint128::zero(),
             pending_farm2_reward: Uint128::from(1000u128),
             pending_spec_reward: Uint128::from(2700u128),
             deposit_amount: Option::from(Uint128::from(10000u128)),
             bond_amount: Uint128::from(10000u128),
-            auto_bond_amount: Uint128::from(6000u128),
-            stake_bond_amount: Uint128::from(4000u128),
+            auto_bond_amount: Uint128::from(10000u128),
+            stake_bond_amount: Uint128::zero(),
             farm_share_index: Decimal::zero(),
             auto_spec_share_index: Decimal::zero(),
             stake_spec_share_index: Decimal::zero(),
-            farm_share: Uint128::from(500u128),
-            farm2_share: Uint128::from(500u128),
+            farm_share: Uint128::from(500u128), // actual 0 why?
+            farm2_share: Uint128::zero(),
             spec_share: Uint128::from(2700u128),
-            auto_bond_share: Uint128::from(6000u128),
-            stake_bond_share: Uint128::from(4000u128),
+            auto_bond_share: Uint128::from(10000u128),
+            stake_bond_share: Uint128::zero(),
             deposit_time: Some(1571797419)
         }]
     );
@@ -385,24 +385,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                     amount: Uint128::from(1000u128),
                 })
                     .unwrap(),
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: GOV_PROXY.to_string(),
-                funds: vec![],
-                msg: to_binary(&GovProxyExecuteMsg::Unstake {
-                    amount: Some(Uint128::from(1000u128)),
-                })
-                    .unwrap(),
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: FARM_TOKEN.to_string(),
-                funds: vec![],
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: USER1.to_string(),
-                    amount: Uint128::from(1000u128),
-                })
-                .unwrap(),
-            }),
+            })
         ]
     );
 
@@ -410,10 +393,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         (
             &ASTROPORT_GENERATOR.to_string(),
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(7000u128))],
-        ),
-        (
-            &GOV_PROXY.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(0u128))],
         ),
         (
             &XASTRO_PROXY.to_string(),
@@ -499,10 +478,6 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         (
             &ASTROPORT_GENERATOR.to_string(),
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(12000u128))],
-        ),
-        (
-            &GOV_PROXY.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(5000u128))],
         ),
         (
             &XASTRO_PROXY.to_string(),
