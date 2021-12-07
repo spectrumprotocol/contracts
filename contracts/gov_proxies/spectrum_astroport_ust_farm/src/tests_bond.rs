@@ -1,4 +1,4 @@
-use crate::bond::deposit_farm_share;
+use crate::bond::{deposit_farm2_share, deposit_farm_share};
 use crate::contract::{execute, instantiate, query};
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
 use crate::state::{pool_info_read, pool_info_store, read_config, read_state, state_store};
@@ -246,6 +246,15 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         Uint128::from(500u128),
     )
     .unwrap();
+    deposit_farm2_share(
+        deps_ref,
+        &env,
+        &mut state,
+        &mut pool_info,
+        &config,
+        Uint128::from(500u128),
+    )
+    .unwrap();
     state_store(deps.as_mut().storage).save(&state).unwrap();
     pool_info_store(deps.as_mut().storage)
         .save(config.farm_token.as_slice(), &pool_info)
@@ -257,11 +266,11 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         ),
         (
             &GOV_PROXY.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(1000u128))], //TODO this should not work
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(1000u128))],
         ),
         (
             &XASTRO_PROXY.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(1000u128))], //TODO this should not work
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(1000u128))],
         ),
         (
             &SPEC_GOV.to_string(),
@@ -290,12 +299,12 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             auto_spec_share_index: Decimal::zero(),
             stake_spec_share_index: Decimal::zero(),
             farm_share: Uint128::from(500u128),
-            farm2_share: Default::default(),
+            farm2_share: Uint128::from(500u128),
             spec_share: Uint128::from(2700u128),
             auto_bond_share: Uint128::from(6000u128),
             stake_bond_share: Uint128::from(4000u128),
-            deposit_time: None
-        },]
+            deposit_time: Some(1571797419)
+        }]
     );
 
     // unbond 3000 ANC-LP
@@ -364,12 +373,29 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 .unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: GOV_PROXY.to_string(),
+                contract_addr: XASTRO_PROXY.to_string(),
                 funds: vec![],
                 msg: to_binary(&GovProxyExecuteMsg::Unstake {
                     amount: Some(Uint128::from(1000u128)),
                 })
                 .unwrap(),
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: ASTRO_TOKEN.to_string(),
+                funds: vec![],
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: USER1.to_string(),
+                    amount: Uint128::from(1000u128),
+                })
+                    .unwrap(),
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: GOV_PROXY.to_string(),
+                funds: vec![],
+                msg: to_binary(&GovProxyExecuteMsg::Unstake {
+                    amount: Some(Uint128::from(1000u128)),
+                })
+                    .unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: FARM_TOKEN.to_string(),
@@ -423,7 +449,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             pending_farm_reward: Uint128::from(0u128),
             pending_farm2_reward: Uint128::from(0u128),
             pending_spec_reward: Uint128::from(0u128),
-            deposit_amount: None, //TODO
+            deposit_amount: Some(Uint128::from(7000u128)),
             bond_amount: Uint128::from(7000u128),
             auto_bond_amount: Uint128::from(4200u128),
             stake_bond_amount: Uint128::from(2800u128),
@@ -431,11 +457,11 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             auto_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
             stake_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
             farm_share: Uint128::from(0u128),
-            farm2_share: Default::default(),
+            farm2_share: Uint128::from(0u128),
             spec_share: Uint128::from(0u128),
             auto_bond_share: Uint128::from(4200u128),
             stake_bond_share: Uint128::from(2800u128),
-            deposit_time: None
+            deposit_time: Some(1571797419)
         },]
     );
 
@@ -482,6 +508,10 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(5000u128))],
         ),
         (
+            &XASTRO_PROXY.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(5000u128))],
+        ),
+        (
             &SPEC_GOV.to_string(),
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(1000u128))],
         ),
@@ -516,7 +546,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             pending_farm_reward: Uint128::from(1794u128),
             pending_farm2_reward: Default::default(),
             pending_spec_reward: Uint128::from(582u128),
-            deposit_amount: None,
+            deposit_amount: Some(Uint128::from(7000u128)),
             bond_amount: Uint128::from(7000u128),
             auto_bond_amount: Uint128::from(4200u128),
             stake_bond_amount: Uint128::from(2800u128),
@@ -528,7 +558,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             spec_share: Uint128::from(582u128),
             auto_bond_share: Uint128::from(4200u128),
             stake_bond_share: Uint128::from(2800u128),
-            deposit_time: None
+            deposit_time: Some(1571797419)
         },]
     );
 
@@ -544,7 +574,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             pending_farm_reward: Uint128::from(3205u128),
             pending_farm2_reward: Default::default(),
             pending_spec_reward: Uint128::from(416u128),
-            deposit_amount: None,
+            deposit_amount: Some(Uint128::from(5000u128)),
             bond_amount: Uint128::from(5000u128),
             auto_bond_amount: Uint128::from(0u128),
             stake_bond_amount: Uint128::from(5000u128),
@@ -556,8 +586,8 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             spec_share: Uint128::from(416u128),
             auto_bond_share: Uint128::from(0u128),
             stake_bond_share: Uint128::from(5000u128),
-            deposit_time: None
-        },]
+            deposit_time: Some(1571797419)
+        }]
     );
 }
 

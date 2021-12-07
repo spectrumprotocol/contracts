@@ -19,6 +19,8 @@ use astroport::generator::{
 use spectrum_protocol::gov::BalanceResponse as SpecBalanceResponse;
 
 const ANC_STAKING: &str = "anc_staking";
+const ASTROPORT_GENERATOR: &str = "astroport_generator";
+
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
@@ -143,11 +145,14 @@ enum MockQueryMsg {
     },
     Deposit {
         lp_token: Addr,
-        user: Addr 
+        user: Addr
     },
     PendingToken {
         lp_token: Addr,
-        user: Addr 
+        user: Addr
+    },
+    StakerInfo {
+        staker_addr: String,
     },
     Pair {
         asset_infos: [AssetInfo; 2],
@@ -204,8 +209,14 @@ impl WasmMockQuerier {
                             pending_on_proxy: Some(balance),
                         })))
                     }
+                    MockQueryMsg::StakerInfo { staker_addr } => {
+                        let balance = self.read_token_balance(contract_addr, staker_addr);
+                        SystemResult::Ok(ContractResult::from(to_binary(&StakerInfoGovResponse {
+                            bond_amount: balance
+                        })))
+                    }
                     MockQueryMsg::Deposit { lp_token, user } => {
-                        let contract_addr = &ANC_STAKING.to_string();
+                        let contract_addr = &ASTROPORT_GENERATOR.to_string();
                         let balance = self.read_token_balance(contract_addr, user.to_string());
                         SystemResult::Ok(ContractResult::from(to_binary(
                             &Uint128::from(balance)
