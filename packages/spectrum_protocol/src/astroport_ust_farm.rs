@@ -13,7 +13,6 @@ pub struct ConfigInfo {
     pub spectrum_token: String,
     pub spectrum_gov: String,
     pub farm_token: String,
-    pub farm_staking: String,
     pub gov_proxy: Option<String>,
     pub platform: String,
     pub controller: String,

@@ -291,10 +291,6 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
             .to_string(),
         spectrum_token: deps.api.addr_humanize(&config.spectrum_token)?.to_string(),
         farm_token: deps.api.addr_humanize(&config.farm_token)?.to_string(),
-        farm_staking: deps
-            .api
-            .addr_humanize(&config.astroport_generator)?
-            .to_string(),
         spectrum_gov: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
         gov_proxy: if let Some(gov_proxy) = config.gov_proxy {
             Some(deps.api.addr_humanize(&gov_proxy)?.to_string())

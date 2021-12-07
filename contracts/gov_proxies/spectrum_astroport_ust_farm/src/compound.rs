@@ -51,7 +51,7 @@ pub fn compound(
     let astro_token = deps.api.addr_humanize(&config.astro_token)?;
     let xastro_proxy = deps.api.addr_humanize(&config.xastro_proxy)?;
 
-    let gov_proxy = if let Some(gov_proxy) = config.gov_proxy {
+    let gov_proxy = if let Some(gov_proxy) = &config.gov_proxy {
         Some(deps.api.addr_humanize(&gov_proxy)?)
     } else {
         None
@@ -187,7 +187,7 @@ pub fn compound(
     // find ASTRO swap rate
     let astro_asset = Asset {
         info: AssetInfo::Token {
-            contract_addr: astro_token,
+            contract_addr: astro_token.clone(),
         },
         amount: total_astro_token_swap_amount,
     };
@@ -201,7 +201,7 @@ pub fn compound(
     // find farm token swap rate
     let farm_token_asset = Asset {
         info: AssetInfo::Token {
-            contract_addr: farm_token,
+            contract_addr: farm_token.clone(),
         },
         amount: total_farm_token_swap_amount,
     };
@@ -257,7 +257,7 @@ pub fn compound(
 
     if !total_farm_token_swap_amount.is_zero() {
         let swap_farm_token: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: farm_token.to_string(),
+            contract_addr: farm_token.clone().to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 contract: pair_contract.to_string(),
                 amount: total_farm_token_swap_amount,
@@ -274,7 +274,7 @@ pub fn compound(
 
     if !total_astro_token_swap_amount.is_zero() {
         let swap_astro_token: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: astro_token.to_string(),
+            contract_addr: astro_token.clone().to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 contract: astro_ust_pair_contract.to_string(),
                 amount: total_astro_token_swap_amount,

@@ -5,15 +5,17 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     from_binary, from_slice, to_binary, Coin, ContractResult, Decimal, OwnedDeps, Querier,
-    QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
+    QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery, Addr,
 };
 use std::collections::HashMap;
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
 use terraswap::pair::SimulationResponse;
 
-use anchor_token::gov::StakerResponse as AnchorStakerResponse;
-use anchor_token::staking::StakerInfoResponse as AnchorStakerInfoResponse;
+use spectrum_protocol::gov_proxy::{ExecuteMsg as GovProxyExecuteMsg, StakerInfoGovResponse};
+use astroport::generator::{
+    Cw20HookMsg as AstroportCw20HookMsg, ExecuteMsg as AstroportExecuteMsg, PendingTokenResponse, QueryMsg as AstroportQueryMsg,
+};
 use spectrum_protocol::gov::BalanceResponse as SpecBalanceResponse;
 
 const ANC_STAKING: &str = "anc_staking";
@@ -139,12 +141,13 @@ enum MockQueryMsg {
     balance {
         address: String,
     },
-    Staker {
-        address: String,
+    Deposit {
+        lp_token: Addr,
+        user: Addr 
     },
-    StakerInfo {
-        staker: String,
-        block_height: Option<u64>,
+    PendingToken {
+        lp_token: Addr,
+        user: Addr 
     },
     Pair {
         asset_infos: [AssetInfo; 2],
@@ -194,28 +197,18 @@ impl WasmMockQuerier {
                             pools: vec![],
                         })))
                     }
-                    MockQueryMsg::Staker { address } => {
-                        let balance = self.read_token_balance(contract_addr, address);
-                        SystemResult::Ok(ContractResult::from(to_binary(&AnchorStakerResponse {
-                            balance,
-                            share: balance
-                                .multiply_ratio(100u128, self.token_querier.balance_percent),
-                            locked_balance: vec![],
+                    MockQueryMsg::PendingToken { lp_token, user } => {
+                        let balance = self.read_token_balance(contract_addr, user.to_string());
+                        SystemResult::Ok(ContractResult::from(to_binary(&PendingTokenResponse {
+                            pending: balance,
+                            pending_on_proxy: Some(balance),
                         })))
                     }
-                    MockQueryMsg::StakerInfo {
-                        staker,
-                        block_height: _,
-                    } => {
+                    MockQueryMsg::Deposit { lp_token, user } => {
                         let contract_addr = &ANC_STAKING.to_string();
-                        let balance = self.read_token_balance(contract_addr, staker.clone());
+                        let balance = self.read_token_balance(contract_addr, user.to_string());
                         SystemResult::Ok(ContractResult::from(to_binary(
-                            &AnchorStakerInfoResponse {
-                                staker,
-                                reward_index: Decimal::zero(),
-                                bond_amount: balance,
-                                pending_reward: balance,
-                            },
+                            &Uint128::from(balance)
                         )))
                     }
                     MockQueryMsg::Pair { asset_infos } => {

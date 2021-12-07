@@ -137,6 +137,8 @@ pub fn bond(
         &config.astroport_generator,
     )?;
 
+    let env_contract_address = env.contract.address.clone();
+
     bond_internal(
         deps.branch(),
         env,
@@ -151,7 +153,7 @@ pub fn bond(
 
     stake_token(
         deps.as_ref(),
-        &env.contract.address,
+        &env_contract_address,
         config.astroport_generator,
         pool_info.staking_token,
         amount,
@@ -523,6 +525,8 @@ pub fn unbond(
         &config.astroport_generator,
     )?;
 
+    let env_contract_address = env.contract.address.clone();
+
     let pool_info = unbond_internal(
         deps.branch(),
         env,
@@ -537,7 +541,7 @@ pub fn unbond(
     let pending_token_response = query_astroport_pending_token(
         deps.as_ref(),
         &pool_info.staking_token,
-        &env.contract.address,
+        &env_contract_address,
         &config.astroport_generator,
     )?;
 
@@ -794,7 +798,7 @@ fn withdraw_reward(
         deps.as_ref(),
         &config.xastro_proxy,
         &env.contract.address,
-    );
+    )?;
 
     let farm2_staked = if let Some(gov_proxy) = &config.gov_proxy {
         query_farm_gov_balance(
