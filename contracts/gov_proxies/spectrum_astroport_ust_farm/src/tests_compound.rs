@@ -102,6 +102,7 @@ fn test() {
     test_register_asset(&mut deps);
     test_compound_unauthorized(&mut deps);
     test_compound_zero(&mut deps);
+    test_compound_farm_token_and_astro_not_reach_threshold(&mut deps);
     test_compound_farm_token_and_astro(&mut deps);
     // test_bond(&mut deps);
     // test_compound_anc(&mut deps);
@@ -276,6 +277,90 @@ fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
 }
 
 //TODO add test compound when astro does not reach threshold
+fn test_compound_farm_token_and_astro_not_reach_threshold(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+    let env = mock_env();
+    let info = mock_info(TEST_CONTROLLER, &[]);
+
+    deps.querier.with_token_balances(&[
+        (&FARM_TOKEN.to_string(), &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(100_000_000u128))]),
+        (&ASTRO_TOKEN.to_string(), &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(1_000u128))])
+    ]);
+
+    let msg = ExecuteMsg::compound { threshold_compound_astro: Uint128::from(100_000u128) };
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
+
+    assert_eq!(
+        res.messages
+            .into_iter()
+            .map(|it| it.msg)
+            .collect::<Vec<CosmosMsg>>(),
+        vec![
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: ASTROPORT_GENERATOR.to_string(),
+                funds: vec![],
+                msg: to_binary(&AstroportExecuteMsg::Withdraw {
+                    amount: Uint128::zero(),
+                    lp_token: deps.api.addr_validate(FARM_LP).unwrap(),
+                }).unwrap(),
+            }), //ok
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: FARM_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: PAIR_CONTRACT.to_string(),
+                    amount: Uint128::from(50_000_000u128),
+                    msg: to_binary(&AstroportCw20HookMsg::Swap {
+                        max_spread: None,
+                        belief_price: None,
+                        to: None,
+                    }).unwrap()
+                }).unwrap(),
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: FARM_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+                    spender: PAIR_CONTRACT.to_string(),
+                    amount: Uint128::from(48_872_636u128),
+                    expires: None
+                }).unwrap(),
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: PAIR_CONTRACT.to_string(),
+                msg: to_binary(&AstroportPairExecuteMsg::ProvideLiquidity {
+                    assets: [
+                        Asset {
+                            info: AssetInfo::Token {
+                                contract_addr: deps.api.addr_validate(FARM_TOKEN).unwrap(),
+                            },
+                            amount: Uint128::from(48_872_636u128),
+                        },
+                        Asset {
+                            info: AssetInfo::NativeToken {
+                                denom: "uusd".to_string(),
+                            },
+                            amount: Uint128::from(48_867_757u128),
+                        },
+                    ],
+                    slippage_tolerance: None,
+                    auto_stake: Some(false),
+                    receiver: None
+                }).unwrap(),
+                funds: vec![Coin {
+                    denom: "uusd".to_string(),
+                    amount: Uint128::from(48_867_757u128),
+                }],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: env.contract.address.to_string(),
+                msg: to_binary(&ExecuteMsg::stake {
+                    asset_token: FARM_TOKEN.to_string(),
+                }).unwrap(),
+                funds: vec![],
+            }),
+        ]
+    );
+}
 
 fn test_compound_farm_token_and_astro(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let env = mock_env();
@@ -294,9 +379,7 @@ fn test_compound_farm_token_and_astro(deps: &mut OwnedDeps<MockStorage, MockApi,
     println!("{}", str::from_utf8(&vec![123, 34, 115, 101, 110, 100, 34, 58, 123, 34, 99, 111, 110, 116, 114, 97, 99, 116, 34, 58, 34, 97, 115, 116, 114, 111, 95, 117, 115, 116, 95, 112, 97, 105, 114, 95, 99, 111, 110, 116, 114, 97, 99, 116, 34, 44, 34, 97, 109, 111, 117, 110, 116, 34, 58, 34, 49, 48, 48, 48, 48, 48, 48, 48, 48, 34, 44, 34, 109, 115, 103, 34, 58, 34, 101, 121, 74, 122, 100, 50, 70, 119, 73, 106, 112, 55, 73, 109, 74, 108, 98, 71, 108, 108, 90, 108, 57, 119, 99, 109, 108, 106, 90, 83, 73, 54, 98, 110, 86, 115, 98, 67, 119, 105, 98, 87, 70, 52, 88, 51, 78, 119, 99, 109, 86, 104, 90, 67, 73, 54, 98, 110, 86, 115, 98, 67, 119, 105, 100, 71, 56, 105, 79, 109, 53, 49, 98, 71, 120, 57, 102, 81, 61, 61, 34, 125, 125]).unwrap());
     println!("{}", str::from_utf8(&vec![123, 34, 105, 110, 99, 114, 101, 97, 115, 101, 95, 97, 108, 108, 111, 119, 97, 110, 99, 101, 34, 58, 123, 34, 115, 112, 101, 110, 100, 101, 114, 34, 58, 34, 112, 97, 105, 114, 95, 99, 111, 110, 116, 114, 97, 99, 116, 34, 44, 34, 97, 109, 111, 117, 110, 116, 34, 58, 34, 49, 52, 54, 54, 51, 50, 53, 51, 49, 34, 44, 34, 101, 120, 112, 105, 114, 101, 115, 34, 58, 110, 117, 108, 108, 125, 125]).unwrap());
     println!("{}", str::from_utf8(&vec![123, 34, 112, 114, 111, 118, 105, 100, 101, 95, 108, 105, 113, 117, 105, 100, 105, 116, 121, 34, 58, 123, 34, 97, 115, 115, 101, 116, 115, 34, 58, 91, 123, 34, 105, 110, 102, 111, 34, 58, 123, 34, 116, 111, 107, 101, 110, 34, 58, 123, 34, 99, 111, 110, 116, 114, 97, 99, 116, 95, 97, 100, 100, 114, 34, 58, 34, 102, 97, 114, 109, 95, 116, 111, 107, 101, 110, 34, 125, 125, 44, 34, 97, 109, 111, 117, 110, 116, 34, 58, 34, 49, 52, 54, 54, 51, 50, 53, 51, 49, 34, 125, 44, 123, 34, 105, 110, 102, 111, 34, 58, 123, 34, 110, 97, 116, 105, 118, 101, 95, 116, 111, 107, 101, 110, 34, 58, 123, 34, 100, 101, 110, 111, 109, 34, 58, 34, 117, 117, 115, 100, 34, 125, 125, 44, 34, 97, 109, 111, 117, 110, 116, 34, 58, 34, 49, 52, 54, 54, 48, 51, 50, 55, 50, 34, 125, 93, 44, 34, 115, 108, 105, 112, 112, 97, 103, 101, 95, 116, 111, 108, 101, 114, 97, 110, 99, 101, 34, 58, 110, 117, 108, 108, 44, 34, 97, 117, 116, 111, 95, 115, 116, 97, 107, 101, 34, 58, 102, 97, 108, 115, 101, 44, 34, 114, 101, 99, 101, 105, 118, 101, 114, 34, 58, 110, 117, 108, 108, 125, 125]).unwrap());
-    println!("{}", str::from_utf8(&vec![123, 34, 115, 116, 97, 107, 101, 34, 58, 123, 34, 97, 115, 115, 101, 116, 95, 116, 111, 107, 101, 110, 34, 58, 34, 102, 97, 114, 109, 95, 116, 111, 107, 101, 110, 34, 125, 125]
-    ).unwrap());
-    println!("{}", str::from_utf8(&vec![]).unwrap());
+    println!("{}", str::from_utf8(&vec![123, 34, 115, 116, 97, 107, 101, 34, 58, 123, 34, 97, 115, 115, 101, 116, 95, 116, 111, 107, 101, 110, 34, 58, 34, 102, 97, 114, 109, 95, 116, 111, 107, 101, 110, 34, 125, 125]).unwrap());
     println!("{}", str::from_utf8(&vec![]).unwrap());
     println!("{}", str::from_utf8(&vec![]).unwrap());
 
@@ -332,7 +415,7 @@ fn test_compound_farm_token_and_astro(deps: &mut OwnedDeps<MockStorage, MockApi,
                 funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: FARM_TOKEN.to_string(),
+                contract_addr: ASTRO_TOKEN.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: ASTRO_UST_PAIR_CONTRACT.to_string(),
                     amount: Uint128::from(100_000_000u128),
@@ -371,23 +454,23 @@ fn test_compound_farm_token_and_astro(deps: &mut OwnedDeps<MockStorage, MockApi,
                             info: AssetInfo::Token {
                                 contract_addr: deps.api.addr_validate(FARM_TOKEN).unwrap(),
                             },
-                            amount: Uint128::from(48_872_636u128),
+                            amount: Uint128::from(146_632_531u128),
                         },
                         Asset {
                             info: AssetInfo::NativeToken {
                                 denom: "uusd".to_string(),
                             },
-                            amount: Uint128::from(48_867_757u128),
+                            amount: Uint128::from(146_603_272u128),
                         },
                     ],
                     slippage_tolerance: None,
-                    auto_stake: None,
+                    auto_stake: Some(false),
                     receiver: None
                 })
                 .unwrap(),
                 funds: vec![Coin {
                     denom: "uusd".to_string(),
-                    amount: Uint128::from(48_867_757u128),
+                    amount: Uint128::from(146_603_272u128),
                 }],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {

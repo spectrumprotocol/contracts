@@ -105,7 +105,7 @@ pub fn compound(
     let mut state = read_state(deps.storage)?;
 
     // calculate auto-compound, auto-stake, and commission in astro token
-    if !reward_astro.is_zero() && !lp_balance.is_zero() && threshold_compound_astro > reward_astro{
+    if !reward_astro.is_zero() && !lp_balance.is_zero() && reward_astro > threshold_compound_astro {
         let total_fee_astro = config.community_fee + config.platform_fee + config.controller_fee;
         let commission_astro = reward_astro * total_fee_astro;
         let astro_amount = reward_astro.checked_sub(commission_astro)?;
@@ -164,7 +164,11 @@ pub fn compound(
     pool_info_store(deps.storage).save(config.farm_token.as_slice(), &pool_info)?;
 
     // get reinvest amount
-    let reinvest_allowance_astro = reward_astro;
+    let reinvest_allowance_astro = if reward_astro > threshold_compound_astro {
+        reward_astro
+    } else {
+        Uint128::zero()
+    };
     let reinvest_allowance = reward;
     let reinvest_amount_astro = reinvest_allowance_astro + compound_amount_astro;
     let reinvest_amount = reinvest_allowance + compound_amount;
