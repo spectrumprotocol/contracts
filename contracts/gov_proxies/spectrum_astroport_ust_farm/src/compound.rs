@@ -46,7 +46,6 @@ pub fn compound(
 
     let pair_contract = deps.api.addr_humanize(&config.pair_contract)?;
     let astro_ust_pair_contract = deps.api.addr_humanize(&config.astro_ust_pair_contract)?;
-    let astroport_generator = deps.api.addr_humanize(&config.astroport_generator)?;
     let farm_token = deps.api.addr_humanize(&config.farm_token)?;
     let astro_token = deps.api.addr_humanize(&config.astro_token)?;
     let xastro_proxy = deps.api.addr_humanize(&config.xastro_proxy)?;
@@ -182,6 +181,7 @@ pub fn compound(
 
     let swap_amount = reinvest_amount.multiply_ratio(1u128, 2u128);
     // add commission to reinvest farm token to total swap amount
+    total_astro_token_swap_amount += swap_amount_astro;
     total_farm_token_swap_amount += swap_amount;
 
     // find ASTRO swap rate
@@ -191,7 +191,7 @@ pub fn compound(
         },
         amount: total_astro_token_swap_amount,
     };
-    let astro_swap_rate = simulate(&deps.querier, pair_contract.clone(), &astro_asset)?;
+    let astro_swap_rate = simulate(&deps.querier, astro_ust_pair_contract.clone(), &astro_asset)?;
     let total_ust_return_amount_astro = deduct_tax(
         &deps.querier,
         astro_swap_rate.return_amount,

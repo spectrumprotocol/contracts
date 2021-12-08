@@ -9,8 +9,8 @@ use cosmwasm_std::{
 };
 use std::collections::HashMap;
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
-use terraswap::asset::{Asset, AssetInfo, PairInfo};
-use terraswap::pair::SimulationResponse;
+use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::pair::{PoolResponse, SimulationResponse};
 
 use spectrum_protocol::gov_proxy::{ExecuteMsg as GovProxyExecuteMsg, StakerInfoGovResponse};
 use astroport::generator::{
@@ -42,7 +42,7 @@ pub struct WasmMockQuerier {
     base: MockQuerier<TerraQueryWrapper>,
     token_querier: TokenQuerier,
     tax_querier: TaxQuerier,
-    terraswap_factory_querier: TerraswapFactoryQuerier,
+    astroport_factory_querier: AstroportFactoryQuerier,
 }
 
 #[derive(Clone, Default)]
@@ -101,13 +101,13 @@ pub(crate) fn caps_to_map(caps: &[(&String, &Uint128)]) -> HashMap<String, Uint1
 }
 
 #[derive(Clone, Default)]
-pub struct TerraswapFactoryQuerier {
+pub struct AstroportFactoryQuerier {
     pairs: HashMap<String, PairInfo>,
 }
 
-impl TerraswapFactoryQuerier {
+impl AstroportFactoryQuerier {
     pub fn new(pairs: &[(&String, &PairInfo)]) -> Self {
-        TerraswapFactoryQuerier {
+        AstroportFactoryQuerier {
             pairs: pairs_to_map(pairs),
         }
     }
@@ -160,6 +160,7 @@ enum MockQueryMsg {
     Simulation {
         offer_asset: Asset,
     },
+    Pool {}
 }
 
 impl WasmMockQuerier {
@@ -224,7 +225,7 @@ impl WasmMockQuerier {
                     }
                     MockQueryMsg::Pair { asset_infos } => {
                         let key = asset_infos[0].to_string() + asset_infos[1].to_string().as_str();
-                        match self.terraswap_factory_querier.pairs.get(&key) {
+                        match self.astroport_factory_querier.pairs.get(&key) {
                             Some(v) => SystemResult::Ok(ContractResult::from(to_binary(&v))),
                             None => SystemResult::Err(SystemError::InvalidRequest {
                                 error: "No pair info exists".to_string(),
@@ -246,6 +247,34 @@ impl WasmMockQuerier {
                             Err(_e) => SystemResult::Err(SystemError::Unknown {}),
                         }
                     }
+                    MockQueryMsg::Pool {} => {
+                        // println!("{}", self.astroport_factory_querier.pairs.map(|it| it.0));
+                        let pair_info = self.astroport_factory_querier.pairs.iter()
+                            .map(|it| it.1)
+                            .find(|pair| &pair.contract_addr == contract_addr)
+                            .unwrap();
+                        // let pair_info = self.astroport_factory_querier.pairs.iter()
+                        //     .map(|it| it.1)
+                        //     .find(|pair| &pair.contract_addr.to_string().len() > &0)
+                        //     .unwrap();
+                        // println!("{}", contract_addr);
+                        // println!("{}", pair_info.contract_addr);
+                        SystemResult::Ok(ContractResult::from(to_binary(
+                            &PoolResponse {
+                                assets: [
+                                    Asset {
+                                        info: pair_info.asset_infos[0].clone(),
+                                        amount: Uint128::from(1_000_000_000000u128),
+                                    },
+                                    Asset {
+                                        info: pair_info.asset_infos[1].clone(),
+                                        amount: Uint128::from(1_000_000_000000u128),
+                                    }
+                                ],
+                                total_share: Uint128::from(1_000_000_000000u128),
+                            }
+                        )))
+                    }
                 }
             }
             _ => self.base.handle_query(request),
@@ -259,7 +288,7 @@ impl WasmMockQuerier {
             base,
             token_querier: TokenQuerier::default(),
             tax_querier: TaxQuerier::default(),
-            terraswap_factory_querier: TerraswapFactoryQuerier::default(),
+            astroport_factory_querier: AstroportFactoryQuerier::default(),
         }
     }
 
@@ -291,7 +320,7 @@ impl WasmMockQuerier {
     }
 
     // configure the terraswap pair
-    pub fn with_terraswap_pairs(&mut self, pairs: &[(&String, &PairInfo)]) {
-        self.terraswap_factory_querier = TerraswapFactoryQuerier::new(pairs);
+    pub fn with_astroport_pairs(&mut self, pairs: &[(&String, &PairInfo)]) {
+        self.astroport_factory_querier = AstroportFactoryQuerier::new(pairs);
     }
 }
