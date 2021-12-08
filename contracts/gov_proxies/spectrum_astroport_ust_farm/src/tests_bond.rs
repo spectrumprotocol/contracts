@@ -12,9 +12,9 @@ use spectrum_protocol::astroport_ust_farm::{
 };
 use spectrum_protocol::gov::ExecuteMsg as GovExecuteMsg;
 use astroport::generator::{
-    Cw20HookMsg as AstroportCw20HookMsg, ExecuteMsg as AstroportExecuteMsg,
+    ExecuteMsg as AstroportExecuteMsg,
 };
-use spectrum_protocol::gov_proxy::{ExecuteMsg as GovProxyExecuteMsg, StakerInfoGovResponse};
+use spectrum_protocol::gov_proxy::{ExecuteMsg as GovProxyExecuteMsg};
 
 use std::fmt::Debug;
 
