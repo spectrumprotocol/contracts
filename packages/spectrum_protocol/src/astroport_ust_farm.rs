@@ -125,6 +125,7 @@ pub struct RewardInfoResponse {
 pub struct RewardInfoResponseItem {
     pub asset_token: String,
     pub farm_share_index: Decimal,
+    pub farm2_share_index: Decimal,
     pub auto_spec_share_index: Decimal,
     pub stake_spec_share_index: Decimal,
     pub bond_amount: Uint128,

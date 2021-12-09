@@ -1082,6 +1082,7 @@ fn read_reward_infos(
             // update pending rewards
             let mut reward_info = reward_info;
             let farm_share_index = reward_info.farm_share_index;
+            let farm2_share_index = reward_info.farm2_share_index;
             let auto_spec_index = reward_info.auto_spec_share_index;
             let stake_spec_index = reward_info.stake_spec_share_index;
 
@@ -1108,6 +1109,7 @@ fn read_reward_infos(
             Ok(RewardInfoResponseItem {
                 asset_token: deps.api.addr_humanize(&asset_token_raw)?.to_string(),
                 farm_share_index,
+                farm2_share_index,
                 auto_spec_share_index: auto_spec_index,
                 stake_spec_share_index: stake_spec_index,
                 bond_amount: auto_bond_amount + stake_bond_amount,
