@@ -1121,12 +1121,12 @@ fn read_reward_infos(
                 pending_spec_reward: calc_spec_balance(reward_info.spec_share, spec_staked),
                 pending_farm_reward: calc_farm_balance(
                     reward_info.farm_share,
-                    farm2_staked.bond_amount,
+                    farm_staked.bond_amount,
                     state.total_farm_share,
                 ),
                 pending_farm2_reward: calc_farm_balance(
                     reward_info.farm2_share,
-                    farm_staked.bond_amount,
+                    farm2_staked.bond_amount,
                     state.total_farm2_share,
                 ),
                 deposit_amount: if has_deposit_amount {
