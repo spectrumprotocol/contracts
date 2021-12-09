@@ -173,7 +173,7 @@ pub fn deposit_farm_share(
         &config.xastro_proxy,
         &env.contract.address,
     )?;
-
+    println!("{}", staked.bond_amount);
     let mut new_total_share = Uint128::zero();
     if !pool_info.total_stake_bond_share.is_zero() {
         let new_share = state.calc_farm_share(amount, staked.bond_amount);

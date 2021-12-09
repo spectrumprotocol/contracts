@@ -173,6 +173,9 @@ pub fn compound(
     let reinvest_amount_astro = reinvest_allowance_astro + compound_amount_astro;
     let reinvest_amount = reinvest_allowance + compound_amount;
 
+    println!("reinvest_allowance_astro {}", reinvest_allowance_astro);
+    println!("compound_amount_astro {}", compound_amount_astro);
+    println!("reinvest_amount_astro {}", reinvest_amount_astro);
     // split reinvest amount
     let swap_amount_astro = reinvest_amount_astro; //Does not support ASTRO-UST
 
@@ -195,6 +198,8 @@ pub fn compound(
         },
         amount: total_astro_token_swap_amount,
     };
+    println!("total_astro_token_swap_amount {}", total_astro_token_swap_amount);
+
     let astro_swap_rate = simulate(&deps.querier, astro_ust_pair_contract.clone(), &astro_asset)?;
     let total_ust_return_amount_astro = deduct_tax(
         &deps.querier,
@@ -232,6 +237,10 @@ pub fn compound(
     } else {
         Uint128::zero()
     };
+
+    println!("total_ust_return_amount {}",total_ust_return_amount);
+    println!("total_ust_return_amount_astro {}",total_ust_return_amount_astro);
+
     let total_ust_reinvest_amount_astro =
     total_ust_return_amount_astro.checked_sub(total_ust_commission_amount_astro)?;
 
@@ -251,6 +260,13 @@ pub fn compound(
         contract_addr: pair_contract.to_string(),
         msg: to_binary(&AstroportPairQueryMsg::Pool {})?,
     }))?;
+
+    println!("{}", total_ust_reinvest_amount);
+    println!("{}", total_ust_reinvest_amount_astro);
+    println!("{}", farm_token_swap_rate.return_amount);
+    println!("{}", astro_swap_rate.return_amount);
+    println!("{}", net_reinvest_ust);
+    println!("{}", net_reinvest_ust_astro);
 
     let provide_farm_token = compute_provide_after_swap_astroport(
         &pool,
