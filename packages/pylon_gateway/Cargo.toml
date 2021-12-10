@@ -1,0 +1,34 @@
+[package]
+name = "pylon-gateway"
+version = "0.2.1"
+authors = ["carter <carter@pylon.money>"]
+edition = "2018"
+description = "Common helpers for other pylon-gateway specs"
+license = "Apache-2.0"
+repository = "https://github.com/pylon-protocol/pylon-gateway-contracts"
+homepage = "https://pylon.money"
+documentation = "https://docs.pylon.money"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+# for quicker tests, cargo test --lib
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+
+[dependencies]
+cw20 = { version = "0.9.1" }
+cw20-base = { version = "0.9.1", features = ["library"] }
+pylon-utils = { version = "0.2.0" }
+cosmwasm-bignumber = "2.2.0"
+cosmwasm-std = { version = "0.16.0", features = ["iterator"] }
+cosmwasm-storage = { version = "0.16.0", features = ["iterator"] }
+terra-cosmwasm = "2.2.0"
+schemars = "0.8.1"
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+
+[profile.dev]
+overflow-checks = true
+
+[profile.release]
+overflow-checks = true

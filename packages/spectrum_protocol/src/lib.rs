@@ -16,3 +16,4 @@ pub mod terraworld_farm;
 pub mod valkyrie_farm;
 pub mod orion_farm;
 pub mod nexus_nasset_psi_farm;
+pub mod pylon_liquid_farm;
