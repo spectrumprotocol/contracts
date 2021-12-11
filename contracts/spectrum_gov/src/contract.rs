@@ -283,6 +283,9 @@ fn update_config(
 
     if let Some(burnvault_ratio) = burnvault_ratio {
         validate_percentage(burnvault_ratio, "burnvault_ratio")?;
+        if config.burnvault_address == CanonicalAddr::from(vec![]) {
+            return Err(StdError::generic_err("Required burnvault address"));
+        }
         config.burnvault_ratio = burnvault_ratio;
     }
 
