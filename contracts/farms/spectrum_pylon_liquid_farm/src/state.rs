@@ -17,10 +17,9 @@ pub struct Config {
     pub owner: CanonicalAddr,
     pub spectrum_token: CanonicalAddr,
     pub spectrum_gov: CanonicalAddr,
-    pub gateway: CanonicalAddr,
+    pub gateway_pool: CanonicalAddr,
     pub controller: CanonicalAddr,
     pub platform: CanonicalAddr,
-    pub base_denom: String,
     pub community_fee: Decimal,
     pub platform_fee: Decimal,
     pub controller_fee: Decimal,
@@ -72,8 +71,8 @@ static PREFIX_POOL_INFO: &[u8] = b"pool_info";
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolInfo {
     pub reward_token: CanonicalAddr,
-    pub total_auto_bond_share: Uint128,
     pub total_stake_bond_share: Uint128,
+    pub total_auto_bond_share: Uint128,
     pub total_stake_bond_amount: Uint128,
     pub weight: u32,
     pub farm_share: Uint128,

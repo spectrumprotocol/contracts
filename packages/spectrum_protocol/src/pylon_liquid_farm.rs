@@ -9,6 +9,7 @@ pub struct ConfigInfo {
     pub owner: String,
     pub spectrum_token: String,
     pub spectrum_gov: String,
+    pub gateway_pool: String,
     pub platform: String,
     pub controller: String,
     pub community_fee: Decimal,
@@ -49,15 +50,15 @@ pub enum ExecuteMsg {
         spec_amount: Option<Uint128>,
         farm_amount: Option<Uint128>,
     },
-    compound {},
-    send_fee {},
+    // compound {},
+    // send_fee {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum Cw20HookMsg {
     bond {
         staker_addr: Option<String>,
-        asset_token: String,
+        dp_token: String,
     },
 }
 
@@ -130,4 +131,8 @@ pub struct StateInfo {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {
+}
+
+pub struct MockStakerInfoResponse{
+    pub bond_amount: Uint128
 }

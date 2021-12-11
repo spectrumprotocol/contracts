@@ -7,7 +7,7 @@ use cosmwasm_std::{
 
 use crate::{
     bond::bond,
-    compound::{compound, stake},
+    // compound::{compound, stake},
     state::{read_config, state_store, store_config, Config, PoolInfo, State},
 };
 
@@ -15,12 +15,12 @@ use cw20::Cw20ReceiveMsg;
 use terraswap::asset::AssetInfo;
 use terraswap::querier::query_pair_info;
 
-use crate::bond::{deposit_spec_reward, query_reward_info, unbond, withdraw, update_bond};
+use crate::bond::{deposit_spec_reward, query_reward_info, unbond, withdraw};
 use crate::state::{pool_info_read, pool_info_store, read_state};
 use spectrum_protocol::pylon_liquid_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
-use crate::compound::send_fee;
+// use crate::compound::send_fee;
 
 /// (we require 0-1)
 fn validate_percentage(value: Decimal, field: &str) -> StdResult<()> {
@@ -49,9 +49,9 @@ pub fn instantiate(
             owner: deps.api.addr_canonicalize(&msg.owner)?,
             spectrum_token: deps.api.addr_canonicalize(&msg.spectrum_token)?,
             spectrum_gov: deps.api.addr_canonicalize(&msg.spectrum_gov)?,
+            gateway_pool: deps.api.addr_canonicalize(&msg.gateway_pool)?,
             platform: deps.api.addr_canonicalize(&msg.platform)?,
             controller: deps.api.addr_canonicalize(&msg.controller)?,
-            base_denom: msg.base_denom,
             community_fee: msg.community_fee,
             platform_fee: msg.platform_fee,
             controller_fee: msg.controller_fee,
@@ -111,8 +111,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             amount,
         } => unbond(deps, env, info, asset_token, amount),
         ExecuteMsg::withdraw { asset_token, spec_amount, farm_amount } => withdraw(deps, env, info, asset_token, spec_amount, farm_amount),
-        ExecuteMsg::compound {} => compound(deps, env, info),
-        ExecuteMsg::send_fee {} => send_fee(deps, env, info),
+        // ExecuteMsg::compound {} => compound(deps, env, info),
+        // ExecuteMsg::send_fee {} => send_fee(deps, env, info),
     }
 }
 
@@ -125,16 +125,14 @@ fn receive_cw20(
     match from_binary(&cw20_msg.msg) {
         Ok(Cw20HookMsg::bond {
                staker_addr,
-               asset_token,
-               compound_rate,
+               dp_token,
            }) => bond(
             deps,
             env,
             info,
             staker_addr.unwrap_or(cw20_msg.sender),
-            asset_token,
+            dp_token,
             cw20_msg.amount,
-            compound_rate,
         ),
         Err(_) => Err(StdError::generic_err("data should be given")),
     }
@@ -197,12 +195,12 @@ fn register_asset(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    asset_token: String,
-    staking_token: String,
+    dp_token: String,
+    reward_token: String,
     weight: u32,
 ) -> StdResult<Response> {
     let config: Config = read_config(deps.storage)?;
-    let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
+    let dp_token_raw = deps.api.addr_canonicalize(&dp_token)?;
 
     if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(StdError::generic_err("unauthorized"));
@@ -213,16 +211,16 @@ fn register_asset(
         .count();
 
     if pool_count >= 1 {
-        return Err(StdError::generic_err("Already registered one asset"));
+        return Err(StdError::generic_err("Already registered one dp token"));
     }
 
     let mut state = read_state(deps.storage)?;
     deposit_spec_reward(deps.as_ref(), &env, &mut state, &config, false)?;
 
     let mut pool_info = pool_info_read(deps.storage)
-        .may_load(asset_token_raw.as_slice())?
+        .may_load(dp_token_raw.as_slice())?
         .unwrap_or_else(|| PoolInfo {
-            staking_token: deps.api.addr_canonicalize(&staking_token).unwrap(),
+            reward_token: deps.api.addr_canonicalize(&reward_token).unwrap(),
             total_auto_bond_share: Uint128::zero(),
             total_stake_bond_share: Uint128::zero(),
             total_stake_bond_amount: Uint128::zero(),
@@ -236,11 +234,12 @@ fn register_asset(
     state.total_weight = state.total_weight + weight - pool_info.weight;
     pool_info.weight = weight;
 
-    pool_info_store(deps.storage).save(asset_token_raw.as_slice(), &pool_info)?;
+    pool_info_store(deps.storage).save(dp_token_raw.as_slice(), &pool_info)?;
     state_store(deps.storage).save(&state)?;
     Ok(Response::new().add_attributes(vec![
         attr("action", "register_asset"),
-        attr("asset_token", asset_token),
+        attr("dp_token", dp_token),
+        attr("reward_token", reward_token),
     ]))
 }
 
@@ -262,6 +261,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         owner: deps.api.addr_humanize(&config.owner)?.to_string(),
         spectrum_token: deps.api.addr_humanize(&config.spectrum_token)?.to_string(),
         spectrum_gov: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
+        gateway_pool: deps.api.addr_humanize(&config.gateway_pool)?.to_string(),
         platform: deps.api.addr_humanize(&config.platform)?.to_string(),
         controller: deps.api.addr_humanize(&config.controller)?.to_string(),
         community_fee: config.community_fee,
@@ -280,15 +280,15 @@ fn query_pools(deps: Deps) -> StdResult<PoolsResponse> {
     let pools = pool_info_read(deps.storage)
         .range(None, None, Order::Descending)
         .map(|item| {
-            let (asset_token, pool_info) = item?;
+            let (dp_token, pool_info) = item?;
             Ok(PoolItem {
-                reward_token: deps
-                    .api
-                    .addr_humanize(&CanonicalAddr::from(reward_token))?
-                    .to_string(),
                 dp_token: deps
                     .api
-                    .addr_humanize(&pool_info.dp_token)?
+                    .addr_humanize(&CanonicalAddr::from(dp_token))?
+                    .to_string(),
+                reward_token: deps
+                    .api
+                    .addr_humanize(&pool_info.reward_token)?
                     .to_string(),
                 weight: pool_info.weight,
                 total_auto_bond_share: pool_info.total_auto_bond_share,
@@ -317,6 +317,6 @@ fn query_state(deps: Deps) -> StdResult<StateInfo> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
 }

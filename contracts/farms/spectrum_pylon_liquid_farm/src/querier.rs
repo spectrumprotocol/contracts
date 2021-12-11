@@ -1,6 +1,6 @@
 use cosmwasm_std::{to_binary, CanonicalAddr, Deps, QueryRequest, StdResult, WasmQuery, Uint128, Addr};
 
-use pylon_gateway::pool_msg::{QueryMsg as PylonGatewayPoolQueryMsg, StakerInfoResponse};
+use pylon_gateway::pool_msg::{QueryMsg as PylonGatewayPoolQueryMsg};
 use pylon_gateway::pool_resp::{BalanceOfResponse, ClaimableRewardResponse};
 
 pub fn query_claimable_reward(
