@@ -563,10 +563,11 @@ pub fn query_balances(deps: Deps, address: String, height: u64) -> StdResult<Bal
             * (Decimal::one() - config.warchest_ratio);
 
         let add_balance = to_vault.multiply_ratio(vault.weight, state.total_weight);
+        let balance = vault.balance + add_balance;
 
         Ok(BalanceResponse {
-            balance: vault.balance + add_balance,
-            share: Uint128::zero(),
+            balance,
+            share: balance * state.vault_share_multiplier,
             locked_balance: vec![],
             pools: vec![],
         })
