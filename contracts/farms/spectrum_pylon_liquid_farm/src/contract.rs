@@ -47,6 +47,7 @@ pub fn instantiate(
         deps.storage,
         &Config {
             owner: deps.api.addr_canonicalize(&msg.owner)?,
+            dp_token: deps.api.addr_canonicalize(&msg.dp_token)?,
             spectrum_token: deps.api.addr_canonicalize(&msg.spectrum_token)?,
             spectrum_gov: deps.api.addr_canonicalize(&msg.spectrum_gov)?,
             gateway_pool: deps.api.addr_canonicalize(&msg.gateway_pool)?,

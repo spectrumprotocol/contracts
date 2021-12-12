@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigInfo {
     pub owner: String,
+    pub dp_token: String,
+    pub reward_token: String,
     pub spectrum_token: String,
     pub spectrum_gov: String,
     pub gateway_pool: String,
