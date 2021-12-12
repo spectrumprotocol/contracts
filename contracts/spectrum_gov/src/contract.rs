@@ -89,6 +89,7 @@ pub fn instantiate(
         total_balance: Uint128::zero(),
         aust_index: Decimal::zero(),
         vault_balances: Uint128::zero(),
+        vault_share_multiplier: Decimal::one(),
         pools: vec![],
     };
 
@@ -283,6 +284,9 @@ fn update_config(
 
     if let Some(burnvault_ratio) = burnvault_ratio {
         validate_percentage(burnvault_ratio, "burnvault_ratio")?;
+        if config.burnvault_address == CanonicalAddr::from(vec![]) {
+            return Err(StdError::generic_err("Required burnvault address"));
+        }
         config.burnvault_ratio = burnvault_ratio;
     }
 
@@ -366,6 +370,7 @@ fn query_state(deps: Deps, height: u64) -> StdResult<StateInfo> {
         prev_balance: state.prev_balance,
         prev_aust_balance: state.prev_aust_balance,
         vault_balances: state.vault_balances,
+        vault_share_multiplier: state.vault_share_multiplier,
         pools: vec![
             vec![
                 StatePoolInfo {
@@ -392,6 +397,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
     let vaults = read_vaults(deps.storage)?;
     let mut state = read_state(deps.storage)?;
     let mut config = read_config(deps.storage)?;
+    config.aust_token = deps.api.addr_canonicalize(&msg.aust_token)?;
     reconcile_balance(&deps.as_ref(), &mut state, &config, Uint128::zero())?;
 
     for (addr, mut vault) in vaults {
@@ -402,15 +408,15 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
             let share = account.share;
             account.deduct_share(0u64, share, None)?;
             state.deduct_share(0u64, share, amount)?;
-            vault.balance = amount;
+            vault.balance += amount;
             state.vault_balances += amount;
             vault_store(deps.storage).save(key, &vault)?;
             account_store(deps.storage).save(key, &account)?;
         }
     }
-    state_store(deps.storage).save(&state)?;
+    state.vault_share_multiplier = Decimal::from_ratio(state.total_share, state.total_balance);
 
-    config.aust_token = deps.api.addr_canonicalize(&msg.aust_token)?;
+    state_store(deps.storage).save(&state)?;
     config_store(deps.storage).save(&config)?;
 
     Ok(Response::default())

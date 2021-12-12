@@ -67,6 +67,7 @@ pub struct State {
     #[serde(default)] pub prev_balance: Uint128,    // SPEC balance - poll_deposit - vault_balances
     #[serde(default)] pub prev_aust_balance: Uint128,
     #[serde(default)] pub vault_balances: Uint128,
+    #[serde(default)] pub vault_share_multiplier: Decimal,
     #[serde(default)] pub pools: Vec<StatePool>,
 
     // for day 0
