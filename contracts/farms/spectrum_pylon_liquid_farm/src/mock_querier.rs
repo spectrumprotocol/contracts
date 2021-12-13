@@ -137,7 +137,7 @@ impl Querier for WasmMockQuerier {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 enum MockQueryMsg {
-    balance {
+    Balance {
         address: String,
     },
     ClaimableReward {
@@ -190,7 +190,7 @@ impl WasmMockQuerier {
             }
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 match from_binary(msg).unwrap() {
-                    MockQueryMsg::balance { address } => {
+                    MockQueryMsg::Balance { address } => {
                         let balance = self.read_token_balance(contract_addr, address);
                         SystemResult::Ok(ContractResult::from(to_binary(&SpecBalanceResponse {
                             balance,
