@@ -21,6 +21,7 @@ pub struct ConfigInfo {
     pub anchor_market: String,
     pub aust_token: String,
     pub pair_contract: String,
+    pub ust_pair_contract: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -52,8 +53,8 @@ pub enum ExecuteMsg {
         spec_amount: Option<Uint128>,
         farm_amount: Option<Uint128>,
     },
-    // compound {},
-    // send_fee {},
+    compound {},
+    send_fee {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

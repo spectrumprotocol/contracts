@@ -12,13 +12,16 @@ use cw20::Cw20ExecuteMsg;
 use crate::state::{pool_info_read, pool_info_store, read_state, Config, PoolInfo};
 
 use spectrum_protocol::gov::{ExecuteMsg as GovExecuteMsg};
-use spectrum_protocol::orion_farm::ExecuteMsg;
 use terraswap::asset::{Asset, AssetInfo};
 use terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg, ExecuteMsg as TerraswapExecuteMsg, QueryMsg as TerraswapQueryMsg, PoolResponse};
 use terraswap::querier::{query_token_balance, simulate};
 use spectrum_protocol::farm_helper::{compute_provide_after_swap, deduct_tax};
 use moneymarket::market::{ExecuteMsg as MoneyMarketExecuteMsg};
 use crate::bond::query_reward_info;
+use pylon_gateway::pool_msg::{
+    ExecuteMsg as PylonGatewayExecuteMsg
+};
+use spectrum_protocol::pylon_liquid_farm::ExecuteMsg;
 
 pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
     let config = read_config(deps.storage)?;
@@ -29,6 +32,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
 
     let pair_contract = deps.api.addr_humanize(&config.pair_contract)?;
     let reward_token = deps.api.addr_humanize(&config.reward_token)?;
+    let gateway_pool = deps.api.addr_humanize(&config.gateway_pool)?;
 
     // let orion_staking = deps.api.addr_humanize(&config.orion_staking)?;
     // let orion_token = deps.api.addr_humanize(&config.orion_token)?;
@@ -41,9 +45,9 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         Some(env.block.time.seconds()),
     )?;
 
-    let mut total_reward_swap_amount = Uint128::zero();
-    let mut total_reward_stake_amount = Uint128::zero();
-    let mut total_reward_commission = Uint128::zero();
+    let mut total_reward_token_swap_amount = Uint128::zero();
+    let mut total_reward_token_stake_amount = Uint128::zero();
+    let mut total_reward_token_commission = Uint128::zero();
     let mut compound_amount = Uint128::zero();
 
     let mut attributes: Vec<Attribute> = vec![];
@@ -59,8 +63,8 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         let commission = reward * total_fee;
         let reward_token_amount = reward.checked_sub(commission)?;
         // add commission to total swap amount
-        total_reward_commission += commission;
-        total_reward_swap_amount += commission;
+        total_reward_token_commission += commission;
+        total_reward_token_swap_amount += commission;
 
         let auto_bond_amount = reward_info
             .amount
@@ -73,7 +77,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         attributes.push(attr("compound_amount", compound_amount));
         attributes.push(attr("stake_amount", stake_amount));
 
-        total_reward_stake_amount += stake_amount;
+        total_reward_token_stake_amount += stake_amount;
     }
     let mut state = read_state(deps.storage)?;
     deposit_farm_share(
@@ -82,7 +86,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         &mut state,
         &mut pool_info,
         &config,
-        total_reward_stake_amount,
+        total_reward_token_stake_amount,
         Some(env.block.time.seconds())
     )?;
     state_store(deps.storage).save(&state)?;
@@ -92,66 +96,68 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let reinvest_allowance = query_token_balance(&deps.querier, reward_token.clone(), env.contract.address.clone())?;
     let reinvest_amount = reinvest_allowance + compound_amount;
     // split reinvest amount
-    let swap_amount = reinvest_amount.multiply_ratio(1u128, 2u128);
+    // let swap_amount = reinvest_amount.multiply_ratio(1u128, 2u128);
     // add commission to reinvest reward_token to total swap amount
-    total_reward_swap_amount += swap_amount;
+    total_reward_token_swap_amount += reinvest_amount;
 
     // find reward_token swap rate
-    let orion = Asset {
+    let reward_token_asset = Asset {
         info: AssetInfo::Token {
-            contract_addr: orion_token.to_string(),
+            contract_addr: reward_token.to_string(),
         },
-        amount: total_reward_swap_amount,
+        amount: total_reward_token_swap_amount,
     };
-    let orion_swap_rate = simulate(
+    let dp_token_swap_rate_to_reward_token = simulate(
         &deps.querier,
         pair_contract.clone(),
-        &orion,
+        &reward_token_asset,
     )?;
 
-    let total_ust_return_amount = deduct_tax(&deps.querier, orion_swap_rate.return_amount, config.base_denom.clone())?;
-    attributes.push(attr("total_ust_return_amount", total_ust_return_amount));
+    // let total_ust_return_amount = deduct_tax(&deps.querier, dp_token_swap_simulate.return_amount, config.base_denom.clone())?;
+    attributes.push(attr("dp_token_swap_rate_to_reward_token.return_amount", dp_token_swap_rate_to_reward_token.return_amount));
 
-    let total_ust_commission_amount = if total_reward_swap_amount != Uint128::zero() {
-        total_ust_return_amount.multiply_ratio(total_reward_commission, total_reward_swap_amount)
-    } else {
-        Uint128::zero()
-    };
-    let total_ust_reinvest_amount =
-        total_ust_return_amount.checked_sub(total_ust_commission_amount)?;
+    // let total_ust_commission_amount = if total_reward_token_swap_amount != Uint128::zero() {
+    //     total_ust_return_amount.multiply_ratio(total_reward_commission, total_reward_token_swap_amount)
+    // } else {
+    //     Uint128::zero()
+    // };
+    // let total_ust_reinvest_amount =
+    //     total_ust_return_amount.checked_sub(total_ust_commission_amount)?;
 
     // deduct tax for provided UST
-    let net_reinvest_ust = deduct_tax(
-        &deps.querier,
-        total_ust_reinvest_amount,
-        config.base_denom.clone(),
-    )?;
-    let pool: PoolResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: pair_contract.to_string(),
-        msg: to_binary(&TerraswapQueryMsg::Pool {})?,
-    }))?;
+    // let net_reinvest_ust = deduct_tax(
+    //     &deps.querier,
+    //     total_ust_reinvest_amount,
+    //     config.base_denom.clone(),
+    // )?;
+    // let pool: PoolResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+    //     contract_addr: pair_contract.to_string(),
+    //     msg: to_binary(&TerraswapQueryMsg::Pool {})?,
+    // }))?;
+    //
+    // let provide_reward_token = compute_provide_after_swap(
+    //     &pool,
+    //     &reward_token_asset,
+    //     dp_token_swap_rate_to_reward_token.return_amount,
+    //     net_reinvest_ust
+    // )?;
+    let provide_reward_token = dp_token_swap_rate_to_reward_token.return_amount;
 
-    let provide_orion = compute_provide_after_swap(
-        &pool,
-        &orion,
-        orion_swap_rate.return_amount,
-        net_reinvest_ust
-    )?;
 
     let mut messages: Vec<CosmosMsg> = vec![];
-    let withdraw_all_orion: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: orion_staking.to_string(),
+    let withdraw_all_reward_token: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: gateway_pool.to_string(),
         funds: vec![],
-        msg: to_binary(&OrionStakingExecuteMsg::Claim {})?,
+        msg: to_binary(&PylonGatewayExecuteMsg::Claim { target: None })?,
     });
-    messages.push(withdraw_all_orion);
+    messages.push(withdraw_all_reward_token);
 
-    if !total_reward_swap_amount.is_zero() {
-        let swap_orion: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: orion_token.to_string(),
+    if !total_reward_token_swap_amount.is_zero() {
+        let swap_reward_token_to_dp_token: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: reward_token.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 contract: pair_contract.to_string(),
-                amount: total_reward_swap_amount,
+                amount: total_reward_token_swap_amount,
                 msg: to_binary(&TerraswapCw20HookMsg::Swap {
                     max_spread: None,
                     belief_price: None,
@@ -160,13 +166,25 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
             })?,
             funds: vec![],
         });
-        messages.push(swap_orion);
+        messages.push(swap_reward_token_to_dp_token);
     }
 
-    if !total_ust_commission_amount.is_zero() {
+    if !total_reward_token_commission.is_zero() {
 
         // find SPEC swap rate
-        let net_commission_amount = deduct_tax(&deps.querier, total_ust_commission_amount, config.base_denom.clone())?;
+        let net_commission = Asset {
+            info: AssetInfo::Token {
+                contract_addr: reward_token.to_string(),
+            },
+            amount: total_reward_token_commission,
+        };
+
+        let reward_token_swap_rate_to_uusd = simulate(
+            &deps.querier,
+            deps.api.addr_humanize(&config.ust_pair_contract)?,
+            &net_commission)?;
+
+        let net_commission_amount = deduct_tax(&deps.querier, reward_token_swap_rate_to_uusd.return_amount, "uusd".to_string())?;
 
         let mut state = read_state(deps.storage)?;
         state.earning += net_commission_amount;
@@ -175,10 +193,23 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         attributes.push(attr("net_commission", net_commission_amount));
 
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: reward_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: deps.api.addr_humanize(&config.ust_pair_contract)?.to_string(),
+                amount: total_reward_token_commission,
+                msg: to_binary(&TerraswapCw20HookMsg::Swap {
+                    to: None,
+                    max_spread: None,
+                    belief_price: None,
+                })?,
+            })?,
+            funds: vec![],
+        }));
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.anchor_market)?.to_string(),
             msg: to_binary(&MoneyMarketExecuteMsg::DepositStable {})?,
             funds: vec![Coin {
-                denom: config.base_denom.clone(),
+                denom: "uusd".to_string(),
                 amount: net_commission_amount,
             }],
         }));
@@ -194,114 +225,104 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         }));
     }
 
-    if !total_reward_stake_amount.is_zero() {
-        let stake_orion = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: orion_token.to_string(),
-            funds: vec![],
-            msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: orion_gov.to_string(),
-                amount: total_reward_stake_amount,
-                msg: to_binary(&OrionGovCw20HookMsg::Bond {})?,
-            })?,
-        });
-        messages.push(stake_orion);
-    }
+    // if !total_reward_token_stake_amount.is_zero() {
+    //
+    // }
 
-    if !provide_orion.is_zero() {
-        let increase_allowance = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: orion_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-                spender: pair_contract.to_string(),
-                amount: provide_orion,
-                expires: None,
-            })?,
-            funds: vec![],
-        });
-        messages.push(increase_allowance);
+    if !provide_reward_token.is_zero() {
+        // let increase_allowance = CosmosMsg::Wasm(WasmMsg::Execute {
+        //     contract_addr: orion_token.to_string(),
+        //     msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+        //         spender: pair_contract.to_string(),
+        //         amount: provide_reward_token,
+        //         expires: None,
+        //     })?,
+        //     funds: vec![],
+        // });
+        // messages.push(increase_allowance);
 
-        let provide_liquidity = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: pair_contract.to_string(),
-            msg: to_binary(&TerraswapExecuteMsg::ProvideLiquidity {
-                assets: [
-                    Asset {
-                        info: AssetInfo::Token {
-                            contract_addr: orion_token.to_string(),
-                        },
-                        amount: provide_orion,
-                    },
-                    Asset {
-                        info: AssetInfo::NativeToken {
-                            denom: config.base_denom.clone(),
-                        },
-                        amount: net_reinvest_ust,
-                    },
-                ],
-                slippage_tolerance: None,
-                receiver: None,
-            })?,
-            funds: vec![Coin {
-                denom: config.base_denom,
-                amount: net_reinvest_ust,
-            }],
-        });
-        messages.push(provide_liquidity);
-
-        let stake = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: env.contract.address.to_string(),
-            msg: to_binary(&ExecuteMsg::stake {
-                asset_token: orion_token.to_string(),
-            })?,
-            funds: vec![],
-        });
-        messages.push(stake);
+        // let provide_liquidity = CosmosMsg::Wasm(WasmMsg::Execute {
+        //     contract_addr: pair_contract.to_string(),
+        //     msg: to_binary(&TerraswapExecuteMsg::ProvideLiquidity {
+        //         assets: [
+        //             Asset {
+        //                 info: AssetInfo::Token {
+        //                     contract_addr: orion_token.to_string(),
+        //                 },
+        //                 amount: provide_reward_token,
+        //             },
+        //             Asset {
+        //                 info: AssetInfo::NativeToken {
+        //                     denom: config.base_denom.clone(),
+        //                 },
+        //                 amount: net_reinvest_ust,
+        //             },
+        //         ],
+        //         slippage_tolerance: None,
+        //         receiver: None,
+        //     })?,
+        //     funds: vec![Coin {
+        //         denom: config.base_denom,
+        //         amount: net_reinvest_ust,
+        //     }],
+        // });
+        // messages.push(provide_liquidity);
+        //
+        // let stake = CosmosMsg::Wasm(WasmMsg::Execute {
+        //     contract_addr: env.contract.address.to_string(),
+        //     msg: to_binary(&ExecuteMsg::stake {
+        //         asset_token: orion_token.to_string(),
+        //     })?,
+        //     funds: vec![],
+        // });
+        // messages.push(stake);
     }
 
     attributes.push(attr("action", "compound"));
-    attributes.push(attr("asset_token", orion_token));
+    attributes.push(attr("reward_token", reward_token));
     attributes.push(attr("reinvest_amount", reinvest_amount));
-    attributes.push(attr("provide_token_amount", provide_orion));
-    attributes.push(attr("provide_ust_amount", net_reinvest_ust));
+    attributes.push(attr("provide_reward_token", provide_reward_token));
 
     Ok(Response::new()
         .add_messages(messages)
         .add_attributes(attributes))
 }
 
-pub fn stake(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    asset_token: String,
-) -> StdResult<Response> {
-    // only orion farm contract can execute this message
-    if info.sender != env.contract.address {
-        return Err(StdError::generic_err("unauthorized"));
-    }
-    let config: Config = read_config(deps.storage)?;
-    let orion_staking = deps.api.addr_humanize(&config.orion_staking)?;
-    let asset_token_raw: CanonicalAddr = deps.api.addr_canonicalize(&asset_token)?;
-    let pool_info: PoolInfo = pool_info_read(deps.storage).load(asset_token_raw.as_slice())?;
-    let staking_token = deps.api.addr_humanize(&pool_info.staking_token)?;
-
-    let amount = query_token_balance(&deps.querier, staking_token.clone(), env.contract.address)?;
-
-    Ok(Response::new()
-        .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: staking_token.to_string(),
-            funds: vec![],
-            msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: orion_staking.to_string(),
-                amount,
-                msg: to_binary(&OrionStakingCw20HookMsg::Bond {})?,
-            })?,
-        })])
-        .add_attributes(vec![
-            attr("action", "stake"),
-            attr("asset_token", asset_token),
-            attr("staking_token", staking_token),
-            attr("amount", amount),
-        ]))
-}
+// pub fn stake(
+//     deps: DepsMut,
+//     env: Env,
+//     info: MessageInfo,
+//     asset_token: String,
+// ) -> StdResult<Response> {
+//     // only orion farm contract can execute this message
+//     if info.sender != env.contract.address {
+//         return Err(StdError::generic_err("unauthorized"));
+//     }
+//     let config: Config = read_config(deps.storage)?;
+//     let orion_staking = deps.api.addr_humanize(&config.orion_staking)?;
+//     let asset_token_raw: CanonicalAddr = deps.api.addr_canonicalize(&asset_token)?;
+//     let pool_info: PoolInfo = pool_info_read(deps.storage).load(asset_token_raw.as_slice())?;
+//     let staking_token = deps.api.addr_humanize(&pool_info.staking_token)?;
+//
+//     let amount = query_token_balance(&deps.querier, staking_token.clone(), env.contract.address)?;
+//
+//     Ok(Response::new()
+//         .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
+//             contract_addr: staking_token.to_string(),
+//             funds: vec![],
+//             msg: to_binary(&Cw20ExecuteMsg::Send {
+//                 contract: orion_staking.to_string(),
+//                 amount,
+//                 msg: to_binary(&OrionStakingCw20HookMsg::Bond {})?,
+//             })?,
+//         })])
+//         .add_attributes(vec![
+//             attr("action", "stake"),
+//             attr("asset_token", asset_token),
+//             attr("staking_token", staking_token),
+//             attr("amount", amount),
+//         ]))
+// }
 
 pub fn send_fee(
     deps: DepsMut,

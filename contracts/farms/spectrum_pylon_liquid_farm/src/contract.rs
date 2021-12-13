@@ -20,6 +20,7 @@ use crate::state::{pool_info_read, pool_info_store, read_state};
 use spectrum_protocol::pylon_liquid_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
+use crate::compound::{compound, send_fee};
 // use crate::compound::send_fee;
 
 /// (we require 0-1)
@@ -48,6 +49,7 @@ pub fn instantiate(
         &Config {
             owner: deps.api.addr_canonicalize(&msg.owner)?,
             dp_token: deps.api.addr_canonicalize(&msg.dp_token)?,
+            reward_token: deps.api.addr_canonicalize(&msg.reward_token)?,
             spectrum_token: deps.api.addr_canonicalize(&msg.spectrum_token)?,
             spectrum_gov: deps.api.addr_canonicalize(&msg.spectrum_gov)?,
             gateway_pool: deps.api.addr_canonicalize(&msg.gateway_pool)?,
@@ -60,6 +62,7 @@ pub fn instantiate(
             anchor_market: deps.api.addr_canonicalize(&msg.anchor_market)?,
             aust_token: deps.api.addr_canonicalize(&msg.aust_token)?,
             pair_contract: deps.api.addr_canonicalize(&msg.pair_contract)?,
+            ust_pair_contract: deps.api.addr_canonicalize(&msg.ust_pair_contract)?,
         },
     )?;
 
@@ -112,8 +115,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             amount,
         } => unbond(deps, env, info, asset_token, amount),
         ExecuteMsg::withdraw { asset_token, spec_amount, farm_amount } => withdraw(deps, env, info, asset_token, spec_amount, farm_amount),
-        // ExecuteMsg::compound {} => compound(deps, env, info),
-        // ExecuteMsg::send_fee {} => send_fee(deps, env, info),
+        ExecuteMsg::compound {} => compound(deps, env, info),
+        ExecuteMsg::send_fee {} => send_fee(deps, env, info),
     }
 }
 
@@ -260,6 +263,8 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
     let config = read_config(deps.storage)?;
     let resp = ConfigInfo {
         owner: deps.api.addr_humanize(&config.owner)?.to_string(),
+        dp_token: deps.api.addr_humanize(&config.dp_token)?.to_string(),
+        reward_token: deps.api.addr_humanize(&config.reward_token)?.to_string(),
         spectrum_token: deps.api.addr_humanize(&config.spectrum_token)?.to_string(),
         spectrum_gov: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
         gateway_pool: deps.api.addr_humanize(&config.gateway_pool)?.to_string(),
@@ -272,6 +277,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         anchor_market: deps.api.addr_humanize(&config.anchor_market)?.to_string(),
         aust_token: deps.api.addr_humanize(&config.aust_token)?.to_string(),
         pair_contract: deps.api.addr_humanize(&config.pair_contract)?.to_string(),
+        ust_pair_contract: "".to_string()
     };
 
     Ok(resp)
