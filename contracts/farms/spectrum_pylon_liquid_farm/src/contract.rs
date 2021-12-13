@@ -106,8 +106,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             deps,
             env,
             info,
-            reward_token,
             dp_token,
+            reward_token,
             weight,
         ),
         ExecuteMsg::unbond {
@@ -235,6 +235,7 @@ fn register_asset(
             auto_spec_share_index: Decimal::zero(),
             stake_spec_share_index: Decimal::zero(),
         });
+    println!("set reward_token {}", pool_info.reward_token);
     state.total_weight = state.total_weight + weight - pool_info.weight;
     pool_info.weight = weight;
 
@@ -277,7 +278,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         anchor_market: deps.api.addr_humanize(&config.anchor_market)?.to_string(),
         aust_token: deps.api.addr_humanize(&config.aust_token)?.to_string(),
         pair_contract: deps.api.addr_humanize(&config.pair_contract)?.to_string(),
-        ust_pair_contract: "".to_string()
+        ust_pair_contract: deps.api.addr_humanize(&config.ust_pair_contract)?.to_string(),
     };
 
     Ok(resp)
@@ -309,6 +310,7 @@ fn query_pools(deps: Deps) -> StdResult<PoolsResponse> {
             })
         })
         .collect::<StdResult<Vec<PoolItem>>>()?;
+
     Ok(PoolsResponse { pools })
 }
 

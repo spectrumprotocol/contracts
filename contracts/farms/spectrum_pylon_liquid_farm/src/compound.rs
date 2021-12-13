@@ -87,7 +87,6 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         &mut pool_info,
         &config,
         total_reward_token_stake_amount,
-        Some(env.block.time.seconds())
     )?;
     state_store(deps.storage).save(&state)?;
     pool_info_store(deps.storage).save(config.dp_token.as_slice(), &pool_info)?;

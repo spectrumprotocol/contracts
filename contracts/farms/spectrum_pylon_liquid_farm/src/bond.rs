@@ -125,6 +125,7 @@ pub fn bond(
     //     &config.gateway_pool,
     //     &env.contract.address,
     // )?.amount;
+    let env_contract_address = env.contract.address.clone();
 
     bond_internal(
         deps.branch(),
@@ -146,6 +147,15 @@ pub fn bond(
     //     amount,
     // )
     Ok(Response::new()
+        .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: dp_token.clone(),
+            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                owner: sender_addr.clone(),
+                recipient: env_contract_address.to_string(),
+                amount,
+            })?,
+            funds: vec![],
+        })])
         .add_attributes(vec![
             attr("action", "bond"),
             attr("dp_token", dp_token),
@@ -160,7 +170,6 @@ pub fn deposit_farm_share(
     pool_info: &mut PoolInfo,
     _config: &Config,
     amount: Uint128,
-    _time_seconds: Option<u64>
 ) -> StdResult<()> {
     let staked = MockStakerInfoResponse {
         bond_amount: Uint128::zero(),
