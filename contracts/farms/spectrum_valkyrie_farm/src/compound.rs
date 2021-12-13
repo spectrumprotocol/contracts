@@ -1,4 +1,4 @@
-use cosmwasm_std::{attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg, QueryRequest, WasmQuery};
+use cosmwasm_std::{attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg, QueryRequest, WasmQuery, Decimal};
 
 use crate::{
     bond::deposit_farm_share,
@@ -10,19 +10,18 @@ use crate::querier::query_valkyrie_reward_info;
 use cw20::Cw20ExecuteMsg;
 
 use crate::state::{pool_info_read, pool_info_store, read_state, Config, PoolInfo};
-use valkyrie::governance::execute_msgs::Cw20HookMsg as ValkyrieGovCw20HookMsg;
 use valkyrie::lp_staking::execute_msgs::{
     Cw20HookMsg as ValkyrieStakingCw20HookMsg, ExecuteMsg as ValkyrieStakingExecuteMsg,
 };
 use spectrum_protocol::valkyrie_farm::ExecuteMsg;
 use spectrum_protocol::gov::{ExecuteMsg as GovExecuteMsg};
 use terraswap::asset::{Asset, AssetInfo};
-use terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg, ExecuteMsg as TerraswapExecuteMsg, QueryMsg as TerraswapQueryMsg, PoolResponse};
+use terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg, QueryMsg as TerraswapQueryMsg, PoolResponse};
 use terraswap::querier::{query_token_balance, simulate};
 use spectrum_protocol::farm_helper::{compute_provide_after_swap, deduct_tax};
 use moneymarket::market::{ExecuteMsg as MoneyMarketExecuteMsg};
 
-pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
+pub fn compound(deps: DepsMut, env: Env, info: MessageInfo, max_compound: Uint128) -> StdResult<Response> {
     let config = read_config(deps.storage)?;
 
     if config.controller != deps.api.addr_canonicalize(info.sender.as_str())? {
@@ -32,7 +31,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let pair_contract = deps.api.addr_humanize(&config.pair_contract)?;
     let valkyrie_staking = deps.api.addr_humanize(&config.valkyrie_staking)?;
     let valkyrie_token = deps.api.addr_humanize(&config.valkyrie_token)?;
-    let valkyrie_gov = deps.api.addr_humanize(&config.valkyrie_gov)?;
+    // let valkyrie_gov = deps.api.addr_humanize(&config.valkyrie_gov)?;
 
     let valkyrie_reward_info = query_valkyrie_reward_info(
         deps.as_ref(),
@@ -46,14 +45,16 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let mut compound_amount = Uint128::zero();
 
     let mut attributes: Vec<Attribute> = vec![];
-    let community_fee = config.community_fee;
-    let platform_fee = config.platform_fee;
-    let controller_fee = config.controller_fee;
-    let total_fee = community_fee + platform_fee + controller_fee;
+    // let community_fee = config.community_fee;
+    // let platform_fee = config.platform_fee;
+    // let controller_fee = config.controller_fee;
+    let total_fee = Decimal::one(); // community_fee + platform_fee + controller_fee;
 
     // calculate auto-compound, auto-Stake, and commission in VKR
     let mut pool_info = pool_info_read(deps.storage).load(config.valkyrie_token.as_slice())?;
-    let reward = valkyrie_reward_info.pending_reward;
+    let reinvest_allowance = query_token_balance(&deps.querier, valkyrie_token.clone(), env.contract.address.clone())?;
+    let reward = valkyrie_reward_info.pending_reward + reinvest_allowance;
+    let reward = if reward > max_compound { max_compound } else { reward };
     if !reward.is_zero() && !valkyrie_reward_info.bond_amount.is_zero() {
         let commission = reward * total_fee;
         let valkyrie_amount = reward.checked_sub(commission)?;
@@ -87,8 +88,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     pool_info_store(deps.storage).save(config.valkyrie_token.as_slice(), &pool_info)?;
 
     // get reinvest amount
-    let reinvest_allowance = query_token_balance(&deps.querier, valkyrie_token.clone(), env.contract.address.clone())?;
-    let reinvest_amount = reinvest_allowance + compound_amount;
+    let reinvest_amount = compound_amount;
     // split reinvest amount
     let swap_amount = reinvest_amount.multiply_ratio(1u128, 2u128);
     // add commission to reinvest VKR to total swap amount
@@ -192,67 +192,67 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         }));
     }
 
-    if !total_vkr_stake_amount.is_zero() {
-        let stake_vkr = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: valkyrie_token.to_string(),
-            funds: vec![],
-            msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: valkyrie_gov.to_string(),
-                amount: total_vkr_stake_amount,
-                msg: to_binary(&ValkyrieGovCw20HookMsg::StakeGovernanceToken {})?,
-            })?,
-        });
-        messages.push(stake_vkr);
-    }
+    // if !total_vkr_stake_amount.is_zero() {
+    //     let stake_vkr = CosmosMsg::Wasm(WasmMsg::Execute {
+    //         contract_addr: valkyrie_token.to_string(),
+    //         funds: vec![],
+    //         msg: to_binary(&Cw20ExecuteMsg::Send {
+    //             contract: valkyrie_gov.to_string(),
+    //             amount: total_vkr_stake_amount,
+    //             msg: to_binary(&ValkyrieGovCw20HookMsg::StakeGovernanceToken {})?,
+    //         })?,
+    //     });
+    //     messages.push(stake_vkr);
+    // }
 
-    if !provide_vkr.is_zero() {
-        let increase_allowance = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: valkyrie_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-                spender: pair_contract.to_string(),
-                amount: provide_vkr,
-                expires: None,
-            })?,
-            funds: vec![],
-        });
-        messages.push(increase_allowance);
-
-        let provide_liquidity = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: pair_contract.to_string(),
-            msg: to_binary(&TerraswapExecuteMsg::ProvideLiquidity {
-                assets: [
-                    Asset {
-                        info: AssetInfo::Token {
-                            contract_addr: valkyrie_token.to_string(),
-                        },
-                        amount: provide_vkr,
-                    },
-                    Asset {
-                        info: AssetInfo::NativeToken {
-                            denom: config.base_denom.clone(),
-                        },
-                        amount: net_reinvest_ust,
-                    },
-                ],
-                slippage_tolerance: None,
-                receiver: None,
-            })?,
-            funds: vec![Coin {
-                denom: config.base_denom,
-                amount: net_reinvest_ust,
-            }],
-        });
-        messages.push(provide_liquidity);
-
-        let stake = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: env.contract.address.to_string(),
-            msg: to_binary(&ExecuteMsg::stake {
-                asset_token: valkyrie_token.to_string(),
-            })?,
-            funds: vec![],
-        });
-        messages.push(stake);
-    }
+    // if !provide_vkr.is_zero() {
+    //     let increase_allowance = CosmosMsg::Wasm(WasmMsg::Execute {
+    //         contract_addr: valkyrie_token.to_string(),
+    //         msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+    //             spender: pair_contract.to_string(),
+    //             amount: provide_vkr,
+    //             expires: None,
+    //         })?,
+    //         funds: vec![],
+    //     });
+    //     messages.push(increase_allowance);
+    //
+    //     let provide_liquidity = CosmosMsg::Wasm(WasmMsg::Execute {
+    //         contract_addr: pair_contract.to_string(),
+    //         msg: to_binary(&TerraswapExecuteMsg::ProvideLiquidity {
+    //             assets: [
+    //                 Asset {
+    //                     info: AssetInfo::Token {
+    //                         contract_addr: valkyrie_token.to_string(),
+    //                     },
+    //                     amount: provide_vkr,
+    //                 },
+    //                 Asset {
+    //                     info: AssetInfo::NativeToken {
+    //                         denom: config.base_denom.clone(),
+    //                     },
+    //                     amount: net_reinvest_ust,
+    //                 },
+    //             ],
+    //             slippage_tolerance: None,
+    //             receiver: None,
+    //         })?,
+    //         funds: vec![Coin {
+    //             denom: config.base_denom,
+    //             amount: net_reinvest_ust,
+    //         }],
+    //     });
+    //     messages.push(provide_liquidity);
+    //
+    //     let stake = CosmosMsg::Wasm(WasmMsg::Execute {
+    //         contract_addr: env.contract.address.to_string(),
+    //         msg: to_binary(&ExecuteMsg::stake {
+    //             asset_token: valkyrie_token.to_string(),
+    //         })?,
+    //         funds: vec![],
+    //     });
+    //     messages.push(stake);
+    // }
 
     attributes.push(attr("action", "compound"));
     attributes.push(attr("asset_token", valkyrie_token));

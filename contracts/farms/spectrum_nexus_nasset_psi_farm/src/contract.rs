@@ -337,7 +337,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
                 contract_addr: deps.api.addr_humanize(&config.nasset_token)?.to_string(),
             },
             AssetInfo::Token {
-                contract_addr: deps.api.addr_humanize(&config.nasset_token)?.to_string(),
+                contract_addr: deps.api.addr_humanize(&config.nexus_token)?.to_string(),
             },
         ],
     )?;

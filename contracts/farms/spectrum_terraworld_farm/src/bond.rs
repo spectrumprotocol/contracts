@@ -68,7 +68,7 @@ fn bond_internal(
     }
 
     // increase bond_amount
-    increase_bond_amount(
+    let new_deposit_amount = increase_bond_amount(
         &mut pool_info,
         &mut reward_info,
         if reallocate { Decimal::zero() } else { config.deposit_fee },
@@ -79,7 +79,6 @@ fn bond_internal(
 
     if !reallocate {
         let last_deposit_amount = reward_info.deposit_amount;
-        let new_deposit_amount = amount_to_auto + amount_to_stake;
         reward_info.deposit_amount = last_deposit_amount + new_deposit_amount;
         reward_info.deposit_time = compute_deposit_time(last_deposit_amount, new_deposit_amount, reward_info.deposit_time, env.block.time.seconds())?;
     }
@@ -262,7 +261,7 @@ fn increase_bond_amount(
     amount_to_auto: Uint128,
     amount_to_stake: Uint128,
     lp_balance: Uint128,
-) -> StdResult<()> {
+) -> StdResult<Uint128> {
     let (auto_bond_amount, stake_bond_amount, stake_bond_fee) = if deposit_fee.is_zero() {
         (amount_to_auto, amount_to_stake, Uint128::zero())
     } else {
@@ -294,7 +293,10 @@ fn increase_bond_amount(
     reward_info.auto_bond_share += auto_bond_share;
     reward_info.stake_bond_share += stake_bond_share;
 
-    Ok(())
+    let new_auto_bond_amount = pool_info.calc_user_auto_balance(lp_balance + amount_to_auto + amount_to_stake, auto_bond_share);
+    let new_stake_bond_amount = pool_info.calc_user_stake_balance(stake_bond_share);
+
+    Ok(new_auto_bond_amount + new_stake_bond_amount)
 }
 
 // stake LP token to Terraworld Staking
