@@ -9,6 +9,7 @@ pub struct ConfigInfo {
     pub owner: String,
     pub dp_token: String,
     pub reward_token: String,
+    pub gov_proxy: Option<String>,
     pub spectrum_token: String,
     pub spectrum_gov: String,
     pub gateway_pool: String,
@@ -60,6 +61,7 @@ pub enum ExecuteMsg {
 pub enum Cw20HookMsg {
     bond {
         staker_addr: Option<String>,
+        compound_rate: Option<Decimal>,
     },
 }
 

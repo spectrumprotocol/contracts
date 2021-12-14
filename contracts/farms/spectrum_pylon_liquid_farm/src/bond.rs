@@ -5,6 +5,7 @@ use cosmwasm_std::{
 use spectrum_protocol::pylon_liquid_farm::{MockStakerInfoResponse, RewardInfoResponseItem, RewardInfoResponse};
 use terraswap::querier::query_token_balance;
 
+use crate::querier::query_farm_gov_balance;
 use crate::state::{
     pool_info_read, pool_info_store, read_config, read_state, rewards_read, rewards_store,
     state_store, Config, PoolInfo, RewardInfo, State,
@@ -16,6 +17,7 @@ use spectrum_protocol::farm_helper::compute_deposit_time;
 use spectrum_protocol::gov::{
     BalanceResponse as SpecBalanceResponse, ExecuteMsg as SpecExecuteMsg, QueryMsg as SpecQueryMsg,
 };
+use spectrum_protocol::gov_proxy::{ExecuteMsg as GovProxyExecuteMsg, StakerInfoGovResponse};
 use spectrum_protocol::math::UDec128;
 
 #[allow(clippy::too_many_arguments)]
@@ -95,19 +97,24 @@ pub fn bond(
     sender_addr: String,
     dp_token: String,
     amount: Uint128,
+    compound_rate: Option<Decimal>
 ) -> StdResult<Response> {
-
-    // if compound_rate.is_none() || compound_rate.unwrap_or_else(Decimal::zero) != Decimal::one(){
-    //     return Err(StdError::generic_err("auto-stake is disabled"));
-    // }
 
     let staker_addr_raw = deps.api.addr_canonicalize(&sender_addr)?;
     let dp_token_raw = deps.api.addr_canonicalize(&dp_token)?;
 
     let config = read_config(deps.storage)?;
 
-    let amount_to_auto = amount;
-    let amount_to_stake = Uint128::zero();
+    let compound_rate = compound_rate.unwrap_or_else(Decimal::zero);
+
+    if config.gov_proxy.is_none() && compound_rate != Decimal::one() {
+        return Err(StdError::generic_err(
+            "gov proxy is not set, compound_rate must be 1",
+        ));
+    }
+
+    let amount_to_auto = amount * compound_rate;
+    let amount_to_stake = amount.checked_sub(amount_to_auto)?;
 
     // needed to deduct sent amount
     let dp_token_balance = query_token_balance(&deps.querier, deps.api.addr_validate(&dp_token)?, env.contract.address.clone())?
@@ -134,15 +141,23 @@ pub fn bond(
 }
 
 pub fn deposit_farm_share(
-    _deps: Deps,
-    _env: &Env,
+    deps: Deps,
+    env: &Env,
     state: &mut State,
     pool_info: &mut PoolInfo,
-    _config: &Config,
+    config: &Config,
     amount: Uint128,
 ) -> StdResult<()> {
-    let staked = MockStakerInfoResponse {
-        bond_amount: Uint128::zero(),
+    let staked = if let Some(gov_proxy) = &config.gov_proxy {
+        query_farm_gov_balance(
+            deps,
+            &gov_proxy,
+            &env.contract.address,
+        )?
+    } else {
+        StakerInfoGovResponse {
+            bond_amount: Uint128::zero(),
+        }
     };
 
     let mut new_total_share = Uint128::zero();
@@ -421,64 +436,59 @@ pub fn unbond(
         ]))
 }
 
-// pub fn update_bond(
-//     mut deps: DepsMut,
-//     env: Env,
-//     info: MessageInfo,
-//     asset_token: String,
-//     amount_to_auto: Uint128,
-//     amount_to_stake: Uint128,
-// ) -> StdResult<Response> {
-//     let config = read_config(deps.storage)?;
+pub fn update_bond(
+    mut deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    asset_token: String,
+    amount_to_auto: Uint128,
+    amount_to_stake: Uint128,
+) -> StdResult<Response> {
+    let config = read_config(deps.storage)?;
 
-//     return Err(StdError::generic_err("Update bond is disabled"))
+    if config.gov_proxy.is_none() {
+        return Err(StdError::generic_err(
+            "gov proxy is not set, update_bond disabled",
+        ));
+    }
 
+    let staker_addr_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
 
+    let amount = amount_to_auto + amount_to_stake;
 
-//     let staker_addr_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
-//     let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
+    let dp_token_balance = query_token_balance(&deps.querier, deps.api.addr_validate(&asset_token.to_string())?, env.contract.address.clone())?;
 
-//     let amount = amount_to_auto + amount_to_stake;
+    unbond_internal(
+        deps.branch(),
+        env.clone(),
+        staker_addr_raw.clone(),
+        asset_token_raw.clone(),
+        amount,
+        dp_token_balance,
+        &config,
+        true,
+    )?;
 
-//     let dp_token_balance = query_token_balance(&deps.querier, deps.api.addr_validate(&dp_token.to_string())?, env.contract.address.clone())?;
+    bond_internal(
+        deps,
+        env,
+        staker_addr_raw,
+        asset_token_raw,
+        amount_to_auto,
+        amount_to_stake,
+        dp_token_balance.checked_sub(amount)?,
+        &config,
+        true,
+    )?;
 
-//     // let dp_token_balance = query_orion_pool_balance(
-//     //     deps.as_ref(),
-//     //     &config.orion_staking,
-//     //     &env.contract.address,
-//     //     env.block.time.seconds()
-//     // )?;
-
-//     unbond_internal(
-//         deps.branch(),
-//         env.clone(),
-//         staker_addr_raw.clone(),
-//         asset_token_raw.clone(),
-//         amount,
-//         dp_token_balance,
-//         &config,
-//         true,
-//     )?;
-
-//     bond_internal(
-//         deps,
-//         env,
-//         staker_addr_raw,
-//         asset_token_raw,
-//         amount_to_auto,
-//         amount_to_stake,
-//         dp_token_balance.checked_sub(amount)?,
-//         &config,
-//         true,
-//     )?;
-
-//     Ok(Response::new().add_attributes(vec![
-//         attr("action", "update_bond"),
-//         attr("asset_token", asset_token),
-//         attr("amount_to_auto", amount_to_auto),
-//         attr("amount_to_stake", amount_to_stake),
-//     ]))
-// }
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "update_bond"),
+        attr("asset_token", asset_token),
+        attr("amount_to_auto", amount_to_auto),
+        attr("amount_to_stake", amount_to_stake),
+    ]))
+}
 
 pub fn withdraw(
     mut deps: DepsMut,
@@ -534,24 +544,28 @@ pub fn withdraw(
         }));
     }
 
-    // if !farm_amount.is_zero() {
-    //     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-    //         contract_addr: deps.api.addr_humanize(&config.orion_gov)?.to_string(),
-    //         msg: to_binary(&OrionGovExecuteMsg::UnbondInit {
-    //             amount: farm_amount,
-    //         }
-    //         )?,
-    //         funds: vec![],
-    //     }));
-    //     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-    //         contract_addr: deps.api.addr_humanize(&config.orion_token)?.to_string(),
-    //         msg: to_binary(&Cw20ExecuteMsg::Transfer {
-    //             recipient: info.sender.to_string(),
-    //             amount: farm_amount,
-    //         })?,
-    //         funds: vec![],
-    //     }));
-    // }
+    if let Some(gov_proxy) = config.gov_proxy {
+        if !farm_amount.is_zero() {
+            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: deps
+                    .api
+                    .addr_humanize(&gov_proxy)?
+                    .to_string(),
+                msg: to_binary(&GovProxyExecuteMsg::Unstake {
+                    amount: Some(farm_amount),
+                })?,
+                funds: vec![],
+            }));
+            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: deps.api.addr_humanize(&config.reward_token)?.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: info.sender.to_string(),
+                    amount: farm_amount,
+                })?,
+                funds: vec![],
+            }));
+        }
+    }
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "withdraw"),

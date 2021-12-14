@@ -13,6 +13,7 @@ pub struct Config {
     pub owner: CanonicalAddr,
     pub dp_token: CanonicalAddr,
     pub reward_token: CanonicalAddr,
+    pub gov_proxy: Option<CanonicalAddr>,
     pub spectrum_token: CanonicalAddr,
     pub spectrum_gov: CanonicalAddr,
     pub gateway_pool: CanonicalAddr,

@@ -46,6 +46,11 @@ pub fn instantiate(
             owner: deps.api.addr_canonicalize(&msg.owner)?,
             dp_token: deps.api.addr_canonicalize(&msg.dp_token)?,
             reward_token: deps.api.addr_canonicalize(&msg.reward_token)?,
+            gov_proxy: if let Some(gov_proxy) = msg.gov_proxy {
+                Some(deps.api.addr_canonicalize(&gov_proxy)?)
+            } else {
+                None
+            },
             spectrum_token: deps.api.addr_canonicalize(&msg.spectrum_token)?,
             spectrum_gov: deps.api.addr_canonicalize(&msg.spectrum_gov)?,
             gateway_pool: deps.api.addr_canonicalize(&msg.gateway_pool)?,
@@ -123,12 +128,14 @@ fn receive_cw20(
     match from_binary(&cw20_msg.msg) {
         Ok(Cw20HookMsg::bond {
                staker_addr,
+               compound_rate
            }) => bond(
             deps,
             env,
             staker_addr.unwrap_or(cw20_msg.sender),
             info.sender.to_string(),
             cw20_msg.amount,
+            compound_rate
         ),
         Err(_) => Err(StdError::generic_err("data should be given")),
     }
@@ -254,6 +261,11 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         owner: deps.api.addr_humanize(&config.owner)?.to_string(),
         dp_token: deps.api.addr_humanize(&config.dp_token)?.to_string(),
         reward_token: deps.api.addr_humanize(&config.reward_token)?.to_string(),
+        gov_proxy: if let Some(gov_proxy) = config.gov_proxy {
+            Some(deps.api.addr_humanize(&gov_proxy)?.to_string())
+        } else {
+            None
+        },
         spectrum_token: deps.api.addr_humanize(&config.spectrum_token)?.to_string(),
         spectrum_gov: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
         gateway_pool: deps.api.addr_humanize(&config.gateway_pool)?.to_string(),

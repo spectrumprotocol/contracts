@@ -15,7 +15,12 @@ use spectrum_protocol::gov::{ExecuteMsg as GovExecuteMsg};
 use terraswap::asset::{Asset, AssetInfo};
 use terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg};
 use terraswap::querier::{query_token_balance, simulate};
-use spectrum_protocol::farm_helper::{deduct_tax};
+use spectrum_protocol::{
+    farm_helper::deduct_tax,
+    gov_proxy::{
+        Cw20HookMsg as GovProxyCw20HookMsg
+    },
+};
 use moneymarket::market::{ExecuteMsg as MoneyMarketExecuteMsg};
 use pylon_gateway::pool_msg::{
     ExecuteMsg as PylonGatewayExecuteMsg
@@ -32,6 +37,11 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let pair_contract = deps.api.addr_humanize(&config.pair_contract)?;
     let reward_token = deps.api.addr_humanize(&config.reward_token)?;
     let gateway_pool = deps.api.addr_humanize(&config.gateway_pool)?;
+    let gov_proxy = if let Some(gov_proxy) = &config.gov_proxy {
+        Some(deps.api.addr_humanize(&gov_proxy)?)
+    } else {
+        None
+    };
 
     let reward_info = query_claimable_reward(
         deps.as_ref(),
@@ -50,7 +60,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let controller_fee = config.controller_fee;
     let total_fee = community_fee + platform_fee + controller_fee;
 
-    // calculate auto-compound, auto-Stake, and commission in reward_token
+    // calculate auto-compound, auto-stake, and commission in reward_token
     let mut pool_info = pool_info_read(deps.storage).load(config.dp_token.as_slice())?;
     let reward = reward_info.amount;
     if !reward.is_zero() && !reward_info.amount.is_zero() {
@@ -84,7 +94,6 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     state_store(deps.storage).save(&state)?;
     pool_info_store(deps.storage).save(config.dp_token.as_slice(), &pool_info)?;
 
-    // split reinvest amount
     let total_reward_token_swap_amount = compound_amount;
 
     // find reward_token swap rate
@@ -186,9 +195,20 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         }));
     }
 
-    // if !total_reward_token_stake_amount.is_zero() {
-    //
-    // }
+    if let Some(gov_proxy) = gov_proxy {
+        if !total_reward_token_stake_amount.is_zero() {
+            let stake_farm_token = CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: reward_token.to_string(),
+                funds: vec![],
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: gov_proxy.to_string(),
+                    amount: total_reward_token_stake_amount,
+                    msg: to_binary(&GovProxyCw20HookMsg::Stake {})?,
+                })?,
+            });
+            messages.push(stake_farm_token);
+        }
+    }
 
     attributes.push(attr("action", "compound"));
     attributes.push(attr("reward_token", reward_token));
