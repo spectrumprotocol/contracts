@@ -134,7 +134,3 @@ pub struct StateInfo {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {
 }
-
-pub struct MockStakerInfoResponse{
-    pub bond_amount: Uint128
-}

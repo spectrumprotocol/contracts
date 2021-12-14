@@ -6,6 +6,7 @@ use cosmwasm_std::{
     from_binary, from_slice, to_binary, Coin, ContractResult, Decimal, OwnedDeps, Querier,
     QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
 };
+use spectrum_protocol::gov_proxy::StakerInfoGovResponse;
 use std::collections::HashMap;
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
@@ -158,6 +159,9 @@ enum MockQueryMsg {
         operations: Vec<SwapOperation>,
     },
     Pool {},
+    StakerInfo {
+        staker_addr: String,
+    },
 }
 
 impl WasmMockQuerier {
@@ -273,6 +277,12 @@ impl WasmMockQuerier {
                                 total_share: Uint128::from(1_000_000_000000u128),
                             }
                         )))
+                    }
+                    MockQueryMsg::StakerInfo { staker_addr } => {
+                        let balance = self.read_token_balance(contract_addr, staker_addr);
+                        SystemResult::Ok(ContractResult::from(to_binary(&StakerInfoGovResponse {
+                            bond_amount: balance
+                        })))
                     }
                 }
             }

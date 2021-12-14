@@ -2,7 +2,7 @@ use cosmwasm_std::{
     attr, to_binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
     Order, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
 };
-use spectrum_protocol::pylon_liquid_farm::{MockStakerInfoResponse, RewardInfoResponseItem, RewardInfoResponse};
+use spectrum_protocol::pylon_liquid_farm::{RewardInfoResponseItem, RewardInfoResponse};
 use terraswap::querier::query_token_balance;
 
 use crate::querier::query_farm_gov_balance;
@@ -578,7 +578,7 @@ pub fn withdraw(
 fn withdraw_reward(
     deps: DepsMut,
     env: Env,
-    _config: &Config,
+    config: &Config,
     state: &State,
     staker_addr: &CanonicalAddr,
     dp_token: &Option<CanonicalAddr>,
@@ -608,8 +608,16 @@ fn withdraw_reward(
             .collect::<StdResult<Vec<(CanonicalAddr, RewardInfo)>>>()?;
     }
 
-    let farm_staked = MockStakerInfoResponse {
-        bond_amount: Uint128::zero(),
+    let farm_staked = if let Some(gov_proxy) = &config.gov_proxy {
+        query_farm_gov_balance(
+            deps.as_ref(),
+            &gov_proxy,
+            &env.contract.address,
+        )?
+    } else {
+        StakerInfoGovResponse {
+            bond_amount: Uint128::zero(),
+        }
     };
 
     let mut spec_amount = Uint128::zero();
@@ -752,7 +760,7 @@ pub fn query_reward_info(
 fn read_reward_infos(
     deps: Deps,
     env: Env,
-    _config: &Config,
+    config: &Config,
     state: &State,
     staker_addr: &CanonicalAddr,
     spec_staked: &SpecBalanceResponse,
@@ -767,9 +775,17 @@ fn read_reward_infos(
         })
         .collect::<StdResult<Vec<(CanonicalAddr, RewardInfo)>>>()?;
 
-    let farm_staked = MockStakerInfoResponse {
-        bond_amount: Uint128::zero(),
-    };
+        let farm_staked = if let Some(gov_proxy) = &config.gov_proxy {
+            query_farm_gov_balance(
+                deps,
+                &gov_proxy,
+                &env.contract.address,
+            )?
+        } else {
+            StakerInfoGovResponse {
+                bond_amount: Uint128::zero(),
+            }
+        };
 
     let bucket = pool_info_read(deps.storage);
     let reward_infos: Vec<RewardInfoResponseItem> = reward_pair
