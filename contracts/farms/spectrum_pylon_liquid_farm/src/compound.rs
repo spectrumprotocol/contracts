@@ -33,10 +33,6 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let reward_token = deps.api.addr_humanize(&config.reward_token)?;
     let gateway_pool = deps.api.addr_humanize(&config.gateway_pool)?;
 
-    // let orion_staking = deps.api.addr_humanize(&config.orion_staking)?;
-    // let orion_token = deps.api.addr_humanize(&config.orion_token)?;
-    // let orion_gov = deps.api.addr_humanize(&config.orion_gov)?;
-
     let reward_info = query_claimable_reward(
         deps.as_ref(),
         &config.gateway_pool,
@@ -89,8 +85,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     pool_info_store(deps.storage).save(config.dp_token.as_slice(), &pool_info)?;
 
     // split reinvest amount
-    let total_reward_token_swap_amount = compound_amount.multiply_ratio(1000u128, 1997u128);
-    let provide_reward_token = compound_amount.checked_sub(total_reward_token_swap_amount)?;
+    let total_reward_token_swap_amount = compound_amount;
 
     // find reward_token swap rate
     let reward_token_asset = Asset {
@@ -105,7 +100,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         &reward_token_asset,
     )?;
 
-    let provide_dp_token = reward_token_swap_rate_to_dp_token.return_amount;
+    let earned_dp_token = reward_token_swap_rate_to_dp_token.return_amount;
 
     let mut messages: Vec<CosmosMsg> = vec![];
     let withdraw_all_reward_token: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
@@ -147,7 +142,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
             deps.api.addr_humanize(&config.ust_pair_contract)?,
             &net_commission)?;
 
-        let net_commission_amount = 
+        let net_commission_amount =
             deduct_tax(&deps.querier,
                 deduct_tax(&deps.querier, reward_token_swap_rate_to_uusd.return_amount, "uusd".to_string())?,
                 "uusd".to_string())?;
@@ -195,59 +190,9 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     //
     // }
 
-    if !provide_dp_token.is_zero() {
-        // let increase_allowance = CosmosMsg::Wasm(WasmMsg::Execute {
-        //     contract_addr: orion_token.to_string(),
-        //     msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-        //         spender: pair_contract.to_string(),
-        //         amount: provide_reward_token,
-        //         expires: None,
-        //     })?,
-        //     funds: vec![],
-        // });
-        // messages.push(increase_allowance);
-
-        // let provide_liquidity = CosmosMsg::Wasm(WasmMsg::Execute {
-        //     contract_addr: pair_contract.to_string(),
-        //     msg: to_binary(&TerraswapExecuteMsg::ProvideLiquidity {
-        //         assets: [
-        //             Asset {
-        //                 info: AssetInfo::Token {
-        //                     contract_addr: orion_token.to_string(),
-        //                 },
-        //                 amount: provide_reward_token,
-        //             },
-        //             Asset {
-        //                 info: AssetInfo::NativeToken {
-        //                     denom: config.base_denom.clone(),
-        //                 },
-        //                 amount: net_reinvest_ust,
-        //             },
-        //         ],
-        //         slippage_tolerance: None,
-        //         receiver: None,
-        //     })?,
-        //     funds: vec![Coin {
-        //         denom: config.base_denom,
-        //         amount: net_reinvest_ust,
-        //     }],
-        // });
-        // messages.push(provide_liquidity);
-        //
-        // let stake = CosmosMsg::Wasm(WasmMsg::Execute {
-        //     contract_addr: env.contract.address.to_string(),
-        //     msg: to_binary(&ExecuteMsg::stake {
-        //         asset_token: orion_token.to_string(),
-        //     })?,
-        //     funds: vec![],
-        // });
-        // messages.push(stake);
-    }
-
     attributes.push(attr("action", "compound"));
     attributes.push(attr("reward_token", reward_token));
-    attributes.push(attr("provide_dp_token", provide_dp_token));
-    attributes.push(attr("provide_reward_token", provide_reward_token));
+    attributes.push(attr("earned_dp_token", earned_dp_token));
 
     Ok(Response::new()
         .add_messages(messages)
