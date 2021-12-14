@@ -1,8 +1,8 @@
-mod contract;
-mod state;
-mod bond;
-mod querier;
-mod compound;
+pub mod bond;
+pub mod compound;
+pub mod contract;
+pub mod querier;
+pub mod state;
 
 #[cfg(test)]
 mod tests_bond;

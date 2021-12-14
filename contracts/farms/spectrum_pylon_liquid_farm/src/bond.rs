@@ -1,11 +1,10 @@
 use cosmwasm_std::{
-    attr, to_binary, Api, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
+    attr, to_binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
     Order, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
 };
 use spectrum_protocol::pylon_liquid_farm::{MockStakerInfoResponse, RewardInfoResponseItem, RewardInfoResponse};
 use terraswap::querier::query_token_balance;
 
-use crate::querier::query_balance_of;
 use crate::state::{
     pool_info_read, pool_info_store, read_config, read_state, rewards_read, rewards_store,
     state_store, Config, PoolInfo, RewardInfo, State,
@@ -55,6 +54,7 @@ fn bond_internal(
             deposit_time: 0u64,
         });
     before_share_change(&pool_info, &mut reward_info);
+
     if !reallocate &&
         reward_info.deposit_amount.is_zero() &&
         (!reward_info.auto_bond_share.is_zero() || !reward_info.stake_bond_share.is_zero()) {
@@ -64,8 +64,9 @@ fn bond_internal(
         reward_info.deposit_amount = auto_bond_amount + stake_bond_amount;
         reward_info.deposit_time = env.block.time.seconds();
     }
+
     // increase bond_amount
-    increase_bond_amount(
+    let new_deposit_amount = increase_bond_amount(
         &mut pool_info,
         &mut reward_info,
         if reallocate { Decimal::zero() } else { config.deposit_fee },
@@ -76,7 +77,6 @@ fn bond_internal(
 
     if !reallocate {
         let last_deposit_amount = reward_info.deposit_amount;
-        let new_deposit_amount = amount_to_auto + amount_to_stake;
         reward_info.deposit_amount = last_deposit_amount + new_deposit_amount;
         reward_info.deposit_time = compute_deposit_time(last_deposit_amount, new_deposit_amount, reward_info.deposit_time, env.block.time.seconds())?;
     }
@@ -92,7 +92,6 @@ fn bond_internal(
 pub fn bond(
     mut deps: DepsMut,
     env: Env,
-    info: MessageInfo,
     sender_addr: String,
     dp_token: String,
     amount: Uint128,
@@ -105,33 +104,20 @@ pub fn bond(
     let staker_addr_raw = deps.api.addr_canonicalize(&sender_addr)?;
     let dp_token_raw = deps.api.addr_canonicalize(&dp_token)?;
 
-    let pool_info = pool_info_read(deps.storage).load(dp_token_raw.as_slice())?;
-
-    // only dp token contract can execute this message
-    if dp_token != info.sender.as_str() {
-        return Err(StdError::generic_err("unauthorized"));
-    }
-
     let config = read_config(deps.storage)?;
 
     let amount_to_auto = amount;
     let amount_to_stake = Uint128::zero();
 
-    //TODO or self contract query dp token? anyway it return same value, dp_token = query_balance_of
-    let dp_token_balance = query_token_balance(&deps.querier, deps.api.addr_validate(&dp_token.to_string())?, env.contract.address.clone())?;
-
-    // let ust_balance = query_balance_of(
-    //     deps.as_ref(),
-    //     &config.gateway_pool,
-    //     &env.contract.address,
-    // )?.amount;
-    let env_contract_address = env.contract.address.clone();
+    // needed to deduct sent amount
+    let dp_token_balance = query_token_balance(&deps.querier, deps.api.addr_validate(&dp_token)?, env.contract.address.clone())?
+        .checked_sub(amount)?;
 
     bond_internal(
         deps.branch(),
         env,
         staker_addr_raw,
-        dp_token_raw.clone(),
+        dp_token_raw,
         amount_to_auto,
         amount_to_stake,
         dp_token_balance,
@@ -139,23 +125,7 @@ pub fn bond(
         false,
     )?;
 
-    // stake_token(
-    //     deps.api,
-    //     config.gateway_pool,
-    //     dp_token_raw,
-    //     dp_token_raw,
-    //     amount,
-    // )
     Ok(Response::new()
-        .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: dp_token.clone(),
-            msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-                owner: sender_addr.clone(),
-                recipient: env_contract_address.to_string(),
-                amount,
-            })?,
-            funds: vec![],
-        })])
         .add_attributes(vec![
             attr("action", "bond"),
             attr("dp_token", dp_token),
@@ -165,7 +135,7 @@ pub fn bond(
 
 pub fn deposit_farm_share(
     _deps: Deps,
-    env: &Env,
+    _env: &Env,
     state: &mut State,
     pool_info: &mut PoolInfo,
     _config: &Config,
@@ -262,7 +232,8 @@ fn spec_reward_to_pool(
 }
 
 // withdraw reward to pending reward
-fn before_share_change(pool_info: &PoolInfo, reward_info: &mut RewardInfo) {    let farm_share =
+fn before_share_change(pool_info: &PoolInfo, reward_info: &mut RewardInfo) {
+    let farm_share =
         (pool_info.farm_share_index - reward_info.farm_share_index) * reward_info.stake_bond_share;
     reward_info.farm_share += farm_share;
     reward_info.farm_share_index = pool_info.farm_share_index;
@@ -275,7 +246,6 @@ fn before_share_change(pool_info: &PoolInfo, reward_info: &mut RewardInfo) {    
     reward_info.spec_share += spec_share;
     reward_info.stake_spec_share_index = pool_info.stake_spec_share_index;
     reward_info.auto_spec_share_index = pool_info.auto_spec_share_index;
-
 }
 
 // increase share amount in pool and reward info
@@ -286,7 +256,7 @@ fn increase_bond_amount(
     amount_to_auto: Uint128,
     amount_to_stake: Uint128,
     dp_token_balance: Uint128,
-) -> StdResult<()> {
+) -> StdResult<Uint128> {
     let (auto_bond_amount, stake_bond_amount, stake_bond_fee) = if deposit_fee.is_zero() {
         (amount_to_auto, amount_to_stake, Uint128::zero())
     } else {
@@ -318,29 +288,11 @@ fn increase_bond_amount(
     reward_info.auto_bond_share += auto_bond_share;
     reward_info.stake_bond_share += stake_bond_share;
 
-    Ok(())
+    let new_auto_bond_amount = pool_info.calc_user_auto_balance(dp_token_balance + amount_to_auto + amount_to_stake, auto_bond_share);
+    let new_stake_bond_amount = pool_info.calc_user_stake_balance(stake_bond_share);
+
+    Ok(new_auto_bond_amount + new_stake_bond_amount)
 }
-
-// // stake LP token to Orion Staking
-// fn stake_token(
-//     api: &dyn Api,
-//     gateway_pool: CanonicalAddr,
-//     dp_token: CanonicalAddr,
-//     asset_token: CanonicalAddr,
-//     amount: Uint128,
-// ) -> StdResult<Response> {
-//     let asset_token = api.addr_humanize(&asset_token)?;
-//     let orion_staking = api.addr_humanize(&orion_staking)?;
-//     let staking_token = api.addr_humanize(&staking_token)?;
-
-//     Ok(Response::new()
-//         .add_attributes(vec![
-//             attr("action", "bond"),
-//             attr("staking_token", staking_token),
-//             attr("asset_token", asset_token),
-//             attr("amount", amount),
-//         ]));
-// }
 
 #[allow(clippy::too_many_arguments)]
 fn unbond_internal(
@@ -437,14 +389,9 @@ pub fn unbond(
 
     let config = read_config(deps.storage)?;
 
-    let dp_token_balance = query_token_balance(&deps.querier, deps.api.addr_validate(&dp_token.to_string())?, env.contract.address.clone())?;
-    // let ust_balance = query_balance_of(
-    //     deps.as_ref(),
-    //     &config.gateway_pool,
-    //     &env.contract.address,
-    // )?;
+    let dp_token_balance = query_token_balance(&deps.querier, deps.api.addr_validate(&dp_token)?, env.contract.address.clone())?;
 
-    let pool_info = unbond_internal(
+    unbond_internal(
         deps.branch(),
         env,
         staker_addr_raw,
@@ -458,10 +405,7 @@ pub fn unbond(
     Ok(Response::new()
         .add_messages(vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: deps
-                    .api
-                    .addr_validate(&dp_token)?
-                    .to_string(),
+                contract_addr: dp_token.clone(),
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: info.sender.to_string(),
                     amount,
@@ -620,7 +564,7 @@ pub fn withdraw(
 fn withdraw_reward(
     deps: DepsMut,
     env: Env,
-    config: &Config,
+    _config: &Config,
     state: &State,
     staker_addr: &CanonicalAddr,
     dp_token: &Option<CanonicalAddr>,
@@ -653,13 +597,6 @@ fn withdraw_reward(
     let farm_staked = MockStakerInfoResponse {
         bond_amount: Uint128::zero(),
     };
-
-    // let dp_token_balance = query_orion_pool_balance(
-    //     deps.as_ref(),
-    //     &config.orion_staking,
-    //     &env.contract.address,
-    //     env.block.time.seconds()
-    // )?;
 
     let mut spec_amount = Uint128::zero();
     let mut spec_share = Uint128::zero();
@@ -801,7 +738,7 @@ pub fn query_reward_info(
 fn read_reward_infos(
     deps: Deps,
     env: Env,
-    config: &Config,
+    _config: &Config,
     state: &State,
     staker_addr: &CanonicalAddr,
     spec_staked: &SpecBalanceResponse,
@@ -819,9 +756,6 @@ fn read_reward_infos(
     let farm_staked = MockStakerInfoResponse {
         bond_amount: Uint128::zero(),
     };
-
-    // let dp_token_balance =
-    //     query_orion_pool_balance(deps, &config.orion_staking, &env.contract.address, env.block.time.seconds())?;
 
     let bucket = pool_info_read(deps.storage);
     let reward_infos: Vec<RewardInfoResponseItem> = reward_pair

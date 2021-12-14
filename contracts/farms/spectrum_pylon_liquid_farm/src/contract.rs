@@ -7,13 +7,10 @@ use cosmwasm_std::{
 
 use crate::{
     bond::bond,
-    // compound::{compound, stake},
     state::{read_config, state_store, store_config, Config, PoolInfo, State},
 };
 
 use cw20::Cw20ReceiveMsg;
-use terraswap::asset::AssetInfo;
-use terraswap::querier::query_pair_info;
 
 use crate::bond::{deposit_spec_reward, query_reward_info, unbond, withdraw};
 use crate::state::{pool_info_read, pool_info_store, read_state};
@@ -21,7 +18,6 @@ use spectrum_protocol::pylon_liquid_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
 use crate::compound::{compound, send_fee};
-// use crate::compound::send_fee;
 
 /// (we require 0-1)
 fn validate_percentage(value: Decimal, field: &str) -> StdResult<()> {
@@ -99,7 +95,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             deposit_fee,
         ),
         ExecuteMsg::register_asset {
-            reward_token,
             dp_token,
             weight,
         } => register_asset(
@@ -107,7 +102,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             env,
             info,
             dp_token,
-            reward_token,
             weight,
         ),
         ExecuteMsg::unbond {
@@ -129,13 +123,11 @@ fn receive_cw20(
     match from_binary(&cw20_msg.msg) {
         Ok(Cw20HookMsg::bond {
                staker_addr,
-               dp_token,
            }) => bond(
             deps,
             env,
-            info,
             staker_addr.unwrap_or(cw20_msg.sender),
-            dp_token,
+            info.sender.to_string(),
             cw20_msg.amount,
         ),
         Err(_) => Err(StdError::generic_err("data should be given")),
@@ -200,7 +192,6 @@ fn register_asset(
     env: Env,
     info: MessageInfo,
     dp_token: String,
-    reward_token: String,
     weight: u32,
 ) -> StdResult<Response> {
     let config: Config = read_config(deps.storage)?;
@@ -224,7 +215,6 @@ fn register_asset(
     let mut pool_info = pool_info_read(deps.storage)
         .may_load(dp_token_raw.as_slice())?
         .unwrap_or_else(|| PoolInfo {
-            reward_token: deps.api.addr_canonicalize(&reward_token).unwrap(),
             total_auto_bond_share: Uint128::zero(),
             total_stake_bond_share: Uint128::zero(),
             total_stake_bond_amount: Uint128::zero(),
@@ -235,7 +225,6 @@ fn register_asset(
             auto_spec_share_index: Decimal::zero(),
             stake_spec_share_index: Decimal::zero(),
         });
-    println!("set reward_token {}", pool_info.reward_token);
     state.total_weight = state.total_weight + weight - pool_info.weight;
     pool_info.weight = weight;
 
@@ -244,7 +233,6 @@ fn register_asset(
     Ok(Response::new().add_attributes(vec![
         attr("action", "register_asset"),
         attr("dp_token", dp_token),
-        attr("reward_token", reward_token),
     ]))
 }
 
@@ -294,10 +282,6 @@ fn query_pools(deps: Deps) -> StdResult<PoolsResponse> {
                     .api
                     .addr_humanize(&CanonicalAddr::from(dp_token))?
                     .to_string(),
-                reward_token: deps
-                    .api
-                    .addr_humanize(&pool_info.reward_token)?
-                    .to_string(),
                 weight: pool_info.weight,
                 total_auto_bond_share: pool_info.total_auto_bond_share,
                 total_stake_bond_share: pool_info.total_stake_bond_share,
@@ -310,7 +294,6 @@ fn query_pools(deps: Deps) -> StdResult<PoolsResponse> {
             })
         })
         .collect::<StdResult<Vec<PoolItem>>>()?;
-
     Ok(PoolsResponse { pools })
 }
 

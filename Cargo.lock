@@ -9,7 +9,7 @@ dependencies = [
  "cosmwasm-bignumber",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw20 0.8.0",
+ "cw20",
  "schemars",
  "serde",
  "terra-cosmwasm",
@@ -196,33 +196,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "cw-storage-plus"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8e401ed71bd64abb9b91151a9ff4f7b34e81b2b3eceab23e3cb67fe47e39938"
-dependencies = [
- "cosmwasm-std",
- "schemars",
- "serde",
-]
-
-[[package]]
 name = "cw0"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "debc623e83cca463fc5f195bb6f23803a7e5e281b330b759381dcc7ef76d4393"
-dependencies = [
- "cosmwasm-std",
- "schemars",
- "serde",
- "thiserror",
-]
-
-[[package]]
-name = "cw0"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d759bb5418a3bdf091e1f1be17de2a15d95d2be4fee28045c2e461f4c6d9d1ca"
 dependencies = [
  "cosmwasm-std",
  "schemars",
@@ -237,19 +214,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51698a50df8be3d31d7261082f052685d04fe6289df89792fd4efa41daee8b90"
 dependencies = [
  "cosmwasm-std",
- "cw-storage-plus 0.8.0",
- "schemars",
- "serde",
-]
-
-[[package]]
-name = "cw2"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c6380164fb236412ff43c7ca075d95847c6fa8c51b2d3a513c23127a0f2a8f6"
-dependencies = [
- "cosmwasm-std",
- "cw-storage-plus 0.9.1",
+ "cw-storage-plus",
  "schemars",
  "serde",
 ]
@@ -261,19 +226,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f24779556263d95d5a7ebf8a0b0cd615df0b34bff69c23f409e5f17b5fb529ef"
 dependencies = [
  "cosmwasm-std",
- "cw0 0.8.0",
- "schemars",
- "serde",
-]
-
-[[package]]
-name = "cw20"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac49b013ca1e355fd988cc1926acc9a16d7fd45cfb595ee330455582a788b100"
-dependencies = [
- "cosmwasm-std",
- "cw0 0.9.1",
+ "cw0",
  "schemars",
  "serde",
 ]
@@ -285,26 +238,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc6cac998c7ac2b907fe2ccf1b5b966f5ea823b4aa6c2985770223547b7b77ec"
 dependencies = [
  "cosmwasm-std",
- "cw-storage-plus 0.8.0",
- "cw0 0.8.0",
- "cw2 0.8.0",
- "cw20 0.8.0",
- "schemars",
- "serde",
- "thiserror",
-]
-
-[[package]]
-name = "cw20-base"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b731a291b63cc26d484b159e8469f0965b0082a20e874616f869537b31d64bb"
-dependencies = [
- "cosmwasm-std",
- "cw-storage-plus 0.9.1",
- "cw0 0.9.1",
- "cw2 0.9.1",
- "cw20 0.9.1",
+ "cw-storage-plus",
+ "cw0",
+ "cw2",
+ "cw20",
  "schemars",
  "serde",
  "thiserror",
@@ -318,11 +255,11 @@ checksum = "6d27b11827323369993519abb494f3ae9b6aac4d716d058bea5e181b9b0074b7"
 dependencies = [
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw-storage-plus 0.8.0",
- "cw0 0.8.0",
- "cw2 0.8.0",
- "cw20 0.8.0",
- "cw20-base 0.8.0",
+ "cw-storage-plus",
+ "cw0",
+ "cw2",
+ "cw20",
+ "cw20-base",
  "schemars",
  "serde",
  "thiserror",
@@ -493,7 +430,7 @@ version = "2.1.1"
 dependencies = [
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw20 0.8.0",
+ "cw20",
  "schemars",
  "serde",
  "terraswap",
@@ -507,7 +444,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw20 0.8.0",
+ "cw20",
  "schemars",
  "serde",
  "terra-cosmwasm",
@@ -518,7 +455,7 @@ name = "nexus-token"
 version = "1.0.0"
 dependencies = [
  "cosmwasm-std",
- "cw20 0.8.0",
+ "cw20",
  "schemars",
  "serde",
  "terraswap",
@@ -537,7 +474,7 @@ dependencies = [
  "cosmwasm-bignumber",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw20 0.8.0",
+ "cw20",
  "schemars",
  "serde",
  "terra-cosmwasm",
@@ -569,8 +506,8 @@ dependencies = [
  "cosmwasm-bignumber",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw20 0.9.1",
- "cw20-base 0.9.1",
+ "cw20",
+ "cw20-base",
  "pylon-utils",
  "schemars",
  "serde",
@@ -584,8 +521,8 @@ dependencies = [
  "cosmwasm-bignumber",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw2 0.8.0",
- "cw20 0.8.0",
+ "cw2",
+ "cw20",
  "pylon-utils",
  "schemars",
  "serde",
@@ -601,7 +538,7 @@ dependencies = [
  "cosmwasm-bignumber",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw20 0.8.0",
+ "cw20",
  "schemars",
  "serde",
  "terra-cosmwasm",
@@ -746,7 +683,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw20 0.8.0",
+ "cw20",
  "moneymarket",
  "schemars",
  "serde",
@@ -762,7 +699,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw20 0.8.0",
+ "cw20",
  "schemars",
  "serde",
  "spectrum-protocol",
@@ -777,7 +714,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw20 0.8.0",
+ "cw20",
  "mirror-protocol",
  "moneymarket",
  "schemars",
@@ -794,7 +731,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw20 0.8.0",
+ "cw20",
  "moneymarket",
  "nexus-token",
  "schemars",
@@ -811,7 +748,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw20 0.8.0",
+ "cw20",
  "moneymarket",
  "nexus-token",
  "schemars",
@@ -828,7 +765,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw20 0.8.0",
+ "cw20",
  "moneymarket",
  "orion",
  "schemars",
@@ -845,7 +782,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw20 0.8.0",
+ "cw20",
  "schemars",
  "serde",
  "spectrum-protocol",
@@ -858,7 +795,7 @@ version = "0.2.0"
 dependencies = [
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw20 0.8.0",
+ "cw20",
  "schemars",
  "serde",
  "terraswap",
@@ -871,7 +808,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw20 0.8.0",
+ "cw20",
  "moneymarket",
  "pylon-token",
  "schemars",
@@ -889,7 +826,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw20 0.8.0",
+ "cw20",
  "moneymarket",
  "pylon-gateway",
  "schemars",
@@ -906,7 +843,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw20 0.8.0",
+ "cw20",
  "schemars",
  "serde",
  "spectrum-protocol",
@@ -920,7 +857,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw20 0.8.0",
+ "cw20",
  "schemars",
  "serde",
  "spectrum-protocol",
@@ -936,7 +873,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw20 0.8.0",
+ "cw20",
  "moneymarket",
  "schemars",
  "serde",
@@ -953,7 +890,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw20 0.8.0",
+ "cw20",
  "cw20-legacy",
  "schemars",
  "serde",
@@ -968,7 +905,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw20 0.8.0",
+ "cw20",
  "moneymarket",
  "schemars",
  "serde",
@@ -985,7 +922,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw20 0.8.0",
+ "cw20",
  "moneymarket",
  "schemars",
  "serde",
@@ -1045,7 +982,7 @@ checksum = "96f2c2a6371e9ddf2c942368e64645cc3e8fc2855da70c8c6bed238dcdd5522f"
 dependencies = [
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw20 0.8.0",
+ "cw20",
  "schemars",
  "serde",
  "terra-cosmwasm",
@@ -1058,7 +995,7 @@ dependencies = [
  "cosmwasm-bignumber",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw20 0.8.0",
+ "cw20",
  "schemars",
  "serde",
  "terra-cosmwasm",
@@ -1115,7 +1052,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
- "cw20 0.8.0",
+ "cw20",
  "schemars",
  "serde",
  "terra-cosmwasm",

@@ -42,7 +42,6 @@ pub enum ExecuteMsg {
         amount: Uint128,
     },
     register_asset {
-        reward_token: String,
         dp_token: String,
         weight: u32,
     },
@@ -61,7 +60,6 @@ pub enum ExecuteMsg {
 pub enum Cw20HookMsg {
     bond {
         staker_addr: Option<String>,
-        dp_token: String,
     },
 }
 
@@ -84,7 +82,6 @@ pub struct PoolsResponse {
 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolItem {
-    pub reward_token: String,
     pub dp_token: String,
     pub total_auto_bond_share: Uint128, // share auto bond
     pub total_stake_bond_share: Uint128,
