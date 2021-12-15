@@ -89,6 +89,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         aust_token: AUST_TOKEN.to_string(),
         pair_contract: PAIR_CONTRACT.to_string(),
         ust_pair_contract: UST_PAIR_CONTRACT.to_string(),
+        gov_proxy: None
     };
 
     // success init
@@ -146,7 +147,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
     let info = mock_info(TEST_CREATOR, &[]);
     let msg = ExecuteMsg::register_asset {
         dp_token: DP_TOKEN.to_string(),
-        reward_token: REWARD_TOKEN.to_string(),
         weight: 1u32,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
@@ -165,7 +165,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
         PoolsResponse {
             pools: vec![PoolItem {
                 dp_token: DP_TOKEN.to_string(),
-                reward_token: REWARD_TOKEN.to_string(),
                 weight: 1u32,
                 farm_share: Uint128::zero(),
                 state_spec_share_index: Decimal::zero(),
@@ -182,7 +181,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
     // register again should fail
     let msg = ExecuteMsg::register_asset {
         dp_token: DP_TOKEN_2.to_string(),
-        reward_token: REWARD_TOKEN_2.to_string(),
         weight: 1u32,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
@@ -198,21 +196,35 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // bond err
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
-    let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
+    deps.querier.with_token_balances(&[
+        (
+            &DP_TOKEN.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(10000u128))],
+        ),
+    ]);
+    let msg_fail = ExecuteMsg::receive(Cw20ReceiveMsg {
         sender: USER1.to_string(),
         amount: Uint128::from(10000u128),
         msg: to_binary(&Cw20HookMsg::bond {
             staker_addr: None,
-            dp_token: DP_TOKEN.to_string(),
+            compound_rate: Some(Decimal::percent(10))
         })
         .unwrap(),
     });
-    let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
+    let res = execute(deps.as_mut(), env.clone(), info, msg_fail);
     assert!(res.is_err());
 
     // bond success user1 10000 DP Token
+    let msg_success = ExecuteMsg::receive(Cw20ReceiveMsg {
+        sender: USER1.to_string(),
+        amount: Uint128::from(10000u128),
+        msg: to_binary(&Cw20HookMsg::bond {
+            staker_addr: None,
+            compound_rate: Some(Decimal::one())
+        }).unwrap(),
+    });
     let info = mock_info(DP_TOKEN, &[]);
-    let res = execute(deps.as_mut(), env.clone(), info, msg);
+    let res = execute(deps.as_mut(), env.clone(), info, msg_success);
     assert!(res.is_ok());
 
     let deps_ref = deps.as_ref();
@@ -388,10 +400,16 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         amount: Uint128::from(5000u128),
         msg: to_binary(&Cw20HookMsg::bond {
             staker_addr: None,
-            dp_token: DP_TOKEN.to_string(),
+            compound_rate: Some(Decimal::one())
         })
         .unwrap(),
     });
+    deps.querier.with_token_balances(&[
+        (
+            &DP_TOKEN.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(7000u128 + 5000u128))],
+        ),
+    ]);
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
