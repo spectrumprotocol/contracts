@@ -742,6 +742,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "spectrum-nexus-gov-proxy"
+version = "0.2.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "nexus-token",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+]
+
+[[package]]
 name = "spectrum-nexus-nasset-psi-farm"
 version = "0.2.0"
 dependencies = [
