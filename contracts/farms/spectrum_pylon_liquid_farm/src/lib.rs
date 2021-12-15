@@ -11,7 +11,10 @@ mod tests_bond;
 mod tests_bond_without_gov_proxy;
 
 #[cfg(test)]
-mod tests_compound_wihtout_gov_proxy;
+mod tests_compound;
+
+#[cfg(test)]
+mod tests_compound_without_gov_proxy;
 
 #[cfg(test)]
 mod mock_querier;
