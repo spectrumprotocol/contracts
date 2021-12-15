@@ -10,7 +10,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use spectrum_protocol::gov::ExecuteMsg as GovExecuteMsg;
 use std::fmt::Debug;
-use spectrum_protocol::gov_proxy::{ConfigInfo, ExecuteMsg, QueryMsg, StateInfo};
+use spectrum_protocol::gov_proxy::{ConfigInfo, Cw20HookMsg, ExecuteMsg, QueryMsg, StateInfo};
 
 const SPEC_GOV: &str = "SPEC_GOV";
 const SPEC_TOKEN: &str = "spec_token";
@@ -39,7 +39,7 @@ fn test() {
     deps.querier.with_balance_percent(100);
 
     let _ = test_config(&mut deps);
-    // test_stake(&mut deps);
+    test_stake(&mut deps);
     // test_unstake(&mut deps);
     // test_deposit_fee(&mut deps);
     // test_staked_reward(&mut deps);
@@ -97,13 +97,93 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
     assert!(res.is_ok());
 
     let msg = QueryMsg::Config {};
-    let res: ConfigInfo = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
+    let res: ConfigInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     config.owner = SPEC_GOV.to_string();
     config.farm_contract = Some(FARM_CONTRACT.to_string());
     assert_eq!(res, config);
 
+    // farm_contract cannot be set again once already set
+    let info = mock_info(SPEC_GOV, &[]);
+    let msg = ExecuteMsg::UpdateConfig {
+        owner: None,
+        farm_contract: Some(FARM_CONTRACT.to_string())
+    };
+    let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
+    assert!(res.is_err());
+
     config
 }
+
+fn test_stake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+    let env = mock_env();
+
+    // only farm_contract and farm_token can stake
+    let info = mock_info(FARM_TOKEN, &[]);
+    let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+        sender: FARM_CONTRACT_NON_WHITELISTED.to_string(),
+        amount: Uint128::from(10000u128),
+        msg: to_binary(&Cw20HookMsg::Stake {}).unwrap(),
+    });
+    let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
+    assert!(res.is_err());
+
+
+    let info = mock_info(FARM_TOKEN, &[]);
+    let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+        sender: FARM_CONTRACT.to_string(),
+        amount: Uint128::from(10000u128),
+        msg: to_binary(&Cw20HookMsg::Stake {}).unwrap(),
+    });
+    let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
+    assert!(res.is_ok());
+
+    // verify state
+    deps.querier.with_token_balances(&[
+        (
+            &FARM_GOV.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(10000u128))],
+        ),
+    ]);
+    let msg = QueryMsg::State {};
+    let res: StateInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+    assert_eq!(
+        res,
+        StateInfo {
+            total_deposit: Uint128::from(10000u128),
+            total_withdraw: Uint128::zero(),
+            token_gain: Uint128::zero(),
+        }
+    );
+
+    // stake more and gov stake grows by 1000
+    deps.querier.with_token_balances(&[
+        (
+            &FARM_GOV.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(16000u128))],
+        ),
+    ]);
+    let info = mock_info(FARM_TOKEN, &[]);
+    let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+        sender: FARM_CONTRACT.to_string(),
+        amount: Uint128::from(5000u128),
+        msg: to_binary(&Cw20HookMsg::Stake {}).unwrap(),
+    });
+    let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
+    assert!(res.is_ok());
+
+    let msg = QueryMsg::State {};
+    let res: StateInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+    assert_eq!(
+        res,
+        StateInfo {
+            total_deposit: Uint128::from(15000u128),
+            total_withdraw: Uint128::zero(),
+            token_gain: Uint128::from(1000u128),
+        }
+    );
+
+}
+
 
 // fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
 //     // bond err

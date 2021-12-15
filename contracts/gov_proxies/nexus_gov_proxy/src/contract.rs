@@ -1,8 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    attr, from_binary, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
-};
+use cosmwasm_std::{attr, from_binary, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128};
 
 use crate::{
     state::{read_config, store_config, Config},
@@ -18,7 +16,7 @@ use crate::proxy::{
     stake, unstake
 };
 use crate::querier::query_nexus_gov;
-use crate::state::read_state;
+use crate::state::{read_state, State, state_store};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -41,6 +39,11 @@ pub fn instantiate(
             spectrum_gov: deps.api.addr_canonicalize(&msg.spectrum_gov)?
         },
     )?;
+
+    state_store(deps.storage).save(&State {
+        total_deposit: Uint128::zero(),
+        total_withdraw: Uint128::zero(),
+    })?;
 
     Ok(Response::default())
 }
@@ -109,6 +112,9 @@ pub fn update_config(
     }
 
     if let Some(farm_contract) = farm_contract {
+        if config.farm_contract.is_some() {
+            return Err(StdError::generic_err("farm_contract can be set just once"));
+        }
         config.farm_contract = Option::from(deps.api.addr_canonicalize(&farm_contract)?);
     }
 
@@ -151,7 +157,6 @@ fn query_state(
     let state = read_state(deps.storage)?;
     let config: Config = read_config(deps.storage)?;
     let gov_response = query_nexus_gov(deps, &config.farm_gov, &env.contract.address)?;
-
     // withdraw > deposit
     // deposit 10000
     // withdraw 11000
