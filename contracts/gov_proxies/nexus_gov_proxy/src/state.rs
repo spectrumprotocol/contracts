@@ -8,9 +8,9 @@ static KEY_CONFIG: &[u8] = b"config";
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     pub owner: CanonicalAddr,
-    pub farm_contract: Option<CanonicalAddr>, // Spectrum Anchor farm address whitelist, only whitelist can execute Stake, Unstake
-    pub farm_token: CanonicalAddr, // ANC token address
-    pub farm_gov: CanonicalAddr, // ANC gov address
+    pub farm_contract: Option<CanonicalAddr>, // Spectrum Nexus farm address whitelist, only whitelist can execute Stake, Unstake
+    pub farm_token: CanonicalAddr, // Psi token address
+    pub farm_gov: CanonicalAddr, // Psi gov address
     pub spectrum_gov: CanonicalAddr
 }
 
