@@ -290,7 +290,7 @@ fn query_pools(deps: Deps) -> StdResult<PoolsResponse> {
         .map(|item| {
             let (dp_token, pool_info) = item?;
             Ok(PoolItem {
-                dp_token: deps
+                asset_token: deps
                     .api
                     .addr_humanize(&CanonicalAddr::from(dp_token))?
                     .to_string(),

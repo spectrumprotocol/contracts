@@ -84,7 +84,7 @@ pub struct PoolsResponse {
 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolItem {
-    pub dp_token: String,
+    pub asset_token: String, // equivalent to DP Token, name asset_token for frontend easy coding
     pub total_auto_bond_share: Uint128, // share auto bond
     pub total_stake_bond_share: Uint128,
     pub total_stake_bond_amount: Uint128, // amount stake

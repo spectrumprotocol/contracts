@@ -169,7 +169,7 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
         res,
         PoolsResponse {
             pools: vec![PoolItem {
-                dp_token: DP_TOKEN.to_string(),
+                asset_token: DP_TOKEN.to_string(),
                 weight: 1u32,
                 farm_share: Uint128::zero(),
                 state_spec_share_index: Decimal::zero(),

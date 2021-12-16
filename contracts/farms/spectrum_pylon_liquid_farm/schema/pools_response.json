@@ -21,8 +21,8 @@
     "PoolItem": {
       "type": "object",
       "required": [
+        "asset_token",
         "auto_spec_share_index",
-        "dp_token",
         "farm_share",
         "farm_share_index",
         "stake_spec_share_index",
@@ -33,11 +33,11 @@
         "weight"
       ],
       "properties": {
+        "asset_token": {
+          "type": "string"
+        },
         "auto_spec_share_index": {
           "$ref": "#/definitions/Decimal"
-        },
-        "dp_token": {
-          "type": "string"
         },
         "farm_share": {
           "$ref": "#/definitions/Uint128"
