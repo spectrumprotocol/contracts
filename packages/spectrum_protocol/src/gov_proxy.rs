@@ -25,9 +25,7 @@ pub struct StateInfo {
 pub enum QueryMsg {
     Config {}, // get config
     // get Gov bond_amount
-    StakerInfo {
-        staker_addr: String,
-    },
+    StakerInfo {},
     State {}
 }
 

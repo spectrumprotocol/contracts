@@ -8,7 +8,6 @@ use nexus_token::governance::{AnyoneMsg, Cw20HookMsg as NexusGovCw20HookMsg, Exe
 pub fn query_staker_info_gov(
     deps: Deps,
     env: Env,
-    _staker_addr: String
 ) -> StdResult<StakerInfoGovResponse> {
     let config: Config = read_config(deps.storage)?;
     let gov_response = query_nexus_gov(deps, &config.farm_gov, &env.contract.address)?;
@@ -66,10 +65,16 @@ pub fn unstake(
     let nexus_token = deps.api.addr_humanize(&config.farm_token)?;
     let nexus_gov = deps.api.addr_humanize(&config.farm_gov)?;
 
+    let available_amount = query_nexus_gov(deps.as_ref(), &config.farm_gov, &env.contract.address)?.balance;
+
+    if amount.unwrap_or_else(|| available_amount) > available_amount {
+        return Err(StdError::generic_err("cannot unstake gov more than available"));
+    }
+
     let amount = if amount.is_some(){
         amount.unwrap()
     } else {
-        query_nexus_gov(deps.as_ref(), &config.farm_gov, &env.contract.address)?.balance
+        available_amount
     };
 
     let mut state: State = read_state(deps.storage)?;

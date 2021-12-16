@@ -127,9 +127,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::State {} => to_binary(&query_state(deps, env)?),
-        QueryMsg::StakerInfo {
-            staker_addr,
-        } => to_binary(&query_staker_info_gov(deps, env, staker_addr)?)
+        QueryMsg::StakerInfo {} => to_binary(&query_staker_info_gov(deps, env)?)
     }
 }
 
