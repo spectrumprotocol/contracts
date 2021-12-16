@@ -22,12 +22,9 @@ pub fn query_claimable_reward(
 pub fn query_farm_gov_balance(
     deps: Deps,
     gov_proxy: &CanonicalAddr,
-    staker: &Addr,
 ) -> StdResult<StakerInfoGovResponse> {
     deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: deps.api.addr_humanize(gov_proxy)?.to_string(),
-        msg: to_binary(&GovProxyQueryMsg::StakerInfo {
-            staker_addr: staker.to_string(),
-        })?,
+        msg: to_binary(&GovProxyQueryMsg::StakerInfo {})?,
     }))
 }

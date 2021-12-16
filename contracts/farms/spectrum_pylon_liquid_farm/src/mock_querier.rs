@@ -159,9 +159,7 @@ enum MockQueryMsg {
         operations: Vec<SwapOperation>,
     },
     Pool {},
-    StakerInfo {
-        staker_addr: String,
-    },
+    StakerInfo {},
 }
 
 impl WasmMockQuerier {
@@ -278,8 +276,8 @@ impl WasmMockQuerier {
                             }
                         )))
                     }
-                    MockQueryMsg::StakerInfo { staker_addr } => {
-                        let balance = self.read_token_balance(contract_addr, staker_addr);
+                    MockQueryMsg::StakerInfo {} => {
+                        let balance = self.read_token_balance(contract_addr, MOCK_CONTRACT_ADDR.to_string());
                         SystemResult::Ok(ContractResult::from(to_binary(&StakerInfoGovResponse {
                             bond_amount: balance
                         })))

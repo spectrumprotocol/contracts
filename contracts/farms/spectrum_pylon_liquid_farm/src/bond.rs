@@ -142,7 +142,7 @@ pub fn bond(
 
 pub fn deposit_farm_share(
     deps: Deps,
-    env: &Env,
+    _env: &Env,
     state: &mut State,
     pool_info: &mut PoolInfo,
     config: &Config,
@@ -152,7 +152,6 @@ pub fn deposit_farm_share(
         query_farm_gov_balance(
             deps,
             &gov_proxy,
-            &env.contract.address,
         )?
     } else {
         StakerInfoGovResponse {
@@ -612,7 +611,6 @@ fn withdraw_reward(
         query_farm_gov_balance(
             deps.as_ref(),
             &gov_proxy,
-            &env.contract.address,
         )?
     } else {
         StakerInfoGovResponse {
@@ -779,7 +777,6 @@ fn read_reward_infos(
             query_farm_gov_balance(
                 deps,
                 &gov_proxy,
-                &env.contract.address,
             )?
         } else {
             StakerInfoGovResponse {
