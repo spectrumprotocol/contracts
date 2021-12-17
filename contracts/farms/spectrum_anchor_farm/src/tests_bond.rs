@@ -51,6 +51,8 @@ pub struct RewardInfoResponseItem {
     pub stake_bond_share: Uint128,
     pub pending_farm_reward: Uint128,
     pub pending_spec_reward: Uint128,
+    pub deposit_amount: Option<Uint128>,
+    pub deposit_time: Option<u64>,
 }
 
 #[test]
@@ -247,6 +249,36 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         ),
     ]);
 
+        //update_bond success
+        let info = mock_info(USER1, &[]);
+        let msg = ExecuteMsg::update_bond {
+            asset_token: ANC_TOKEN.to_string(),
+            amount_to_stake: Uint128::from(1u128),
+            amount_to_auto: Uint128::from(9999u128),
+        };
+        let res = execute(deps.as_mut(), env.clone(), info, msg);
+        assert!(res.is_ok());
+
+        //update_bond fail due to exceed deposited amount
+        let info = mock_info(USER1, &[]);
+        let msg = ExecuteMsg::update_bond {
+            asset_token: ANC_TOKEN.to_string(),
+            amount_to_stake: Uint128::from(2u128),
+            amount_to_auto: Uint128::from(9999u128),
+        };
+        let res = execute(deps.as_mut(), env.clone(), info, msg);
+        assert!(res.is_err());
+
+        //update_bond again to original value
+        let info = mock_info(USER1, &[]);
+        let msg = ExecuteMsg::update_bond {
+            asset_token: ANC_TOKEN.to_string(),
+            amount_to_stake: Uint128::from(4000u128),
+            amount_to_auto: Uint128::from(6000u128),
+        };
+        let res = execute(deps.as_mut(), env.clone(), info, msg);
+        assert!(res.is_ok());
+
     // query balance for user1
     let msg = QueryMsg::reward_info {
         staker_addr: USER1.to_string(),
@@ -269,6 +301,8 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             spec_share: Uint128::from(2700u128),
             auto_bond_share: Uint128::from(6000u128),
             stake_bond_share: Uint128::from(4000u128),
+            deposit_amount: Option::from(Uint128::from(10000u128)),
+            deposit_time: Some(1571797419)
         },]
     );
 
@@ -401,6 +435,8 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             spec_share: Uint128::from(0u128),
             auto_bond_share: Uint128::from(4200u128),
             stake_bond_share: Uint128::from(2800u128),
+            deposit_amount: Option::from(Uint128::from(7000u128)),
+            deposit_time: Some(1571797419)
         },]
     );
 
@@ -490,7 +526,9 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             spec_share: Uint128::from(582u128),
             auto_bond_share: Uint128::from(4200u128),
             stake_bond_share: Uint128::from(2800u128),
-        },]
+            deposit_amount: Option::from(Uint128::from(7000u128)),
+            deposit_time: Some(1571797419)
+        }]
     );
 
     // query balance for user2
@@ -514,6 +552,8 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             spec_share: Uint128::from(416u128),
             auto_bond_share: Uint128::from(0u128),
             stake_bond_share: Uint128::from(5000u128),
+            deposit_amount: Option::from(Uint128::from(5000u128)),
+            deposit_time: Some(1571797419)
         },]
     );
 }

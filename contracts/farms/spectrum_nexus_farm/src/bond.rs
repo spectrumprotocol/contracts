@@ -408,6 +408,7 @@ fn unbond_internal(
         && reward_info.farm_share.is_zero()
         && reward_info.auto_bond_share.is_zero()
         && reward_info.stake_bond_share.is_zero()
+        && !reallocate
     {
         rewards_store(deps.storage, &staker_addr_raw).remove(asset_token_raw.as_slice());
     } else {
