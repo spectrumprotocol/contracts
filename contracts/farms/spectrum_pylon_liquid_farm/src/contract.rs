@@ -12,7 +12,7 @@ use crate::{
 
 use cw20::Cw20ReceiveMsg;
 
-use crate::bond::{deposit_spec_reward, query_reward_info, unbond, withdraw};
+use crate::bond::{deposit_spec_reward, query_reward_info, unbond, update_bond, withdraw};
 use crate::state::{pool_info_read, pool_info_store, read_state};
 use spectrum_protocol::pylon_liquid_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
@@ -115,6 +115,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         } => unbond(deps, env, info, asset_token, amount),
         ExecuteMsg::withdraw { asset_token, spec_amount, farm_amount } => withdraw(deps, env, info, asset_token, spec_amount, farm_amount),
         ExecuteMsg::compound {} => compound(deps, env, info),
+        ExecuteMsg::update_bond { asset_token, amount_to_auto, amount_to_stake } => update_bond(deps, env, info, asset_token, amount_to_auto, amount_to_stake),
         ExecuteMsg::send_fee {} => send_fee(deps, env, info),
     }
 }

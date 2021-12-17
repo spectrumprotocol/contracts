@@ -55,6 +55,11 @@ pub enum ExecuteMsg {
     },
     compound {},
     send_fee {},
+    update_bond {
+        asset_token: String,
+        amount_to_stake: Uint128,
+        amount_to_auto: Uint128,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

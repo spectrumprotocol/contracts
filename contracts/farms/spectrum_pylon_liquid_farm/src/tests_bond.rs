@@ -224,6 +224,36 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
+    //update_bond success
+    let info = mock_info(USER1, &[]);
+    let msg = ExecuteMsg::update_bond {
+        asset_token: DP_TOKEN.to_string(),
+        amount_to_stake: Uint128::from(1u128),
+        amount_to_auto: Uint128::from(9999u128),
+    };
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
+    assert!(res.is_ok());
+
+    //update_bond fail due to exceed deposited amount
+    let info = mock_info(USER1, &[]);
+    let msg = ExecuteMsg::update_bond {
+        asset_token: DP_TOKEN.to_string(),
+        amount_to_stake: Uint128::from(2u128),
+        amount_to_auto: Uint128::from(9999u128),
+    };
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
+    assert!(res.is_err());
+
+    //update_bond again to original value
+    let info = mock_info(USER1, &[]);
+    let msg = ExecuteMsg::update_bond {
+        asset_token: DP_TOKEN.to_string(),
+        amount_to_stake: Uint128::from(4000u128),
+        amount_to_auto: Uint128::from(6000u128),
+    };
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
+    assert!(res.is_ok());
+
     let deps_ref = deps.as_ref();
     let config = read_config(deps_ref.storage).unwrap();
     let mut state = read_state(deps_ref.storage).unwrap();
