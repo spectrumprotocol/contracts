@@ -38,7 +38,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let reward_token = deps.api.addr_humanize(&config.reward_token)?;
     let gateway_pool = deps.api.addr_humanize(&config.gateway_pool)?;
     let gov_proxy = if let Some(gov_proxy) = &config.gov_proxy {
-        Some(deps.api.addr_humanize(&gov_proxy)?)
+        Some(deps.api.addr_humanize(gov_proxy)?)
     } else {
         None
     };

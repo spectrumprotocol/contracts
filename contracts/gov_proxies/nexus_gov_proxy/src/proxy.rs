@@ -1,37 +1,59 @@
-use cosmwasm_std::{attr, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, to_binary, Uint128, WasmMsg};
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use spectrum_protocol::gov_proxy::StakerInfoGovResponse;
+use cosmwasm_std::{CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, to_binary, Uint128, WasmMsg};
+use cw20::{Cw20ExecuteMsg};
+use spectrum_protocol::gov_proxy::StakerResponse;
 use crate::querier::query_nexus_gov;
-use crate::state::{Config, read_config, read_state, State, state_store};
+use crate::state::{account_store, read_account, read_config, read_state, state_store};
 use nexus_token::governance::{AnyoneMsg, Cw20HookMsg as NexusGovCw20HookMsg, ExecuteMsg as NexusGovExecuteMsg};
 
 pub fn query_staker_info_gov(
     deps: Deps,
     env: Env,
-) -> StdResult<StakerInfoGovResponse> {
-    let config: Config = read_config(deps.storage)?;
+    address: String,
+) -> StdResult<StakerResponse> {
+    let config = read_config(deps.storage)?;
+    let state = read_state(deps.storage)?;
+
     let gov_response = query_nexus_gov(deps, &config.farm_gov, &env.contract.address)?;
-    let proxy_response = StakerInfoGovResponse {
-        bond_amount: gov_response.balance
-    };
-    Ok(proxy_response)
+    let addr_raw = deps.api.addr_canonicalize(&address).unwrap();
+    let account = read_account(deps.storage, addr_raw.as_slice())?
+        .unwrap_or_default();
+    let balance = state.calc_balance(gov_response.balance, account.share);
+
+    Ok(StakerResponse {
+        balance,
+    })
 }
 
 pub fn stake(
     deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    cw20_msg: Cw20ReceiveMsg
+    env: Env,
+    sender: String,
+    amount: Uint128,
 ) -> StdResult<Response> {
-    let config: Config = read_config(deps.storage)?;
-    if config.farm_contract.unwrap() != deps.api.addr_canonicalize(cw20_msg.sender.as_str())? || config.farm_token != deps.api.addr_canonicalize(info.sender.as_str())? {
-        return Err(StdError::generic_err("unauthorized"));
+
+    if amount.is_zero() {
+        return Err(StdError::generic_err("Insufficient funds sent"));
     }
+
+    let config = read_config(deps.storage)?;
+    let mut state = state_store(deps.storage).load()?;
+
+    let gov_response = query_nexus_gov(deps.as_ref(), &config.farm_gov, &env.contract.address)?;
+    let sender_address_raw = deps.api.addr_canonicalize(&sender)?;
+    let key = sender_address_raw.as_slice();
+    let mut account = account_store(deps.storage)
+        .may_load(key)?
+        .unwrap_or_default();
+
+    let share = state.calc_share(gov_response.balance, amount);
+    account.share += share;
+    state.total_share += share;
+
+    state_store(deps.storage).save(&state)?;
+    account_store(deps.storage).save(key, &account)?;
+
     let nexus_token = deps.api.addr_humanize(&config.farm_token)?;
     let nexus_gov = deps.api.addr_humanize(&config.farm_gov)?;
-    let mut state: State = read_state(deps.storage)?;
-    state.total_deposit = state.total_deposit + cw20_msg.amount;
-    state_store(deps.storage).save(&state)?;
 
     Ok(Response::new()
         .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
@@ -40,16 +62,9 @@ pub fn stake(
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 contract: nexus_gov.to_string(),
                 msg: to_binary(&NexusGovCw20HookMsg::StakeVotingTokens {})?,
-                amount: cw20_msg.amount
+                amount
             })?,
-        })])
-        .add_attributes(vec![
-            attr("action", "stake"),
-            attr("sender", info.sender.to_string()),
-            attr("contract_addr", nexus_gov),
-            attr("token", nexus_token),
-            attr("amount", cw20_msg.amount),
-        ]))
+        })]))
 }
 
 pub fn unstake(
@@ -58,53 +73,54 @@ pub fn unstake(
     info: MessageInfo,
     amount: Option<Uint128>
 ) -> StdResult<Response> {
-    let config: Config = read_config(deps.storage)?;
-    if config.farm_contract.unwrap() != deps.api.addr_canonicalize(info.sender.as_str())? {
-        return Err(StdError::generic_err("unauthorized"));
+
+    let sender_address_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let key = sender_address_raw.as_slice();
+
+    let config = read_config(deps.storage)?;
+    let mut state = state_store(deps.storage).load()?;
+
+    let gov_response = query_nexus_gov(deps.as_ref(), &config.farm_gov, &env.contract.address)?;
+    let mut account = account_store(deps.storage).load(key)?;
+    let user_balance = state.calc_balance(gov_response.balance, account.share);
+    let amount = amount.unwrap_or(user_balance);
+    if amount > user_balance {
+        return Err(StdError::generic_err(
+            "User is trying to withdraw too many tokens.",
+        ));
     }
+
+    let mut withdraw_share = state.calc_share(gov_response.balance, amount);
+    if state.calc_balance(gov_response.balance, withdraw_share) < amount {
+        withdraw_share += Uint128::from(1u128);
+    }
+
+    account.share -= withdraw_share;
+    state.total_share -= withdraw_share;
+
+    account_store(deps.storage).save(key, &account)?;
+    state_store(deps.storage).save(&state)?;
+
     let nexus_token = deps.api.addr_humanize(&config.farm_token)?;
     let nexus_gov = deps.api.addr_humanize(&config.farm_gov)?;
 
-    let available_amount = query_nexus_gov(deps.as_ref(), &config.farm_gov, &env.contract.address)?.balance;
-
-    if amount.unwrap_or_else(|| available_amount) > available_amount {
-        return Err(StdError::generic_err("cannot unstake gov more than available"));
-    }
-
-    let amount = if amount.is_some(){
-        amount.unwrap()
-    } else {
-        available_amount
-    };
-
-    let mut state: State = read_state(deps.storage)?;
-    state.total_withdraw = state.total_withdraw + amount;
-    state_store(deps.storage).save(&state)?;
-
-    let mut messages: Vec<CosmosMsg> = vec![];
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: nexus_gov.to_string(),
-        msg: to_binary(&NexusGovExecuteMsg::Anyone {
-            anyone_msg: AnyoneMsg::WithdrawVotingTokens {
-                amount: Some(amount),
-            },
-        })?,
-        funds: vec![],
-    }));
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: nexus_token.to_string(),
-        msg: to_binary(&Cw20ExecuteMsg::Transfer {
-            recipient: info.sender.to_string(),
-            amount
-        })?,
-        funds: vec![],
-    }));
-
-    Ok(Response::new().add_messages(messages).add_attributes(vec![
-        attr("action", "unstake"),
-        attr("sender", info.sender.to_string()),
-        attr("contract_addr", nexus_gov),
-        attr("token", nexus_token),
-        attr("amount", amount),
+    Ok(Response::new().add_messages(vec![
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: nexus_gov.to_string(),
+            msg: to_binary(&NexusGovExecuteMsg::Anyone {
+                anyone_msg: AnyoneMsg::WithdrawVotingTokens {
+                    amount: Some(amount),
+                },
+            })?,
+            funds: vec![],
+        }),
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: nexus_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: info.sender.to_string(),
+                amount
+            })?,
+            funds: vec![],
+        })
     ]))
 }

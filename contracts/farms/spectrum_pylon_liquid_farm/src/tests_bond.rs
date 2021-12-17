@@ -5,9 +5,6 @@ use crate::state::{pool_info_read, pool_info_store, read_config, read_state, sta
 use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{from_binary, to_binary, CosmosMsg, Decimal, OwnedDeps, Uint128, WasmMsg};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use pylon_gateway::pool_msg::{
-    ExecuteMsg as PylonGatewayExecuteMsg
-};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use spectrum_protocol::gov::ExecuteMsg as GovExecuteMsg;
@@ -28,7 +25,6 @@ const TEST_CREATOR: &str = "creator";
 const USER1: &str = "user1";
 const USER2: &str = "user2";
 const DP_TOKEN_2: &str = "spy_token";
-const REWARD_TOKEN_2: &str = "spy_lp";
 const SPEC_PLATFORM: &str = "spec_platform";
 const TEST_CONTROLLER: &str = "controller";
 const ANC_MARKET: &str = "anc_market";

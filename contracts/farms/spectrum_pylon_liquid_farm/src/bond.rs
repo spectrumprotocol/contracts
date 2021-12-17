@@ -17,7 +17,7 @@ use spectrum_protocol::farm_helper::compute_deposit_time;
 use spectrum_protocol::gov::{
     BalanceResponse as SpecBalanceResponse, ExecuteMsg as SpecExecuteMsg, QueryMsg as SpecQueryMsg,
 };
-use spectrum_protocol::gov_proxy::{ExecuteMsg as GovProxyExecuteMsg, StakerInfoGovResponse};
+use spectrum_protocol::gov_proxy::{ExecuteMsg as GovProxyExecuteMsg};
 use spectrum_protocol::math::UDec128;
 
 #[allow(clippy::too_many_arguments)]
@@ -142,26 +142,21 @@ pub fn bond(
 
 pub fn deposit_farm_share(
     deps: Deps,
-    _env: &Env,
+    env: &Env,
     state: &mut State,
     pool_info: &mut PoolInfo,
     config: &Config,
     amount: Uint128,
 ) -> StdResult<()> {
-    let staked = if let Some(gov_proxy) = &config.gov_proxy {
-        query_farm_gov_balance(
-            deps,
-            &gov_proxy,
-        )?
-    } else {
-        StakerInfoGovResponse {
-            bond_amount: Uint128::zero(),
-        }
-    };
+    let staked = query_farm_gov_balance(
+        deps,
+        &config.gov_proxy,
+        env.contract.address.to_string(),
+    )?;
 
     let mut new_total_share = Uint128::zero();
     if !pool_info.total_stake_bond_share.is_zero() {
-        let new_share = state.calc_farm_share(amount, staked.bond_amount);
+        let new_share = state.calc_farm_share(amount, staked.balance);
         let share_per_bond = Decimal::from_ratio(new_share, pool_info.total_stake_bond_share);
         pool_info.farm_share_index = pool_info.farm_share_index + share_per_bond;
         pool_info.farm_share += new_share;
@@ -377,6 +372,7 @@ fn unbond_internal(
         && reward_info.farm_share.is_zero()
         && reward_info.auto_bond_share.is_zero()
         && reward_info.stake_bond_share.is_zero()
+        && !reallocate
     {
         rewards_store(deps.storage, &staker_addr_raw).remove(asset_token_raw.as_slice());
     } else {
@@ -456,7 +452,7 @@ pub fn update_bond(
 
     let amount = amount_to_auto + amount_to_stake;
 
-    let dp_token_balance = query_token_balance(&deps.querier, deps.api.addr_validate(&asset_token.to_string())?, env.contract.address.clone())?;
+    let dp_token_balance = query_token_balance(&deps.querier, deps.api.addr_validate(&asset_token)?, env.contract.address.clone())?;
 
     unbond_internal(
         deps.branch(),
@@ -607,16 +603,11 @@ fn withdraw_reward(
             .collect::<StdResult<Vec<(CanonicalAddr, RewardInfo)>>>()?;
     }
 
-    let farm_staked = if let Some(gov_proxy) = &config.gov_proxy {
-        query_farm_gov_balance(
-            deps.as_ref(),
-            &gov_proxy,
-        )?
-    } else {
-        StakerInfoGovResponse {
-            bond_amount: Uint128::zero(),
-        }
-    };
+    let farm_staked = query_farm_gov_balance(
+        deps.as_ref(),
+        &config.gov_proxy,
+        env.contract.address.to_string(),
+    )?;
 
     let mut spec_amount = Uint128::zero();
     let mut spec_share = Uint128::zero();
@@ -635,10 +626,10 @@ fn withdraw_reward(
 
         // update withdraw
         let (asset_farm_share, asset_farm_amount) = if let Some(request_amount) = request_farm_amount {
-            let avail_amount = calc_farm_balance(reward_info.farm_share, farm_staked.bond_amount, state.total_farm_share);
+            let avail_amount = calc_farm_balance(reward_info.farm_share, farm_staked.balance, state.total_farm_share);
             let asset_farm_amount = if request_amount > avail_amount { avail_amount } else { request_amount };
-            let mut asset_farm_share = calc_farm_share(asset_farm_amount, farm_staked.bond_amount, state.total_farm_share);
-            if calc_farm_balance(asset_farm_share, farm_staked.bond_amount, state.total_farm_share) < asset_farm_amount {
+            let mut asset_farm_share = calc_farm_share(asset_farm_amount, farm_staked.balance, state.total_farm_share);
+            if calc_farm_balance(asset_farm_share, farm_staked.balance, state.total_farm_share) < asset_farm_amount {
                 asset_farm_share += Uint128::new(1u128);
             }
             request_farm_amount = Some(request_amount.checked_sub(asset_farm_amount)?);
@@ -646,7 +637,7 @@ fn withdraw_reward(
         } else {
             (reward_info.farm_share, calc_farm_balance(
                 reward_info.farm_share,
-                farm_staked.bond_amount,
+                farm_staked.balance,
                 state.total_farm_share,
             ))
         };
@@ -773,16 +764,11 @@ fn read_reward_infos(
         })
         .collect::<StdResult<Vec<(CanonicalAddr, RewardInfo)>>>()?;
 
-        let farm_staked = if let Some(gov_proxy) = &config.gov_proxy {
-            query_farm_gov_balance(
-                deps,
-                &gov_proxy,
-            )?
-        } else {
-            StakerInfoGovResponse {
-                bond_amount: Uint128::zero(),
-            }
-        };
+    let farm_staked = query_farm_gov_balance(
+        deps,
+        &config.gov_proxy,
+        env.contract.address.to_string(),
+    )?;
 
     let bucket = pool_info_read(deps.storage);
     let reward_infos: Vec<RewardInfoResponseItem> = reward_pair
@@ -820,7 +806,7 @@ fn read_reward_infos(
                 pending_spec_reward: calc_spec_balance(reward_info.spec_share, spec_staked),
                 pending_farm_reward: calc_farm_balance(
                     reward_info.farm_share,
-                    farm_staked.bond_amount,
+                    farm_staked.balance,
                     state.total_farm_share,
                 ),
                 deposit_amount: if has_deposit_amount {

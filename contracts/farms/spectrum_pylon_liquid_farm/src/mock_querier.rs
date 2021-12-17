@@ -6,16 +6,13 @@ use cosmwasm_std::{
     from_binary, from_slice, to_binary, Coin, ContractResult, Decimal, OwnedDeps, Querier,
     QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
 };
-use spectrum_protocol::gov_proxy::StakerInfoGovResponse;
+use spectrum_protocol::gov_proxy::StakerResponse;
 use std::collections::HashMap;
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
 use terraswap::pair::{PoolResponse, SimulationResponse};
 use terraswap::router::{SimulateSwapOperationsResponse, SwapOperation};
 use pylon_gateway::pool_resp::{BalanceOfResponse, ClaimableRewardResponse};
-use pylon_gateway::pool_msg::{
-    ExecuteMsg as PylonGatewayExecuteMsg, QueryMsg as PylonGatewayPoolQueryMsg
-};
 use spectrum_protocol::gov::BalanceResponse as SpecBalanceResponse;
 
 const GATEWAY_POOL: &str = "gateway_pool";
@@ -159,7 +156,9 @@ enum MockQueryMsg {
         operations: Vec<SwapOperation>,
     },
     Pool {},
-    StakerInfo {},
+    Staker {
+        address: String,
+    },
 }
 
 impl WasmMockQuerier {
@@ -202,7 +201,7 @@ impl WasmMockQuerier {
                             pools: vec![],
                         })))
                     }
-                    MockQueryMsg::ClaimableReward { owner, timestamp } => {
+                    MockQueryMsg::ClaimableReward { owner, timestamp: _ } => {
                         let balance = self.read_token_balance(contract_addr, owner);
                         SystemResult::Ok(ContractResult::from(to_binary(&ClaimableRewardResponse {
                             amount: balance,
@@ -276,10 +275,10 @@ impl WasmMockQuerier {
                             }
                         )))
                     }
-                    MockQueryMsg::StakerInfo {} => {
-                        let balance = self.read_token_balance(contract_addr, MOCK_CONTRACT_ADDR.to_string());
-                        SystemResult::Ok(ContractResult::from(to_binary(&StakerInfoGovResponse {
-                            bond_amount: balance
+                    MockQueryMsg::Staker { address } => {
+                        let balance = self.read_token_balance(contract_addr, address);
+                        SystemResult::Ok(ContractResult::from(to_binary(&StakerResponse {
+                            balance
                         })))
                     }
                 }

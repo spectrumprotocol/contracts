@@ -16,8 +16,8 @@ use spectrum_protocol::pylon_liquid_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
 use std::fmt::Debug;
-use terraswap::asset::{Asset, AssetInfo, PairInfo};
-use terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg, ExecuteMsg as TerraswapExecuteMsg};
+use terraswap::asset::{AssetInfo, PairInfo};
+use terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg};
 use std::str;
 
 const SPEC_GOV: &str = "SPEC_GOV";
@@ -28,13 +28,10 @@ const SPEC_POOL: &str = "spec_pool";
 const DP_TOKEN: &str = "dp_token";
 const REWARD_TOKEN: &str = "reward_token";
 const DP_TOKEN_REWARD_TOKEN_LP: &str = "dp_token_reward_lp";
-const DP_TOKEN_REWARD_TOKEN_POOL: &str = "dp_token_reward_pool";
 const REWARD_UST_LP: &str = "reward_ust_lp";
-const REWARD_UST_POOL: &str = "reward_ust_pool";
 const TEST_CREATOR: &str = "creator";
 const TEST_CONTROLLER: &str = "controller";
 const DP_TOKEN_2: &str = "fail_token";
-const REWARD_TOKEN_2: &str = "fail_lp";
 const USER1: &str = "user1";
 const USER2: &str = "user2";
 const GATEWAY_POOL: &str = "gateway_pool";

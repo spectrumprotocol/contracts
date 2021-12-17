@@ -6,18 +6,8 @@ use serde::{Deserialize, Serialize};
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigInfo {
-    pub owner: String,
-    pub farm_contract: Option<String>,
     pub farm_token: String,
     pub farm_gov: String,
-    pub spectrum_gov: String,
-}
-// We define a custom struct for each query response
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct StateInfo {
-    pub total_deposit: Uint128,
-    pub total_withdraw: Uint128,
-    pub token_gain: Uint128
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -25,14 +15,16 @@ pub struct StateInfo {
 pub enum QueryMsg {
     Config {}, // get config
     // get Gov bond_amount
-    StakerInfo {},
+    Staker {
+        address: String,
+    },
     State {}
 }
 
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct StakerInfoGovResponse {
-    pub bond_amount: Uint128,
+pub struct StakerResponse {
+    pub balance: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -42,10 +34,6 @@ pub enum ExecuteMsg {
     Unstake {
         amount: Option<Uint128>,
     },
-    UpdateConfig {
-        owner: Option<String>,
-        farm_contract: Option<String>
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -57,4 +45,5 @@ pub enum Cw20HookMsg {
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {
+    pub farm_contract: String,
 }
