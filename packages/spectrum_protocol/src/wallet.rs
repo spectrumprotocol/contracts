@@ -12,7 +12,6 @@ pub struct ConfigInfo {
     pub aust_token: String,
     pub anchor_market: String,
     pub terraswap_factory: String,
-    pub spectrum_farm: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -59,13 +58,9 @@ pub enum ExecuteMsg {
     aust_redeem {
         aust_amount: Option<Uint128>,
     },
-    provide_liquidity {
+    buy_spec {
         ust_amount: Option<Uint128>,
     },
-    bond {
-        lp_amount: Option<Uint128>,
-    },
-    specfarm_claim {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -107,5 +102,4 @@ pub struct MigrateMsg {
     pub aust_token: String,
     pub anchor_market: String,
     pub terraswap_factory: String,
-    pub spectrum_farm: String,
 }

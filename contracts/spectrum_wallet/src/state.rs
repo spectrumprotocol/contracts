@@ -19,7 +19,6 @@ pub struct Config {
     #[serde(default = "default_addr")] pub aust_token: CanonicalAddr,
     #[serde(default = "default_addr")] pub anchor_market: CanonicalAddr,
     #[serde(default = "default_addr")] pub terraswap_factory: CanonicalAddr,
-    #[serde(default = "default_addr")] pub spectrum_farm: CanonicalAddr,
 }
 
 pub fn config_store(storage: &mut dyn Storage) -> Singleton<Config> {

@@ -1,16 +1,15 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
-use cosmwasm_std::{attr, to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery};
+use cosmwasm_std::{attr, to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery, Coin};
 
 use crate::state::{config_store, read_config, read_reward, read_rewards, reward_store, Config, state_store, read_state};
 use cw20::{Cw20ExecuteMsg};
 use terraswap::asset::{Asset, AssetInfo};
-use terraswap::pair::{PoolResponse, QueryMsg as PairQueryMsg, ExecuteMsg as PairExecuteMsg};
+use terraswap::pair::{ExecuteMsg as PairExecuteMsg};
 use terraswap::querier::{query_pair_info, query_token_balance};
 use spectrum_protocol::gov::{BalanceResponse as GovBalanceResponse, Cw20HookMsg as GovCw20HookMsg, ExecuteMsg as GovExecuteMsg, QueryMsg as GovQueryMsg, VoteOption};
 use spectrum_protocol::wallet::{BalanceResponse, ConfigInfo, ExecuteMsg, MigrateMsg, QueryMsg, ShareInfo, SharesResponse, StateInfo};
-use spectrum_protocol::spec_farm::{ExecuteMsg as SpecFarmExecuteMsg, Cw20HookMsg as SpecFarmCw20HookMsg};
 use moneymarket::market::{Cw20HookMsg as MarketCw20HookMsg};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -27,7 +26,6 @@ pub fn instantiate(
         aust_token: deps.api.addr_canonicalize(&msg.aust_token)?,
         anchor_market: deps.api.addr_canonicalize(&msg.anchor_market)?,
         terraswap_factory: deps.api.addr_canonicalize(&msg.terraswap_factory)?,
-        spectrum_farm: deps.api.addr_canonicalize(&msg.spectrum_farm)?,
     })?;
 
     state_store(deps.storage).save(&StateInfo {
@@ -67,10 +65,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::withdraw { spec_amount, aust_amount } => withdraw(deps, env, info, spec_amount, aust_amount),
         ExecuteMsg::gov_claim { aust_amount, days } => harvest(deps, info, aust_amount, days),
         ExecuteMsg::burn { spec_amount } => burn(deps, env, info, spec_amount),
-        ExecuteMsg::specfarm_claim { } => specfarm_claim(deps, info),
         ExecuteMsg::aust_redeem { aust_amount } => aust_redeem(deps, env, info, aust_amount),
-        ExecuteMsg::provide_liquidity { ust_amount } => provide_liquidity(deps, env, info, ust_amount),
-        ExecuteMsg::bond { lp_amount } => bond(deps, env, info, lp_amount),
+        ExecuteMsg::buy_spec { ust_amount } => buy_spec(deps, env, info, ust_amount),
     }
 }
 
@@ -284,28 +280,6 @@ fn burn(
         })]))
 }
 
-fn specfarm_claim(
-    deps: DepsMut,
-    info: MessageInfo,
-) -> StdResult<Response> {
-    let sender_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
-    let found = reward_store(deps.storage).may_load(&sender_addr)?.is_some();
-    if !found {
-        return Err(StdError::generic_err("unauthorized"));
-    }
-
-    let config = read_config(deps.storage)?;
-    Ok(Response::new()
-        .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: deps.api.addr_humanize(&config.spectrum_farm)?.to_string(),
-            msg: to_binary(&SpecFarmExecuteMsg::withdraw {
-                asset_token: None,
-                spec_amount: None,
-            })?,
-            funds: vec![],
-        })]))
-}
-
 fn aust_redeem(deps: DepsMut, env: Env, info: MessageInfo, aust_amount: Option<Uint128>) -> StdResult<Response> {
     let sender_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
     let found = reward_store(deps.storage).may_load(&sender_addr)?.is_some();
@@ -333,7 +307,7 @@ fn aust_redeem(deps: DepsMut, env: Env, info: MessageInfo, aust_amount: Option<U
         })]))
 }
 
-fn provide_liquidity(deps: DepsMut, env: Env, info: MessageInfo, ust_amount: Option<Uint128>) -> StdResult<Response> {
+fn buy_spec(deps: DepsMut, env: Env, info: MessageInfo, ust_amount: Option<Uint128>) -> StdResult<Response> {
     let sender_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
     let found = reward_store(deps.storage).may_load(&sender_addr)?.is_some();
     if !found {
@@ -349,96 +323,30 @@ fn provide_liquidity(deps: DepsMut, env: Env, info: MessageInfo, ust_amount: Opt
     let ust_info = AssetInfo::NativeToken {
         denom: "uusd".to_string()
     };
-    let pair_info = query_pair_info(&deps.querier, factory_contract, &[spec_info.clone(), ust_info.clone()])?;
-    let pool: PoolResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: pair_info.contract_addr.to_string(),
-        msg: to_binary(&PairQueryMsg::Pool {})?,
-    }))?;
-    let ust_amount = if let Some(ust_amount) = ust_amount {
-        ust_amount
-    } else {
-        let ust_balance = deps.querier.query_balance(env.contract.address, "uusd")?;
-        let ust_asset = Asset {
-            info: ust_info.clone(),
-            amount: ust_balance.amount,
-        };
-        ust_asset.deduct_tax(&deps.querier)?.amount
+    let pair_info = query_pair_info(&deps.querier, factory_contract, &[spec_info, ust_info.clone()])?;
+    let avail_ust = deps.querier.query_balance(env.contract.address, "uusd")?;
+    let swap_amount = Asset {
+        info: ust_info.clone(),
+        amount: ust_amount.unwrap_or(avail_ust.amount)
+    }.deduct_tax(&deps.querier)?.amount;
+    let offer_asset = Asset {
+        info: ust_info,
+        amount: swap_amount,
     };
-    let (pool_ust, pool_spec) = if pool.assets[0].info == ust_info {
-        (pool.assets[0].amount, pool.assets[1].amount)
-    } else {
-        (pool.assets[1].amount, pool.assets[0].amount)
-    };
-    let spec_amount = ust_amount.multiply_ratio(pool_spec, pool_ust);
 
     Ok(Response::new()
         .add_messages(vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: spectrum_token.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-                    spender: pair_info.contract_addr.clone(),
-                    amount: spec_amount,
-                    expires: None,
-                })?,
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: pair_info.contract_addr,
-                msg: to_binary(&PairExecuteMsg::ProvideLiquidity {
-                    assets: [
-                        Asset {
-                            info: spec_info,
-                            amount: spec_amount,
-                        },
-                        Asset {
-                            info: ust_info,
-                            amount: ust_amount,
-                        },
-                    ],
-                    receiver: None,
-                    slippage_tolerance: None,
+                msg: to_binary(&PairExecuteMsg::Swap {
+                    offer_asset,
+                    to: None,
+                    belief_price: None,
+                    max_spread: None,
                 })?,
-                funds: vec![],
+                funds: vec![Coin { denom: "uusd".to_string(), amount: swap_amount }],
             }),
         ]))
-}
-
-fn bond(deps: DepsMut, env: Env, info: MessageInfo, lp_amount: Option<Uint128>) -> StdResult<Response> {
-    let sender_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
-    let found = reward_store(deps.storage).may_load(&sender_addr)?.is_some();
-    if !found {
-        return Err(StdError::generic_err("unauthorized"));
-    }
-
-    let config = read_config(deps.storage)?;
-    let factory_contract = deps.api.addr_humanize(&config.terraswap_factory)?;
-    let spectrum_token = deps.api.addr_humanize(&config.spectrum_token)?;
-    let spec_info = AssetInfo::Token {
-        contract_addr: spectrum_token.to_string(),
-    };
-    let ust_info = AssetInfo::NativeToken {
-        denom: "uusd".to_string()
-    };
-    let pair_info = query_pair_info(&deps.querier, factory_contract, &[spec_info, ust_info])?;
-    let lp_balance = query_token_balance(
-        &deps.querier,
-        deps.api.addr_validate(&pair_info.liquidity_token)?,
-        env.contract.address)?;
-    let amount = lp_amount.unwrap_or(lp_balance);
-
-    Ok(Response::new()
-        .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: pair_info.liquidity_token,
-            msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: deps.api.addr_humanize(&config.spectrum_farm)?.to_string(),
-                amount,
-                msg: to_binary(&SpecFarmCw20HookMsg::bond {
-                    asset_token: spectrum_token.to_string(),
-                    staker_addr: None,
-                })?,
-            })?,
-            funds: vec![],
-        })]))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -523,7 +431,6 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         aust_token: deps.api.addr_humanize(&config.aust_token)?.to_string(),
         anchor_market: deps.api.addr_humanize(&config.anchor_market)?.to_string(),
         terraswap_factory: deps.api.addr_humanize(&config.terraswap_factory)?.to_string(),
-        spectrum_farm: deps.api.addr_humanize(&config.spectrum_farm)?.to_string(),
     };
 
     Ok(resp)
@@ -577,7 +484,6 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
     let mut config = read_config(deps.storage)?;
     config.aust_token = deps.api.addr_canonicalize(&msg.aust_token)?;
     config.anchor_market = deps.api.addr_canonicalize(&msg.anchor_market)?;
-    config.spectrum_farm = deps.api.addr_canonicalize(&msg.spectrum_farm)?;
     config.terraswap_factory = deps.api.addr_canonicalize(&msg.terraswap_factory)?;
     config_store(deps.storage).save(&config)?;
 
