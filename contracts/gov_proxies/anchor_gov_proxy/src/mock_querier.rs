@@ -10,7 +10,7 @@ use cosmwasm_std::{
 use std::collections::HashMap;
 use terra_cosmwasm::{TerraQueryWrapper};
 
-use nexus_token::governance::StakerResponse;
+use anchor_token::gov::StakerResponse;
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.

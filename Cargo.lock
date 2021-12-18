@@ -717,6 +717,7 @@ dependencies = [
  "schemars",
  "serde",
  "spectrum-protocol",
+ "terra-cosmwasm",
 ]
 
 [[package]]
@@ -798,7 +799,6 @@ dependencies = [
  "serde",
  "spectrum-protocol",
  "terra-cosmwasm",
- "terraswap",
 ]
 
 [[package]]
