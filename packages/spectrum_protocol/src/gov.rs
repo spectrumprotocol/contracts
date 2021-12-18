@@ -222,6 +222,7 @@ pub struct StateInfo {
 
     #[serde(default)] pub prev_aust_balance: Uint128,
     #[serde(default)] pub vault_balances: Uint128,
+    #[serde(default)] pub vault_share_multiplier: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]

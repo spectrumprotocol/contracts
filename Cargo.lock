@@ -513,6 +513,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "pylon-gateway"
+version = "0.2.1"
+dependencies = [
+ "cosmwasm-bignumber",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "cw20-base",
+ "pylon-utils",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+]
+
+[[package]]
 name = "pylon-token"
 version = "0.2.0"
 dependencies = [
@@ -771,6 +786,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "spectrum-nexus-gov-proxy"
+version = "0.2.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "nexus-token",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
+ "terraswap",
+]
+
+[[package]]
 name = "spectrum-nexus-nasset-psi-farm"
 version = "0.2.0"
 dependencies = [
@@ -841,6 +872,24 @@ dependencies = [
  "cw20",
  "moneymarket",
  "pylon-token",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
+ "terraswap",
+]
+
+[[package]]
+name = "spectrum-pylon-liquid-farm"
+version = "0.2.0"
+dependencies = [
+ "anchor-token",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "moneymarket",
+ "pylon-gateway",
  "schemars",
  "serde",
  "spectrum-protocol",

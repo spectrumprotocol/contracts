@@ -957,7 +957,7 @@ fn test_compound_psi_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMo
                 msg: to_binary(&moneymarket::market::ExecuteMsg::DepositStable {}).unwrap(),
                 funds: vec![Coin {
                     denom: "uusd".to_string(),
-                    amount: Uint128::from(598u128),
+                    amount: Uint128::from(592u128),
                 }],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
@@ -977,8 +977,7 @@ fn test_compound_psi_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMo
                     contract: PSI_GOV.to_string(),
                     amount: Uint128::from(7410u128),
                     msg: to_binary(&NexusGovCw20HookMsg::StakeVotingTokens {}).unwrap(),
-                })
-                    .unwrap(),
+                }).unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: PSI_TOKEN.to_string(),

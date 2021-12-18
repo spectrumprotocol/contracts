@@ -114,6 +114,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
             }],
             prev_aust_balance: Uint128::zero(),
             vault_balances: Uint128::zero(),
+            vault_share_multiplier: Decimal::one(),
         }
     );
 
@@ -1571,6 +1572,7 @@ fn test_mintable() {
         pools: vec![],
         vault_balances: Uint128::zero(),
         aust_index: Decimal::zero(),
+        vault_share_multiplier: Decimal::one(),
     };
     let config = Config {
         owner: CanonicalAddr::from(vec![]),
@@ -1633,6 +1635,7 @@ fn test_reconcile_balance() {
         pools: vec![pool],
         vault_balances: Uint128::zero(),
         aust_index: Decimal::zero(),
+        vault_share_multiplier: Decimal::one(),
     };
     let config = Config {
         owner: deps.api.addr_canonicalize(MOCK_CONTRACT_ADDR).unwrap(),

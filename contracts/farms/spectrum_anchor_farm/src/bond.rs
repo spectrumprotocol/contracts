@@ -60,10 +60,20 @@ fn bond_internal(
             deposit_amount: Uint128::zero(),
             deposit_time: 0u64,
         });
-    before_share_change(&pool_info, &mut reward_info, lp_balance, env.block.time.seconds());
+    before_share_change(&pool_info, &mut reward_info);
+
+    if !reallocate &&
+        reward_info.deposit_amount.is_zero() &&
+        (!reward_info.auto_bond_share.is_zero() || !reward_info.stake_bond_share.is_zero()) {
+
+        let auto_bond_amount = pool_info.calc_user_auto_balance(lp_balance, reward_info.auto_bond_share);
+        let stake_bond_amount = pool_info.calc_user_stake_balance(reward_info.stake_bond_share);
+        reward_info.deposit_amount = auto_bond_amount + stake_bond_amount;
+        reward_info.deposit_time = env.block.time.seconds();
+    }
 
     // increase bond_amount
-    increase_bond_amount(
+    let new_deposit_amount = increase_bond_amount(
         &mut pool_info,
         &mut reward_info,
         if reallocate { Decimal::zero() } else { config.deposit_fee },
@@ -74,7 +84,6 @@ fn bond_internal(
 
     if !reallocate {
         let last_deposit_amount = reward_info.deposit_amount;
-        let new_deposit_amount = amount_to_auto + amount_to_stake;
         reward_info.deposit_amount = last_deposit_amount + new_deposit_amount;
         reward_info.deposit_time = compute_deposit_time(last_deposit_amount, new_deposit_amount, reward_info.deposit_time, env.block.time.seconds())?;
     }
@@ -242,7 +251,7 @@ fn spec_reward_to_pool(
 }
 
 // withdraw reward to pending reward
-fn before_share_change(pool_info: &PoolInfo, reward_info: &mut RewardInfo, lp_balance: Uint128, time: u64) {
+fn before_share_change(pool_info: &PoolInfo, reward_info: &mut RewardInfo) {
     let farm_share =
         (pool_info.farm_share_index - reward_info.farm_share_index) * reward_info.stake_bond_share;
     reward_info.farm_share += farm_share;
@@ -256,13 +265,6 @@ fn before_share_change(pool_info: &PoolInfo, reward_info: &mut RewardInfo, lp_ba
     reward_info.spec_share += spec_share;
     reward_info.stake_spec_share_index = pool_info.stake_spec_share_index;
     reward_info.auto_spec_share_index = pool_info.auto_spec_share_index;
-
-    if reward_info.deposit_amount.is_zero() && (!reward_info.auto_bond_share.is_zero() || !reward_info.stake_bond_share.is_zero()) {
-        let auto_bond_amount = pool_info.calc_user_auto_balance(lp_balance, reward_info.auto_bond_share);
-        let stake_bond_amount = pool_info.calc_user_stake_balance(reward_info.stake_bond_share);
-        reward_info.deposit_amount = auto_bond_amount + stake_bond_amount;
-        reward_info.deposit_time = time;
-    }
 }
 
 // increase share amount in pool and reward info
@@ -273,7 +275,7 @@ fn increase_bond_amount(
     amount_to_auto: Uint128,
     amount_to_stake: Uint128,
     lp_balance: Uint128,
-) -> StdResult<()> {
+) -> StdResult<Uint128> {
     let (auto_bond_amount, stake_bond_amount, stake_bond_fee) = if deposit_fee.is_zero() {
         (amount_to_auto, amount_to_stake, Uint128::zero())
     } else {
@@ -305,7 +307,10 @@ fn increase_bond_amount(
     reward_info.auto_bond_share += auto_bond_share;
     reward_info.stake_bond_share += stake_bond_share;
 
-    Ok(())
+    let new_auto_bond_amount = pool_info.calc_user_auto_balance(lp_balance + amount_to_auto + amount_to_stake, auto_bond_share);
+    let new_stake_bond_amount = pool_info.calc_user_stake_balance(stake_bond_share);
+
+    Ok(new_auto_bond_amount + new_stake_bond_amount)
 }
 
 // stake LP token to Anchor Staking
@@ -366,7 +371,7 @@ fn unbond_internal(
     // distribute reward to pending reward; before changing share
     deposit_spec_reward(deps.as_ref(), &env, &mut state, config, false)?;
     spec_reward_to_pool(&state, &mut pool_info, lp_balance)?;
-    before_share_change(&pool_info, &mut reward_info, lp_balance, env.block.time.seconds());
+    before_share_change(&pool_info, &mut reward_info);
 
     // decrease bond amount
     let auto_bond_amount = if reward_info.stake_bond_share.is_zero() {
@@ -407,6 +412,7 @@ fn unbond_internal(
         && reward_info.farm_share.is_zero()
         && reward_info.auto_bond_share.is_zero()
         && reward_info.stake_bond_share.is_zero()
+        && !reallocate
     {
         rewards_store(deps.storage, &staker_addr_raw).remove(asset_token_raw.as_slice());
     } else {
@@ -667,7 +673,7 @@ fn withdraw_reward(
         let key = asset_token_raw.as_slice();
         let mut pool_info = pool_info_read(deps.storage).load(key)?;
         spec_reward_to_pool(state, &mut pool_info, lp_balance)?;
-        before_share_change(&pool_info, &mut reward_info, lp_balance, env.block.time.seconds());
+        before_share_change(&pool_info, &mut reward_info);
 
         // update withdraw
         let (asset_farm_share, asset_farm_amount) = if let Some(request_amount) = request_farm_amount {
@@ -835,7 +841,7 @@ fn read_reward_infos(
             let has_deposit_amount = !reward_info.deposit_amount.is_zero();
 
             spec_reward_to_pool(state, &mut pool_info, lp_balance)?;
-            before_share_change(&pool_info, &mut reward_info, lp_balance, env.block.time.seconds());
+            before_share_change(&pool_info, &mut reward_info);
 
             let auto_bond_amount =
                 pool_info.calc_user_auto_balance(lp_balance, reward_info.auto_bond_share);

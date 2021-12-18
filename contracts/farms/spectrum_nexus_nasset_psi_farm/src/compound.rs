@@ -147,7 +147,10 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
             deps.api.addr_humanize(&config.ust_pair_contract)?,
             &net_commission)?;
 
-        let net_commission_amount = deduct_tax(&deps.querier, psi_swap_rate_to_uusd.return_amount, "uusd".to_string())?;
+        let net_commission_amount =
+            deduct_tax(&deps.querier,
+                deduct_tax(&deps.querier, psi_swap_rate_to_uusd.return_amount, "uusd".to_string())?,
+                "uusd".to_string())?;
 
         let mut state = read_state(deps.storage)?;
         state.earning += net_commission_amount;
