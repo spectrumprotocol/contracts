@@ -754,7 +754,6 @@ dependencies = [
  "serde",
  "spectrum-protocol",
  "terra-cosmwasm",
- "terraswap",
 ]
 
 [[package]]

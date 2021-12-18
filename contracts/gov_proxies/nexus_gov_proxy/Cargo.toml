@@ -31,4 +31,3 @@ nexus-token = { version = "1.0.0", path = "../../../packages/nexus_token" }
 [dev-dependencies]
 cosmwasm-schema = "0.16.0"
 terra-cosmwasm = "2.2.0"
-terraswap = "2.4.0"

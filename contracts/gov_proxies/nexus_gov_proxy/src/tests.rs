@@ -16,7 +16,6 @@ const FARM_GOV: &str = "farm_gov";
 #[test]
 fn test() {
     let mut deps = mock_dependencies(&[]);
-    deps.querier.with_balance_percent(100);
 
     let _ = test_config(&mut deps);
     test_stake(&mut deps);
