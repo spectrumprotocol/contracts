@@ -1,9 +1,8 @@
 use astroport::generator::{
     PendingTokenResponse, QueryMsg as AstroportQueryMsg,
 };
-use astroport::staking::{ Cw20HookMsg as AstroportCw20HookMsg };
 use cosmwasm_std::{to_binary, CanonicalAddr, Deps, QueryRequest, StdResult, Uint128, WasmQuery, Addr};
-use spectrum_protocol::gov_proxy::{QueryMsg as GovProxyQueryMsg, StakerInfoGovResponse};
+use spectrum_protocol::gov_proxy::{QueryMsg as GovProxyQueryMsg, StakerResponse};
 
 pub fn query_astroport_pending_token(
     deps: Deps,
@@ -39,11 +38,30 @@ pub fn query_farm_gov_balance(
     deps: Deps,
     gov_proxy: &CanonicalAddr,
     staker: &Addr,
-) -> StdResult<StakerInfoGovResponse> {
+) -> StdResult<StakerResponse> {
     deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: deps.api.addr_humanize(gov_proxy)?.to_string(),
-        msg: to_binary(&GovProxyQueryMsg::StakerInfo {
-            staker_addr: staker.to_string(),
+        msg: to_binary(&GovProxyQueryMsg::Staker {
+            address: staker.to_string(),
         })?,
     }))
+}
+
+pub fn query_farm2_gov_balance(
+    deps: Deps,
+    gov_proxy: &Option<CanonicalAddr>,
+    staker: &Addr,
+) -> StdResult<StakerResponse> {
+    if let Some(gov_proxy) = gov_proxy {
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: deps.api.addr_humanize(gov_proxy)?.to_string(),
+            msg: to_binary(&GovProxyQueryMsg::Staker {
+                address: staker.to_string(),
+            })?,
+        }))
+    } else {
+        Ok(StakerResponse {
+            balance: Uint128::zero(),
+        })
+    }
 }

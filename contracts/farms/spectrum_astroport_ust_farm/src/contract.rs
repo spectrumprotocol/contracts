@@ -32,7 +32,7 @@ fn validate_percentage(value: Decimal, field: &str) -> StdResult<()> {
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     _info: MessageInfo,
     msg: ConfigInfo,
 ) -> StdResult<Response> {
@@ -107,7 +107,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             asset_token,
             staking_token,
             weight,
-        } => register_asset(deps, env , info, asset_token, staking_token, weight),
+        } => register_asset(deps, env, info, asset_token, staking_token, weight),
         ExecuteMsg::unbond {
             asset_token,
             amount,
@@ -256,7 +256,6 @@ fn register_asset(
             state_spec_share_index: state.spec_share_index,
             auto_spec_share_index: Decimal::zero(),
             stake_spec_share_index: Decimal::zero(),
-
         });
     state.total_weight = state.total_weight + weight - pool_info.weight;
     pool_info.weight = weight;

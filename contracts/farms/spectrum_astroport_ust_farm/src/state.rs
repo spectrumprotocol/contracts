@@ -6,11 +6,11 @@ use cosmwasm_storage::{
     bucket, bucket_read, singleton, singleton_read, Bucket, ReadonlyBucket, Singleton,
 };
 
-static KEY_CONFIG: &[u8] = b"config";
-
 pub fn default_addr() -> CanonicalAddr {
     CanonicalAddr::from(vec![])
 }
+
+static KEY_CONFIG: &[u8] = b"config";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {

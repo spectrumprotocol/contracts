@@ -7,18 +7,17 @@ use cosmwasm_std::{
     from_binary, from_slice, to_binary, Coin, ContractResult, Decimal, OwnedDeps, Querier,
     QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery, Addr,
 };
+use spectrum_protocol::gov_proxy::StakerResponse;
 use std::collections::HashMap;
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::pair::{PoolResponse, SimulationResponse};
 
-use spectrum_protocol::gov_proxy::{ExecuteMsg as GovProxyExecuteMsg, StakerInfoGovResponse};
 use astroport::generator::{
-    Cw20HookMsg as AstroportCw20HookMsg, ExecuteMsg as AstroportExecuteMsg, PendingTokenResponse, QueryMsg as AstroportQueryMsg,
+    PendingTokenResponse,
 };
 use spectrum_protocol::gov::BalanceResponse as SpecBalanceResponse;
 
-const ANC_STAKING: &str = "anc_staking";
 const ASTROPORT_GENERATOR: &str = "astroport_generator";
 
 
@@ -151,8 +150,8 @@ enum MockQueryMsg {
         lp_token: Addr,
         user: Addr
     },
-    StakerInfo {
-        staker_addr: String,
+    Staker {
+        address: String,
     },
     Pair {
         asset_infos: [AssetInfo; 2],
@@ -203,20 +202,20 @@ impl WasmMockQuerier {
                             pools: vec![],
                         })))
                     }
-                    MockQueryMsg::PendingToken { lp_token, user } => {
+                    MockQueryMsg::PendingToken { lp_token: _, user } => {
                         let balance = self.read_token_balance(contract_addr, user.to_string());
                         SystemResult::Ok(ContractResult::from(to_binary(&PendingTokenResponse {
                             pending: balance,
                             pending_on_proxy: Some(balance),
                         })))
                     }
-                    MockQueryMsg::StakerInfo { staker_addr } => {
-                        let balance = self.read_token_balance(contract_addr, staker_addr);
-                        SystemResult::Ok(ContractResult::from(to_binary(&StakerInfoGovResponse {
-                            bond_amount: balance
+                    MockQueryMsg::Staker { address } => {
+                        let balance = self.read_token_balance(contract_addr, address);
+                        SystemResult::Ok(ContractResult::from(to_binary(&StakerResponse {
+                            balance
                         })))
                     }
-                    MockQueryMsg::Deposit { lp_token, user } => {
+                    MockQueryMsg::Deposit { lp_token: _, user } => {
                         let contract_addr = &ASTROPORT_GENERATOR.to_string();
                         let balance = self.read_token_balance(contract_addr, user.to_string());
                         SystemResult::Ok(ContractResult::from(to_binary(

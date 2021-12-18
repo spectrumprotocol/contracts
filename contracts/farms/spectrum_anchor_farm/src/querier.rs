@@ -1,4 +1,5 @@
 use cosmwasm_std::{to_binary, CanonicalAddr, Deps, QueryRequest, StdResult, WasmQuery, Uint128, Addr};
+
 use anchor_token::staking::{QueryMsg as AnchorStakingQueryMsg, StakerInfoResponse};
 
 pub fn query_anchor_reward_info(

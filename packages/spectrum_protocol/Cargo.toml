@@ -23,5 +23,3 @@ cosmwasm-storage = { version = "0.16.0" }
 terraswap = "2.4.0"
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-astroport = { version = "0.2.0", path = "../astroport" }
-

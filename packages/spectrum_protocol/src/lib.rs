@@ -17,5 +17,5 @@ pub mod valkyrie_farm;
 pub mod orion_farm;
 pub mod nexus_nasset_psi_farm;
 pub mod pylon_liquid_farm;
-pub mod gov_proxy;pub mod astroport_ust_farm;
-
+pub mod gov_proxy;
+pub mod astroport_ust_farm;

@@ -2,8 +2,6 @@ use std::convert::TryFrom;
 use cosmwasm_std::{QuerierWrapper, StdError, StdResult, Uint128};
 use terraswap::asset::{Asset, AssetInfo};
 use terraswap::pair::PoolResponse;
-use astroport::asset::{Asset as AstroportAsset};
-use astroport::pair::{PoolResponse as AstroportPoolResponse};
 
 pub fn compute_deposit_time(
     last_deposit_amount: Uint128,
@@ -44,22 +42,3 @@ pub fn compute_provide_after_swap(
 
     Ok(ask_reinvest_amt.multiply_ratio(offer_amount, ask_amount))
 }
-
-pub fn compute_provide_after_swap_astroport(
-    pool: &AstroportPoolResponse,
-    offer: &AstroportAsset,
-    return_amt: Uint128,
-    ask_reinvest_amt: Uint128,
-) -> StdResult<Uint128> {
-    let (offer_amount, ask_amount) = if pool.assets[0].info == offer.info {
-        (pool.assets[0].amount, pool.assets[1].amount)
-    } else {
-        (pool.assets[1].amount, pool.assets[0].amount)
-    };
-
-    let offer_amount = offer_amount + offer.amount;
-    let ask_amount = ask_amount.checked_sub(return_amt)?;
-
-    Ok(ask_reinvest_amt.multiply_ratio(offer_amount, ask_amount))
-}
-
