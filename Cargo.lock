@@ -992,6 +992,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "spectrum-xastro-gov-proxy"
+version = "0.2.0"
+dependencies = [
+ "astroport",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
+]
+
+[[package]]
 name = "spki"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
