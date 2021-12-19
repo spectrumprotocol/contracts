@@ -37,6 +37,8 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let pair_contract = deps.api.addr_humanize(&config.pair_contract)?;
     let reward_token = deps.api.addr_humanize(&config.reward_token)?;
     let gateway_pool = deps.api.addr_humanize(&config.gateway_pool)?;
+    let dp_token = deps.api.addr_humanize(&config.dp_token)?;
+
     let gov_proxy = if let Some(gov_proxy) = &config.gov_proxy {
         Some(deps.api.addr_humanize(gov_proxy)?)
     } else {
@@ -49,6 +51,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         &env.contract.address,
         Some(env.block.time.seconds()),
     )?;
+    let dp_token_balance = query_token_balance(&deps.querier, dp_token, env.contract.address.clone())?;
 
     let mut total_reward_token_stake_amount = Uint128::zero();
     let mut total_reward_token_commission = Uint128::zero();
@@ -69,11 +72,10 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         // add commission to total swap amount
         total_reward_token_commission += commission;
 
-        let auto_bond_amount = reward_info
-            .amount
+        let auto_bond_amount = dp_token_balance
             .checked_sub(pool_info.total_stake_bond_amount)?;
         compound_amount =
-            reward_token_amount.multiply_ratio(auto_bond_amount, reward_info.amount);
+            reward_token_amount.multiply_ratio(auto_bond_amount, dp_token_balance);
         let stake_amount = reward_token_amount.checked_sub(compound_amount)?;
 
         attributes.push(attr("commission", commission));

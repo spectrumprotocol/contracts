@@ -775,11 +775,15 @@ fn test_compound_reward_token_with_fees(deps: &mut OwnedDeps<MockStorage, MockAp
     deps.querier.with_token_balances(&[
         (
             &DP_TOKEN.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(12000u128))]
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(12100u128))]
         ),
         (
             &GATEWAY_POOL.to_string(),
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(12100u128))],
+        ),
+        (
+            &GOV_PROXY.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(12800u128))],
         ),
         (
             &SPEC_GOV.to_string(),
