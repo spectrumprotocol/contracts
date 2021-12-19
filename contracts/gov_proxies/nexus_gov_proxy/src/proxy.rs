@@ -27,6 +27,7 @@ pub fn query_staker_info_gov(
 pub fn stake(
     deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     sender: String,
     amount: Uint128,
 ) -> StdResult<Response> {
@@ -36,6 +37,10 @@ pub fn stake(
     }
 
     let config = read_config(deps.storage)?;
+    if config.farm_token != deps.api.addr_canonicalize(info.sender.as_str())? {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
     let mut state = state_store(deps.storage).load()?;
 
     let gov_response = query_nexus_gov(deps.as_ref(), &config.farm_gov, &env.contract.address)?;

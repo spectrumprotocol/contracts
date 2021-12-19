@@ -17,28 +17,16 @@
     {
       "type": "object",
       "required": [
-        "pools"
+        "staker"
       ],
       "properties": {
-        "pools": {
-          "type": "object"
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "reward_info"
-      ],
-      "properties": {
-        "reward_info": {
+        "staker": {
           "type": "object",
           "required": [
-            "staker_addr"
+            "address"
           ],
           "properties": {
-            "staker_addr": {
+            "address": {
               "type": "string"
             }
           }
