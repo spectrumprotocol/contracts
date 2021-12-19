@@ -79,11 +79,11 @@ pub fn compound(
     let controller_fee = config.controller_fee;
     let total_fee = community_fee + platform_fee + controller_fee;
 
-
     let reward = query_token_balance(&deps.querier, farm_token.clone(), env.contract.address.clone())? + pending_token_response.pending_on_proxy.unwrap_or_else(Uint128::zero);
     let reward_astro = query_token_balance(&deps.querier, astro_token.clone(), env.contract.address.clone())? + pending_token_response.pending;
 
     // calculate auto-compound, auto-stake, and commission in astro token
+    let mut state = read_state(deps.storage)?;
     if !reward_astro.is_zero() && !lp_balance.is_zero() && reward_astro > threshold_compound_astro {
         let commission_astro = reward_astro * total_fee;
         let astro_amount = reward_astro.checked_sub(commission_astro)?;
@@ -100,16 +100,16 @@ pub fn compound(
         attributes.push(attr("stake_amount_astro", stake_amount_astro));
 
         total_astro_token_stake_amount += stake_amount_astro;
+
+        deposit_farm_share(
+            deps.as_ref(),
+            &env,
+            &mut state,
+            &mut pool_info,
+            &config,
+            total_astro_token_stake_amount,
+        )?;
     }
-    let mut state = read_state(deps.storage)?;
-    deposit_farm_share(
-        deps.as_ref(),
-        &env,
-        &mut state,
-        &mut pool_info,
-        &config,
-        total_astro_token_stake_amount,
-    )?;
 
     // calculate auto-compound, auto-stake, and commission in farm token
     if !reward.is_zero() && !lp_balance.is_zero() {
@@ -128,39 +128,48 @@ pub fn compound(
         attributes.push(attr("stake_amount", stake_amount));
 
         total_farm_token_stake_amount += stake_amount;
-    }
 
-    deposit_farm2_share(
-        deps.as_ref(),
-        &env,
-        &mut state,
-        &mut pool_info,
-        &config,
-        total_farm_token_stake_amount,
-    )?;
+        deposit_farm2_share(
+            deps.as_ref(),
+            &env,
+            &mut state,
+            &mut pool_info,
+            &config,
+            total_farm_token_stake_amount,
+        )?;
+    }
     state_store(deps.storage).save(&state)?;
     pool_info_store(deps.storage).save(config.farm_token.as_slice(), &pool_info)?;
 
-    // get reinvest amount
-    let swap_amount_astro = compound_amount_astro;
+    // swap all
+    total_astro_token_swap_amount += compound_amount_astro;
+    let (mut total_ust_reinvest_amount_astro, total_ust_commission_amount_astro) = if !total_astro_token_swap_amount.is_zero() {
 
-    // add commission to reinvest farm token to total swap amount
-    total_astro_token_swap_amount += swap_amount_astro;
+        // find ASTRO swap rate
+        let astro_asset = Asset {
+            info: AssetInfo::Token {
+                contract_addr: astro_token.clone(),
+            },
+            amount: total_astro_token_swap_amount,
+        };
+        let astro_swap_rate = simulate(&deps.querier, astro_ust_pair_contract.clone(), &astro_asset)?;
+        let total_ust_return_amount_astro = deduct_tax(
+            &deps.querier,
+            astro_swap_rate.return_amount,
+            config.base_denom.clone(),
+        )?;
+        attributes.push(attr("total_ust_return_amount_astro", total_ust_return_amount_astro));
 
-    // find ASTRO swap rate
-    let astro_asset = Asset {
-        info: AssetInfo::Token {
-            contract_addr: astro_token.clone(),
-        },
-        amount: total_astro_token_swap_amount,
+        let total_ust_commission_amount_astro = total_ust_return_amount_astro
+            .multiply_ratio(total_astro_token_commission, total_astro_token_swap_amount);
+
+        let total_ust_reinvest_amount_astro = total_ust_return_amount_astro.checked_sub(total_ust_commission_amount_astro)?;
+
+        (total_ust_reinvest_amount_astro, total_ust_commission_amount_astro)
+    } else {
+        (Uint128::zero(), Uint128::zero())
     };
-    let astro_swap_rate = simulate(&deps.querier, astro_ust_pair_contract.clone(), &astro_asset)?;
-    let total_ust_return_amount_astro = deduct_tax(
-        &deps.querier,
-        astro_swap_rate.return_amount,
-        config.base_denom.clone(),
-    )?;
-    attributes.push(attr("total_ust_return_amount_astro", total_ust_return_amount_astro));
+    total_ust_reinvest_amount_astro += deps.querier.query_balance(env.contract.address.clone(), "uusd")?.amount;
 
     // split reinvest amount
     let pool: PoolResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
@@ -171,13 +180,16 @@ pub fn compound(
         &pool,
         &Asset {
             info: AssetInfo::NativeToken { denom: config.base_denom.clone() },
-            amount: total_ust_return_amount_astro,
+            amount: total_ust_reinvest_amount_astro,
         });
-    let swap_amount = compound_amount
-        .checked_sub(farm_token_astro)?
-        .multiply_ratio(1u128, 2u128);
-
-    total_farm_token_swap_amount += swap_amount;
+    if compound_amount >= farm_token_astro {
+        total_farm_token_swap_amount += compound_amount
+            .checked_sub(farm_token_astro)?
+            .multiply_ratio(1u128, 2u128);
+    } else {
+        total_ust_reinvest_amount_astro = total_ust_reinvest_amount_astro
+            .multiply_ratio(compound_amount, farm_token_astro);
+    };
 
     // find farm token swap rate
     let farm_token_asset = Asset {
@@ -201,16 +213,6 @@ pub fn compound(
     };
     let total_ust_reinvest_amount =
         total_ust_return_amount.checked_sub(total_ust_commission_amount)?;
-
-    let total_ust_commission_amount_astro = if total_astro_token_swap_amount != Uint128::zero() {
-        total_ust_return_amount_astro
-            .multiply_ratio(total_astro_token_commission, total_astro_token_swap_amount)
-    } else {
-        Uint128::zero()
-    };
-
-    let total_ust_reinvest_amount_astro =
-        total_ust_return_amount_astro.checked_sub(total_ust_commission_amount_astro)?;
 
     // deduct tax for provided UST
     let net_reinvest_ust = deduct_tax(

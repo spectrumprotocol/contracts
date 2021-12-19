@@ -29,9 +29,9 @@ pub struct Config {
     pub platform_fee: Decimal,
     pub controller_fee: Decimal,
     pub deposit_fee: Decimal,
-    #[serde(default = "default_addr")] pub anchor_market: CanonicalAddr,
-    #[serde(default = "default_addr")] pub aust_token: CanonicalAddr,
-    #[serde(default = "default_addr")] pub pair_contract: CanonicalAddr,
+    pub anchor_market: CanonicalAddr,
+    pub aust_token: CanonicalAddr,
+    pub pair_contract: CanonicalAddr,
     pub astro_ust_pair_contract: CanonicalAddr,
 }
 
