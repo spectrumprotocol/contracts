@@ -103,6 +103,9 @@ pub fn bond(
     let dp_token_raw = deps.api.addr_canonicalize(&dp_token)?;
 
     let config = read_config(deps.storage)?;
+    if config.dp_token != dp_token_raw {
+        return Err(StdError::generic_err("unauthorized"));
+    }
 
     let compound_rate = compound_rate.unwrap_or_else(Decimal::zero);
 
