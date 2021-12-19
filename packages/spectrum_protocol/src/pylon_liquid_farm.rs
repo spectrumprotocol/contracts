@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigInfo {
     pub owner: String,
-    pub dp_token: String,
+    pub bdp_token: String,
     pub reward_token: String,
     pub gov_proxy: Option<String>,
     pub spectrum_token: String,
@@ -43,7 +43,7 @@ pub enum ExecuteMsg {
         amount: Uint128,
     },
     register_asset {
-        dp_token: String,
+        bdp_token: String,
         weight: u32,
     },
     // Withdraw rewards
