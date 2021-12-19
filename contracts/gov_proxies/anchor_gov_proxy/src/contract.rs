@@ -42,7 +42,7 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
-        ExecuteMsg::Receive(msg) => receive_cw20(deps, env, msg),
+        ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::Unstake { amount} => unstake(deps, env, info, amount),
     }
 }
@@ -50,12 +50,14 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
 fn receive_cw20(
     deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     msg: Cw20ReceiveMsg,
 ) -> StdResult<Response> {
     match from_binary(&msg.msg) {
         Ok(Cw20HookMsg::Stake {}) => stake(
             deps,
             env,
+            info,
             msg.sender,
             msg.amount,
         ),

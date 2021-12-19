@@ -58,6 +58,15 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
 fn test_stake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let env = mock_env();
 
+    let info = mock_info(TEST_CREATOR, &[]);
+    let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+        sender: FARM_CONTRACT.to_string(),
+        amount: Uint128::from(10000u128),
+        msg: to_binary(&Cw20HookMsg::Stake {}).unwrap(),
+    });
+    let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
+    assert!(res.is_err());
+
     let info = mock_info(FARM_TOKEN, &[]);
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: FARM_CONTRACT.to_string(),

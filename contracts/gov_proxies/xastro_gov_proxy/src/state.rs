@@ -1,4 +1,4 @@
-use cosmwasm_storage::{singleton_read, singleton, Singleton, Bucket, bucket, bucket_read};
+use cosmwasm_storage::{singleton_read, singleton, Bucket, bucket, bucket_read};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

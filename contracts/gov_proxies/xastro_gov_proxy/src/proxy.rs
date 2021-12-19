@@ -1,6 +1,5 @@
 use cosmwasm_std::{CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, to_binary, Uint128, WasmMsg};
 use cw20::{Cw20ExecuteMsg};
-use astroport::querier::query_token_balance;
 use spectrum_protocol::gov_proxy::StakerResponse;
 use astroport::staking::{Cw20HookMsg as XAstroCw20HookMsg};
 use crate::querier::query_xastro_gov;
@@ -27,6 +26,7 @@ pub fn query_staker_info_gov(
 pub fn stake(
     deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     sender: String,
     amount: Uint128,
 ) -> StdResult<Response> {
@@ -36,6 +36,9 @@ pub fn stake(
     }
 
     let config = read_config(deps.storage)?;
+    if config.farm_token != deps.api.addr_canonicalize(info.sender.as_str())? {
+        return Err(StdError::generic_err("unauthorized"));
+    }
 
     let gov_response = query_xastro_gov(deps.as_ref(), &config, &env.contract.address)?;
     let sender_address_raw = deps.api.addr_canonicalize(&sender)?;
@@ -50,7 +53,6 @@ pub fn stake(
     account_store(deps.storage).save(key, &account)?;
 
     let xastro_token = deps.api.addr_humanize(&config.xastro_token)?;
-    let astro_token = deps.api.addr_humanize(&config.farm_token)?;
     let xastro_gov = deps.api.addr_humanize(&config.farm_gov)?;
 
     Ok(Response::new()
@@ -76,11 +78,10 @@ pub fn unstake(
     let key = sender_address_raw.as_slice();
 
     let config = read_config(deps.storage)?;
-    let mut state = state_store(deps.storage).load()?;
 
     let gov_response = query_xastro_gov(deps.as_ref(), &config, &env.contract.address)?;
     let mut account = account_store(deps.storage).load(key)?;
-    let user_balance = state.calc_balance(gov_response.balance, account.share);
+    let user_balance = gov_response.calc_balance(account.share);
     let amount = amount.unwrap_or(user_balance);
     if amount > user_balance {
         return Err(StdError::generic_err(
@@ -88,16 +89,13 @@ pub fn unstake(
         ));
     }
 
-    let mut withdraw_share = state.calc_share(gov_response.balance, amount);
-    if state.calc_balance(gov_response.balance, withdraw_share) < amount {
+    let mut withdraw_share = gov_response.calc_share(amount);
+    if gov_response.calc_balance(withdraw_share) < amount {
         withdraw_share += Uint128::from(1u128);
     }
 
     account.share -= withdraw_share;
-    state.total_share -= withdraw_share;
-
     account_store(deps.storage).save(key, &account)?;
-    state_store(deps.storage).save(&state)?;
 
     let astro_token = deps.api.addr_humanize(&config.farm_token)?;
     let xastro_token = deps.api.addr_humanize(&config.xastro_token)?;
@@ -109,7 +107,7 @@ pub fn unstake(
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 contract: xastro_gov.to_string(),
                 msg: to_binary(&XAstroCw20HookMsg::Leave {})?,
-                amount
+                amount: withdraw_share,
             })?,
             funds: vec![],
         }),
@@ -117,7 +115,7 @@ pub fn unstake(
             contract_addr: astro_token.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: info.sender.to_string(),
-                amount
+                amount: gov_response.calc_balance(withdraw_share),
             })?,
             funds: vec![],
         })

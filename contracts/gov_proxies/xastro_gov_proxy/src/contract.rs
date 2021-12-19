@@ -1,6 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{from_binary, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128};
+use cosmwasm_std::{from_binary, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult};
 
 use crate::{
     state::{read_config, store_config, Config},
@@ -15,7 +15,8 @@ use spectrum_protocol::gov_proxy::{
 use crate::proxy::{
     stake, unstake
 };
-use crate::state::{read_state, State, state_store};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigInfo {
@@ -40,17 +41,13 @@ pub fn instantiate(
         },
     )?;
 
-    state_store(deps.storage).save(&State {
-        total_share: Uint128::zero(),
-    })?;
-
     Ok(Response::default())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
-        ExecuteMsg::Receive(msg) => receive_cw20(deps, env, msg),
+        ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::Unstake { amount} => unstake(deps, env, info, amount),
     }
 }
@@ -58,12 +55,14 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
 fn receive_cw20(
     deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     msg: Cw20ReceiveMsg,
 ) -> StdResult<Response> {
     match from_binary(&msg.msg) {
         Ok(Cw20HookMsg::Stake {}) => stake(
             deps,
             env,
+            info,
             msg.sender,
             msg.amount,
         ),
@@ -75,7 +74,7 @@ fn receive_cw20(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
-        QueryMsg::State {} => to_binary(&query_state(deps)?),
+        QueryMsg::State {} => Err(StdError::generic_err("not support")),
         QueryMsg::Staker { address } => to_binary(&query_staker_info_gov(deps, env, address)?)
     }
 }
@@ -88,10 +87,6 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         farm_gov: deps.api.addr_humanize(&config.farm_gov)?.to_string(),
     };
     Ok(resp)
-}
-
-fn query_state(deps: Deps) -> StdResult<State> {
-    read_state(deps.storage)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

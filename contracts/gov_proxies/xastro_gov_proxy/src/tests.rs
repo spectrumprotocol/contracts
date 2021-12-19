@@ -1,17 +1,16 @@
-
-use crate::contract::{execute, instantiate, query};
+use crate::contract::{ConfigInfo, execute, instantiate, query};
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
-use crate::state::{State};
 use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{from_binary, to_binary, OwnedDeps, Uint128};
 use cw20::{Cw20ReceiveMsg};
-use spectrum_protocol::gov_proxy::{ConfigInfo, Cw20HookMsg, ExecuteMsg, QueryMsg, StakerResponse};
+use spectrum_protocol::gov_proxy::{Cw20HookMsg, ExecuteMsg, QueryMsg, StakerResponse};
 
 const TEST_CREATOR: &str = "creator";
 const FARM_CONTRACT: &str = "farm_contract";
 const FARM_CONTRACT_2: &str = "farm_contract_2";
 const FARM_TOKEN: &str = "farm_token";
 const FARM_GOV: &str = "farm_gov";
+const XASTRO_TOKEN: &str = "xastro_token";
 
 #[test]
 fn test() {
@@ -29,6 +28,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
     let config = ConfigInfo {
+        xastro_token: XASTRO_TOKEN.to_string(),
         farm_token: FARM_TOKEN.to_string(),
         farm_gov: FARM_GOV.to_string(),
     };
@@ -42,21 +42,30 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
     let res: ConfigInfo = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(res, config);
 
-    // read state
-    let msg = QueryMsg::State {};
-    let res: State = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
-    assert_eq!(
-        res,
-        State {
-            total_share: Uint128::zero(),
-        }
-    );
-
     config
 }
 
 fn test_stake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let env = mock_env();
+    deps.querier.with_token_balances(&[
+        (
+            &XASTRO_TOKEN.to_string(),
+            &[(&XASTRO_TOKEN.to_string(), &Uint128::from(10_000_000u128))],
+        ),
+        (
+            &FARM_TOKEN.to_string(),
+            &[(&FARM_GOV.to_string(), &Uint128::from(20_000_000u128))],
+        )
+    ]);
+
+    let info = mock_info(TEST_CREATOR, &[]);
+    let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+        sender: FARM_CONTRACT.to_string(),
+        amount: Uint128::from(10000u128),
+        msg: to_binary(&Cw20HookMsg::Stake {}).unwrap(),
+    });
+    let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
+    assert!(res.is_err());
 
     let info = mock_info(FARM_TOKEN, &[]);
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
@@ -70,9 +79,16 @@ fn test_stake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // verify state
     deps.querier.with_token_balances(&[
         (
-            &FARM_GOV.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(10000u128))],
+            &XASTRO_TOKEN.to_string(),
+            &[
+                (&XASTRO_TOKEN.to_string(), &Uint128::from(10_000_000u128)),
+                (&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(5000u128)),
+            ],
         ),
+        (
+            &FARM_TOKEN.to_string(),
+            &[(&FARM_GOV.to_string(), &Uint128::from(20_000_000u128))],
+        )
     ]);
     let msg = QueryMsg::Staker { address: FARM_CONTRACT.to_string() };
     let res: StakerResponse = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
@@ -86,9 +102,16 @@ fn test_stake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // stake more and gov stake grows by 1000
     deps.querier.with_token_balances(&[
         (
-            &FARM_GOV.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(11000u128))],
+            &XASTRO_TOKEN.to_string(),
+            &[
+                (&XASTRO_TOKEN.to_string(), &Uint128::from(10_000_000u128)),
+                (&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(5500u128)),
+            ],
         ),
+        (
+            &FARM_TOKEN.to_string(),
+            &[(&FARM_GOV.to_string(), &Uint128::from(22_000_000u128))],
+        )
     ]);
     let info = mock_info(FARM_TOKEN, &[]);
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
@@ -101,9 +124,16 @@ fn test_stake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
 
     deps.querier.with_token_balances(&[
         (
-            &FARM_GOV.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(16000u128))],
+            &XASTRO_TOKEN.to_string(),
+            &[
+                (&XASTRO_TOKEN.to_string(), &Uint128::from(10_000_000u128)),
+                (&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(8000u128)),
+            ],
         ),
+        (
+            &FARM_TOKEN.to_string(),
+            &[(&FARM_GOV.to_string(), &Uint128::from(22_000_000u128))],
+        )
     ]);
 
     let info = mock_info(FARM_TOKEN, &[]);
@@ -117,9 +147,16 @@ fn test_stake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
 
     deps.querier.with_token_balances(&[
         (
-            &FARM_GOV.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(20000u128))],
+            &XASTRO_TOKEN.to_string(),
+            &[
+                (&XASTRO_TOKEN.to_string(), &Uint128::from(10_000_000u128)),
+                (&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(10000u128)),
+            ],
         ),
+        (
+            &FARM_TOKEN.to_string(),
+            &[(&FARM_GOV.to_string(), &Uint128::from(22_000_000u128))],
+        )
     ]);
 
     let msg = QueryMsg::Staker { address: FARM_CONTRACT.to_string() };
@@ -127,7 +164,7 @@ fn test_stake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res,
         StakerResponse {
-            balance: Uint128::from(16000u128),
+            balance: Uint128::from(15998u128),
         }
     );
 
@@ -152,25 +189,39 @@ fn test_unstake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // destination gov will have 16000 - 2000 = 14000
     deps.querier.with_token_balances(&[
         (
-            &FARM_GOV.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(18000u128))],
+            &XASTRO_TOKEN.to_string(),
+            &[
+                (&XASTRO_TOKEN.to_string(), &Uint128::from(10_000_000u128)),
+                (&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(9000u128)),
+            ],
         ),
+        (
+            &FARM_TOKEN.to_string(),
+            &[(&FARM_GOV.to_string(), &Uint128::from(22_000_000u128))],
+        )
     ]);
     let msg = QueryMsg::Staker { address: FARM_CONTRACT.to_string() };
     let res: StakerResponse = from_binary(&query(deps.as_ref(), env.clone(), msg.clone()).unwrap()).unwrap();
     assert_eq!(
         res,
         StakerResponse {
-            balance: Uint128::from(14000u128),
+            balance: Uint128::from(13996u128),
         }
     );
 
     // destination gov stake grows 10%
     deps.querier.with_token_balances(&[
         (
-            &FARM_GOV.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(19800u128))],
+            &XASTRO_TOKEN.to_string(),
+            &[
+                (&XASTRO_TOKEN.to_string(), &Uint128::from(10_000_000u128)),
+                (&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(9900u128)),
+            ],
         ),
+        (
+            &FARM_TOKEN.to_string(),
+            &[(&FARM_GOV.to_string(), &Uint128::from(24_200_000u128))],
+        )
     ]);
 
     let msg = QueryMsg::Staker { address: FARM_CONTRACT.to_string() };
@@ -178,7 +229,7 @@ fn test_unstake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res,
         StakerResponse {
-            balance: Uint128::from(15400u128),
+            balance: Uint128::from(15396u128),
         }
     );
 
@@ -191,16 +242,23 @@ fn test_unstake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // destination gov will have 15400 - 13400 + 5% (gain)
     deps.querier.with_token_balances(&[
         (
-            &FARM_GOV.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(6720u128))],
+            &XASTRO_TOKEN.to_string(),
+            &[
+                (&XASTRO_TOKEN.to_string(), &Uint128::from(10_000_000u128)),
+                (&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(3360u128)),
+            ],
         ),
+        (
+            &FARM_TOKEN.to_string(),
+            &[(&FARM_GOV.to_string(), &Uint128::from(25_410_000u128))],
+        )
     ]);
     let msg = QueryMsg::Staker { address: FARM_CONTRACT.to_string() };
     let res: StakerResponse = from_binary(&query(deps.as_ref(), env.clone(), msg.clone()).unwrap()).unwrap();
     assert_eq!(
         res,
         StakerResponse {
-            balance: Uint128::from(2099u128),
+            balance: Uint128::from(2093u128),
         }
     );
 
@@ -213,9 +271,16 @@ fn test_unstake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // destination gov will have 0
     deps.querier.with_token_balances(&[
         (
-            &FARM_GOV.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(4620u128))],
+            &XASTRO_TOKEN.to_string(),
+            &[
+                (&XASTRO_TOKEN.to_string(), &Uint128::from(10_000_000u128)),
+                (&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(2310u128)),
+            ],
         ),
+        (
+            &FARM_TOKEN.to_string(),
+            &[(&FARM_GOV.to_string(), &Uint128::from(25_410_000u128))],
+        )
     ]);
 
     let msg = QueryMsg::Staker { address: FARM_CONTRACT.to_string() };
@@ -232,7 +297,7 @@ fn test_unstake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res,
         StakerResponse {
-            balance: Uint128::from(4620u128),
+            balance: Uint128::from(4619u128),
         }
     );
 

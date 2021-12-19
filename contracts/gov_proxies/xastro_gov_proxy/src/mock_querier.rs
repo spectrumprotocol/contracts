@@ -8,9 +8,8 @@ use cosmwasm_std::{
     QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
 };
 use std::collections::HashMap;
+use cw20::{BalanceResponse, TokenInfoResponse};
 use terra_cosmwasm::{TerraQueryWrapper};
-
-use anchor_token::gov::StakerResponse;
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
@@ -81,9 +80,10 @@ impl Querier for WasmMockQuerier {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 enum MockQueryMsg {
-    Staker {
+    Balance {
         address: String,
     },
+    TokenInfo {},
 }
 
 impl WasmMockQuerier {
@@ -91,14 +91,21 @@ impl WasmMockQuerier {
         match &request {
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 match from_binary(msg).unwrap() {
-                    MockQueryMsg::Staker { address } => {
+                    MockQueryMsg::Balance { address } => {
                         let balance = self.read_token_balance(contract_addr, address);
-                        SystemResult::Ok(ContractResult::from(to_binary(&StakerResponse {
+                        SystemResult::Ok(ContractResult::from(to_binary(&BalanceResponse {
                             balance,
-                            share: balance,
-                            locked_balance: vec![],
                         })))
-                    }
+                    },
+                    MockQueryMsg::TokenInfo {} => {
+                        let balance = self.read_token_balance(contract_addr, contract_addr.to_string());
+                        SystemResult::Ok(ContractResult::from(to_binary(&TokenInfoResponse {
+                            decimals: 6u8,
+                            name: "MOCK TOKEN".to_string(),
+                            symbol: "MOCK".to_string(),
+                            total_supply: balance,
+                        })))
+                    },
                 }
             }
             _ => self.base.handle_query(request),
