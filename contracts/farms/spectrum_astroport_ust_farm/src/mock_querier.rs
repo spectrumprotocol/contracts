@@ -19,7 +19,8 @@ use astroport::generator::{
 use spectrum_protocol::gov::BalanceResponse as SpecBalanceResponse;
 
 const ASTROPORT_GENERATOR: &str = "astroport_generator";
-
+const ASTRO_TOKEN: &str = "astro_token";
+const FARM_TOKEN: &str = "farm_token";
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
@@ -202,11 +203,12 @@ impl WasmMockQuerier {
                             pools: vec![],
                         })))
                     }
-                    MockQueryMsg::PendingToken { lp_token: _, user } => {
-                        let balance = self.read_token_balance(contract_addr, user.to_string());
+                    MockQueryMsg::PendingToken { lp_token: _, user: _ } => {
+                        let pending = self.read_token_balance(contract_addr, ASTRO_TOKEN.to_string());
+                        let pending_on_proxy = Some(self.read_token_balance(contract_addr, FARM_TOKEN.to_string()));
                         SystemResult::Ok(ContractResult::from(to_binary(&PendingTokenResponse {
-                            pending: balance,
-                            pending_on_proxy: Some(balance),
+                            pending,
+                            pending_on_proxy,
                         })))
                     }
                     MockQueryMsg::Staker { address } => {
