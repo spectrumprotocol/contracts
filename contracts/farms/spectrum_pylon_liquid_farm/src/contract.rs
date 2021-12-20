@@ -44,7 +44,7 @@ pub fn instantiate(
         deps.storage,
         &Config {
             owner: deps.api.addr_canonicalize(&msg.owner)?,
-            dp_token: deps.api.addr_canonicalize(&msg.dp_token)?,
+            bdp_token: deps.api.addr_canonicalize(&msg.bdp_token)?,
             reward_token: deps.api.addr_canonicalize(&msg.reward_token)?,
             gov_proxy: if let Some(gov_proxy) = msg.gov_proxy {
                 Some(deps.api.addr_canonicalize(&gov_proxy)?)
@@ -100,13 +100,13 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             deposit_fee,
         ),
         ExecuteMsg::register_asset {
-            dp_token,
+            bdp_token,
             weight,
         } => register_asset(
             deps,
             env,
             info,
-            dp_token,
+            bdp_token,
             weight,
         ),
         ExecuteMsg::unbond {
@@ -199,11 +199,11 @@ fn register_asset(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    dp_token: String,
+    bdp_token: String,
     weight: u32,
 ) -> StdResult<Response> {
     let config: Config = read_config(deps.storage)?;
-    let dp_token_raw = deps.api.addr_canonicalize(&dp_token)?;
+    let bdp_token_raw = deps.api.addr_canonicalize(&bdp_token)?;
 
     if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(StdError::generic_err("unauthorized"));
@@ -221,7 +221,7 @@ fn register_asset(
     deposit_spec_reward(deps.as_ref(), &env, &mut state, &config, false)?;
 
     let mut pool_info = pool_info_read(deps.storage)
-        .may_load(dp_token_raw.as_slice())?
+        .may_load(bdp_token_raw.as_slice())?
         .unwrap_or_else(|| PoolInfo {
             total_auto_bond_share: Uint128::zero(),
             total_stake_bond_share: Uint128::zero(),
@@ -236,11 +236,11 @@ fn register_asset(
     state.total_weight = state.total_weight + weight - pool_info.weight;
     pool_info.weight = weight;
 
-    pool_info_store(deps.storage).save(dp_token_raw.as_slice(), &pool_info)?;
+    pool_info_store(deps.storage).save(bdp_token_raw.as_slice(), &pool_info)?;
     state_store(deps.storage).save(&state)?;
     Ok(Response::new().add_attributes(vec![
         attr("action", "register_asset"),
-        attr("dp_token", dp_token),
+        attr("bdp_token", bdp_token),
     ]))
 }
 
@@ -260,7 +260,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
     let config = read_config(deps.storage)?;
     let resp = ConfigInfo {
         owner: deps.api.addr_humanize(&config.owner)?.to_string(),
-        dp_token: deps.api.addr_humanize(&config.dp_token)?.to_string(),
+        bdp_token: deps.api.addr_humanize(&config.bdp_token)?.to_string(),
         reward_token: deps.api.addr_humanize(&config.reward_token)?.to_string(),
         gov_proxy: if let Some(gov_proxy) = config.gov_proxy {
             Some(deps.api.addr_humanize(&gov_proxy)?.to_string())

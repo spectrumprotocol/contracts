@@ -11,7 +11,7 @@ static KEY_CONFIG: &[u8] = b"config";
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     pub owner: CanonicalAddr,
-    pub dp_token: CanonicalAddr,
+    pub bdp_token: CanonicalAddr,
     pub reward_token: CanonicalAddr,
     pub gov_proxy: Option<CanonicalAddr>,
     pub spectrum_token: CanonicalAddr,

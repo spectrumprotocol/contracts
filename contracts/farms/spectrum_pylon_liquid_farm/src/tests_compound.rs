@@ -25,13 +25,13 @@ const SPEC_PLATFORM: &str = "spec_platform";
 const SPEC_TOKEN: &str = "spec_token";
 const SPEC_LP: &str = "spec_lp";
 const SPEC_POOL: &str = "spec_pool";
-const DP_TOKEN: &str = "dp_token";
+const BDP_TOKEN: &str = "dp_token";
 const REWARD_TOKEN: &str = "reward_token";
-const DP_TOKEN_REWARD_TOKEN_LP: &str = "dp_token_reward_lp";
+const BDP_TOKEN_REWARD_TOKEN_LP: &str = "dp_token_reward_lp";
 const REWARD_UST_LP: &str = "reward_ust_lp";
 const TEST_CREATOR: &str = "creator";
 const TEST_CONTROLLER: &str = "controller";
-const DP_TOKEN_2: &str = "fail_token";
+const BDP_TOKEN_2: &str = "fail_token";
 const USER1: &str = "user1";
 const USER2: &str = "user2";
 const GATEWAY_POOL: &str = "gateway_pool";
@@ -92,14 +92,14 @@ fn test() {
             &PairInfo {
                 asset_infos: [
                     AssetInfo::Token {
-                        contract_addr: DP_TOKEN.to_string(),
+                        contract_addr: BDP_TOKEN.to_string(),
                     },
                     AssetInfo::Token {
                         contract_addr: REWARD_TOKEN.to_string(),
                     },
                 ],
                 contract_addr: PAIR_CONTRACT.to_string(),
-                liquidity_token: DP_TOKEN_REWARD_TOKEN_LP.to_string(),
+                liquidity_token: BDP_TOKEN_REWARD_TOKEN_LP.to_string(),
             },
         ),
         (
@@ -139,7 +139,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
     let info = mock_info(TEST_CREATOR, &[]);
     let mut config = ConfigInfo {
         owner: TEST_CREATOR.to_string(),
-        dp_token: DP_TOKEN.to_string(),
+        bdp_token: BDP_TOKEN.to_string(),
         reward_token: REWARD_TOKEN.to_string(),
         gov_proxy: Some(GOV_PROXY.to_string()),
         spectrum_token: SPEC_TOKEN.to_string(),
@@ -211,7 +211,7 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
     let msg = ExecuteMsg::register_asset {
-        dp_token: DP_TOKEN.to_string(),
+        bdp_token: BDP_TOKEN.to_string(),
         weight: 1u32,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
@@ -229,7 +229,7 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
         res,
         PoolsResponse {
             pools: vec![PoolItem {
-                asset_token: DP_TOKEN.to_string(),
+                asset_token: BDP_TOKEN.to_string(),
                 weight: 1u32,
                 farm_share: Uint128::zero(),
                 state_spec_share_index: Decimal::zero(),
@@ -245,7 +245,7 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
 
     // test register fail
     let msg = ExecuteMsg::register_asset {
-        dp_token: DP_TOKEN_2.to_string(),
+        bdp_token: BDP_TOKEN_2.to_string(),
         weight: 2u32,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
@@ -295,7 +295,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let info = mock_info(TEST_CREATOR, &[]);
     deps.querier.with_token_balances(&[
         (
-            &DP_TOKEN.to_string(),
+            &BDP_TOKEN.to_string(),
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(10000u128))],
         ),
     ]);
@@ -311,7 +311,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert!(res.is_err());
 
     // bond success user1 10000 DP Token
-    let info = mock_info(DP_TOKEN, &[]);
+    let info = mock_info(BDP_TOKEN, &[]);
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
@@ -319,7 +319,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let config = read_config(deps_ref.storage).unwrap();
     let mut state = read_state(deps_ref.storage).unwrap();
     let mut pool_info = pool_info_read(deps_ref.storage)
-        .load(config.dp_token.as_slice())
+        .load(config.bdp_token.as_slice())
         .unwrap();
     deposit_farm_share(
         deps_ref,
@@ -331,7 +331,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     ).unwrap();
     state_store(deps.as_mut().storage).save(&state).unwrap();
     pool_info_store(deps.as_mut().storage)
-        .save(config.dp_token.as_slice(), &pool_info)
+        .save(config.bdp_token.as_slice(), &pool_info)
         .unwrap();
     deps.querier.with_token_balances(&[
         (
@@ -343,7 +343,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(1000u128))],
         ),
         (
-            &DP_TOKEN.to_string(),
+            &BDP_TOKEN.to_string(),
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(10000u128))],
         ),
         (
@@ -361,7 +361,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: DP_TOKEN.to_string(),
+            asset_token: BDP_TOKEN.to_string(),
             pending_farm_reward: Uint128::from(1000u128),
             pending_spec_reward: Uint128::from(2700u128),
             deposit_amount: Option::from(Uint128::from(10000u128)),
@@ -382,7 +382,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // unbond 3000 DP token
     let info = mock_info(USER1, &[]);
     let msg = ExecuteMsg::unbond {
-        asset_token: DP_TOKEN.to_string(),
+        asset_token: BDP_TOKEN.to_string(),
         amount: Uint128::from(3000u128),
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
@@ -395,7 +395,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             .collect::<Vec<CosmosMsg>>(),
         [
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: DP_TOKEN.to_string(),
+                contract_addr: BDP_TOKEN.to_string(),
                 funds: vec![],
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: USER1.to_string(),
@@ -460,7 +460,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(0u128))],
         ),
         (
-            &DP_TOKEN.to_string(),
+            &BDP_TOKEN.to_string(),
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(7000u128))],
         ),
         (
@@ -486,7 +486,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: DP_TOKEN.to_string(),
+            asset_token: BDP_TOKEN.to_string(),
             pending_farm_reward: Uint128::from(0u128),
             pending_spec_reward: Uint128::from(0u128),
             bond_amount: Uint128::from(7000u128),
@@ -505,7 +505,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     );
 
     // bond user2 5000 DP Token auto-compound
-    let info = mock_info(DP_TOKEN, &[]);
+    let info = mock_info(BDP_TOKEN, &[]);
     let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
         sender: USER2.to_string(),
         amount: Uint128::from(5000u128),
@@ -516,7 +516,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     });
     deps.querier.with_token_balances(&[
         (
-            &DP_TOKEN.to_string(),
+            &BDP_TOKEN.to_string(),
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(7000u128 + 5000u128))],
         ),
     ]);
@@ -526,7 +526,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let deps_ref = deps.as_ref();
     let mut state = read_state(deps_ref.storage).unwrap();
     let mut pool_info = pool_info_read(deps_ref.storage)
-        .load(config.dp_token.as_slice())
+        .load(config.bdp_token.as_slice())
         .unwrap();
     deposit_farm_share(
         deps_ref,
@@ -538,7 +538,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     ).unwrap();
     state_store(deps.as_mut().storage).save(&state).unwrap();
     pool_info_store(deps.as_mut().storage)
-        .save(config.dp_token.as_slice(), &pool_info)
+        .save(config.bdp_token.as_slice(), &pool_info)
         .unwrap();
     deps.querier.with_token_balances(&[
         (
@@ -550,7 +550,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(5000u128))],
         ),
         (
-            &DP_TOKEN.to_string(),
+            &BDP_TOKEN.to_string(),
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(7000u128 + 5000u128))],
         ),
         (
@@ -584,7 +584,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: DP_TOKEN.to_string(),
+            asset_token: BDP_TOKEN.to_string(),
             pending_farm_reward: Uint128::from(1794u128),
             pending_spec_reward: Uint128::from(582u128),
             deposit_amount: Some(Uint128::from(7000u128)),
@@ -610,7 +610,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: DP_TOKEN.to_string(),
+            asset_token: BDP_TOKEN.to_string(),
             pending_farm_reward: Uint128::from(3205u128),
             pending_spec_reward: Uint128::from(416u128),
             deposit_amount: Some(Uint128::from(5000u128)),
@@ -692,7 +692,7 @@ fn test_compound_reward_token(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMoc
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(12800u128))],
         ),
         (
-            &DP_TOKEN.to_string(),
+            &BDP_TOKEN.to_string(),
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(12100u128))],
         ),
         (
@@ -710,7 +710,7 @@ fn test_compound_reward_token(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMoc
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: DP_TOKEN.to_string(),
+            asset_token: BDP_TOKEN.to_string(),
             pending_farm_reward: Uint128::from(4594u128),
             pending_spec_reward: Uint128::from(586u128),
             deposit_amount: Some(Uint128::from(7000u128)),
@@ -736,7 +736,7 @@ fn test_compound_reward_token(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMoc
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: DP_TOKEN.to_string(),
+            asset_token: BDP_TOKEN.to_string(),
             pending_farm_reward: Uint128::from(8205u128),
             pending_spec_reward: Uint128::from(413u128),
             deposit_amount: Some(Uint128::from(5000u128)),
@@ -774,7 +774,7 @@ fn test_compound_reward_token_with_fees(deps: &mut OwnedDeps<MockStorage, MockAp
 
     deps.querier.with_token_balances(&[
         (
-            &DP_TOKEN.to_string(),
+            &BDP_TOKEN.to_string(),
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(12100u128))]
         ),
         (

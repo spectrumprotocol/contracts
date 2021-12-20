@@ -89,19 +89,6 @@ fn query_state(deps: Deps) -> StdResult<State> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> StdResult<Response> {
-    let config: Config = read_config(deps.storage)?;
-    let gov_response = query_nexus_gov(deps.as_ref(), &config.farm_gov, &env.contract.address)?;
-    if !gov_response.balance.is_zero() {
-        let mut state = read_state(deps.storage)?;
-        state.total_share = gov_response.balance;
-        let account = Account {
-            share: gov_response.balance,
-        };
-        state_store(deps.storage).save(&state)?;
-        account_store(deps.storage)
-            .save(deps.api.addr_canonicalize(&msg.farm_contract)?.as_slice(), &account)?;
-    }
-
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
 }
