@@ -19,7 +19,6 @@ pub struct Config {
     pub spectrum_gov: CanonicalAddr,
     pub astroport_generator: CanonicalAddr,
     pub astro_token: CanonicalAddr,
-    pub astro_staking: CanonicalAddr,
     pub astro_gov_proxy: CanonicalAddr,
     pub controller: CanonicalAddr,
     pub platform: CanonicalAddr,

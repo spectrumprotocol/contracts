@@ -11,7 +11,6 @@ pub struct ConfigInfo {
     pub spectrum_gov: String,
     pub astroport_generator: String,
     pub astro_token: String,
-    pub astro_staking: String,
     pub astro_gov_proxy: String,
     pub platform: String,
     pub controller: String,

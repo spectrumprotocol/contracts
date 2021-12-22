@@ -144,9 +144,8 @@ pub fn bond(
 
     stake_token(
         deps.api,
-        config.anchor_staking,
+        config.astroport_generator,
         pool_info.staking_token,
-        asset_token_raw,
         amount,
     )
 }
@@ -159,13 +158,11 @@ pub fn deposit_farm_share(
     config: &Config,
     amount: Uint128,
 ) -> StdResult<()> {
-    let staked: AnchorStakerResponse =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: deps.api.addr_humanize(&config.anchor_gov)?.to_string(),
-            msg: to_binary(&AnchorGovQueryMsg::Staker {
-                address: env.contract.address.to_string(),
-            })?,
-        }))?;
+    let staked = query_farm_gov_balance(
+        deps,
+        &config.astro_gov_proxy,
+        &env.contract.address,
+    )?;
 
     let mut new_total_share = Uint128::zero();
     if !pool_info.total_stake_bond_share.is_zero() {

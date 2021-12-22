@@ -108,7 +108,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     // find ASTRO swap rate
     let astro = Asset {
         info: AssetInfo::Token {
-            contract_addr: astro_token,
+            contract_addr: astro_token.clone(),
         },
         amount: total_astro_swap_amount,
     };

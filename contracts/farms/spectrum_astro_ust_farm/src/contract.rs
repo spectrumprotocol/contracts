@@ -12,8 +12,6 @@ use crate::{
 };
 
 use cw20::Cw20ReceiveMsg;
-use terraswap::asset::AssetInfo;
-use terraswap::querier::query_pair_info;
 
 use crate::bond::{deposit_spec_reward, query_reward_info, unbond, withdraw, update_bond};
 use crate::state::{pool_info_read, pool_info_store, read_state};
@@ -49,8 +47,8 @@ pub fn instantiate(
             owner: deps.api.addr_canonicalize(&msg.owner)?,
             spectrum_token: deps.api.addr_canonicalize(&msg.spectrum_token)?,
             spectrum_gov: deps.api.addr_canonicalize(&msg.spectrum_gov)?,
+            astroport_generator: deps.api.addr_canonicalize(&msg.astroport_generator)?,
             astro_token: deps.api.addr_canonicalize(&msg.astro_token)?,
-            astro_staking: deps.api.addr_canonicalize(&msg.astro_staking)?,
             astro_gov_proxy: deps.api.addr_canonicalize(&msg.astro_gov_proxy)?,
             platform: deps.api.addr_canonicalize(&msg.platform)?,
             controller: deps.api.addr_canonicalize(&msg.controller)?,
@@ -266,11 +264,10 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
     let resp = ConfigInfo {
         owner: deps.api.addr_humanize(&config.owner)?.to_string(),
         spectrum_token: deps.api.addr_humanize(&config.spectrum_token)?.to_string(),
+        astroport_generator: deps.api.addr_humanize(&config.astroport_generator)?.to_string(),
         astro_token: deps.api.addr_humanize(&config.astro_token)?.to_string(),
-        astro_staking: deps.api.addr_humanize(&config.astro_staking)?.to_string(),
         astro_gov_proxy: deps.api.addr_humanize(&config.astro_gov_proxy)?.to_string(),
         spectrum_gov: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
-
         platform: deps.api.addr_humanize(&config.platform)?.to_string(),
         controller: deps.api.addr_humanize(&config.controller)?.to_string(),
         base_denom: config.base_denom,
