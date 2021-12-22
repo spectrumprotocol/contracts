@@ -3,10 +3,10 @@
   "title": "ConfigInfo",
   "type": "object",
   "required": [
-    "anchor_gov",
     "anchor_market",
-    "anchor_staking",
-    "anchor_token",
+    "astro_gov_proxy",
+    "astro_token",
+    "astroport_generator",
     "aust_token",
     "base_denom",
     "community_fee",
@@ -21,16 +21,16 @@
     "spectrum_token"
   ],
   "properties": {
-    "anchor_gov": {
-      "type": "string"
-    },
     "anchor_market": {
       "type": "string"
     },
-    "anchor_staking": {
+    "astro_gov_proxy": {
       "type": "string"
     },
-    "anchor_token": {
+    "astro_token": {
+      "type": "string"
+    },
+    "astroport_generator": {
       "type": "string"
     },
     "aust_token": {
