@@ -1,15 +1,17 @@
-use cosmwasm_std::{Decimal, Uint128};
+use cosmwasm_std::{Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::gov::VoteOption;
-use cw20::Cw20ReceiveMsg;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigInfo {
     pub owner: String,
     pub spectrum_token: String,
     pub spectrum_gov: String,
+    pub aust_token: String,
+    pub anchor_market: String,
+    pub terraswap_factory: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -19,13 +21,12 @@ pub enum ExecuteMsg {
         vote: VoteOption,
         amount: Uint128,
     },
-    receive(Cw20ReceiveMsg),
     stake {
         amount: Uint128,
         days: Option<u64>,
     },
     unstake {
-        amount: Uint128,
+        amount: Option<Uint128>,
         days: Option<u64>,
     },
     update_config {
@@ -38,19 +39,28 @@ pub enum ExecuteMsg {
     },
     upsert_share {
         address: String,
-        weight: u32,
         lock_start: Option<u64>,
         lock_end: Option<u64>,
         lock_amount: Option<Uint128>,
+        disable_withdraw: Option<bool>,
     },
     withdraw {
-        amount: Option<Uint128>,
+        spec_amount: Option<Uint128>,
+        aust_amount: Option<Uint128>,
     },
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub enum Cw20HookMsg {
-    deposit {},
+    gov_claim {
+        aust_amount: Option<Uint128>,
+        days: Option<u64>,
+    },
+    burn {
+        spec_amount: Option<Uint128>,
+    },
+    aust_redeem {
+        aust_amount: Option<Uint128>,
+    },
+    buy_spec {
+        ust_amount: Option<Uint128>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -70,38 +80,16 @@ pub struct BalanceResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
-pub struct StatePoolInfo {
-    pub days: u64,
-    pub previous_share: Uint128,
-    pub share_index: Decimal,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct StateInfo {
-    pub total_weight: u32,
-    pub previous_share: Uint128,
-    pub share_index: Decimal,
-    pub pools: Vec<StatePoolInfo>,
-}
-
-#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct SharePoolInfo {
-    pub days: u64,
-    pub share_index: Decimal,
-    pub share: Uint128,
+    #[serde(default)] pub total_burn: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct ShareInfo {
     pub address: String,
-    pub weight: u32,
-    pub share_index: Decimal,
-    pub share: Uint128,
-    pub amount: Uint128,
     pub lock_start: u64,
     pub lock_end: u64,
     pub lock_amount: Uint128,
-    pub pools: Vec<SharePoolInfo>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -110,4 +98,8 @@ pub struct SharesResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub aust_token: String,
+    pub anchor_market: String,
+    pub terraswap_factory: String,
+}

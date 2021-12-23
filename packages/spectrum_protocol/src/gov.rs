@@ -21,11 +21,18 @@ pub struct ConfigInfo {
     pub mint_end: u64,
     pub warchest_address: Option<String>,
     pub warchest_ratio: Decimal,
+    pub aust_token: String,
+    pub burnvault_address: Option<String>,
+    pub burnvault_ratio: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[allow(clippy::large_enum_variant)]
 pub enum ExecuteMsg {
+    harvest {
+        aust_amount: Option<Uint128>,
+        days: Option<u64>,
+    },
     mint {},
     poll_end {
         poll_id: u64,
@@ -52,6 +59,8 @@ pub enum ExecuteMsg {
         expiration_period: Option<u64>,
         proposal_deposit: Option<Uint128>,
         warchest_address: Option<String>,
+        burnvault_address: Option<String>,
+        burnvault_ratio: Option<Decimal>,
     },
     update_stake {
         amount: Uint128,
@@ -159,6 +168,8 @@ pub struct BalancePoolInfo {
     pub share: Uint128,
     pub balance: Uint128,
     pub unlock: u64,
+    #[serde(default)] pub aust_index: Decimal,
+    #[serde(default)] pub pending_aust: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -196,6 +207,7 @@ pub struct StatePoolInfo {
     pub total_share: Uint128,
     pub total_balance: Uint128,
     pub active: bool,
+    #[serde(default)] pub aust_index: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -207,12 +219,17 @@ pub struct StateInfo {
     pub total_staked: Uint128,
     #[serde(default)] pub prev_balance: Uint128,
     #[serde(default)] pub pools: Vec<StatePoolInfo>,
+
+    #[serde(default)] pub prev_aust_balance: Uint128,
+    #[serde(default)] pub vault_balances: Uint128,
+    #[serde(default)] pub vault_share_multiplier: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct VaultInfo {
     pub address: String,
     pub weight: u32,
+    pub balance: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -226,4 +243,6 @@ pub struct VotersResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub aust_token: String,
+}

@@ -576,6 +576,7 @@ fn compute_zap_to_bond(
         }),
     ];
 
+    let mut swap_a_amount: Option<Uint128> = None;
     if let Some(pair_asset_b) = pair_asset_b {
         let swap_asset_a = Asset {
             info: pair_asset_a.clone(),
@@ -609,6 +610,7 @@ fn compute_zap_to_bond(
             })?,
             funds: vec![],
         }));
+        swap_a_amount = Some(swap_asset_a.amount);
     }
 
     let assets = [Asset {
@@ -616,7 +618,7 @@ fn compute_zap_to_bond(
             contract_addr: asset_token_a,
         },
         amount: amount_a,
-    }, bond_asset];
+    }, bond_asset.clone()];
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: env.contract.address.to_string(),
         msg: to_binary(&ExecuteMsg::bond {
@@ -643,6 +645,11 @@ fn compute_zap_to_bond(
             lp_amount,
             belief_price: price_a,
             belief_price_b: price_b,
+            swap_ust: ust_swap_amount,
+            receive_a: simulate_a.return_amount,
+            swap_a: swap_a_amount,
+            provide_a: amount_a,
+            provide_b: bond_asset.amount,
         })))
     } else {
         Ok((messages, None))

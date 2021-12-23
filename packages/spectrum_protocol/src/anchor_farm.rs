@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigInfo {
     pub owner: String,
-    pub terraswap_factory: String,
     pub spectrum_token: String,
     pub spectrum_gov: String,
     pub anchor_token: String,
@@ -20,6 +19,9 @@ pub struct ConfigInfo {
     pub platform_fee: Decimal,
     pub controller_fee: Decimal,
     pub deposit_fee: Decimal,
+    pub anchor_market: String,
+    pub aust_token: String,
+    pub pair_contract: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -60,6 +62,7 @@ pub enum ExecuteMsg {
         amount_to_stake: Uint128,
         amount_to_auto: Uint128,
     },
+    send_fee {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -101,7 +104,6 @@ pub struct PoolItem {
     pub farm_share_index: Decimal,       // per stake bond share
     pub stake_spec_share_index: Decimal, // per stake bond share
     pub auto_spec_share_index: Decimal,  // per auto bond share
-    pub reinvest_allowance: Uint128,
 }
 
 // We define a custom struct for each query response
@@ -126,6 +128,8 @@ pub struct RewardInfoResponseItem {
     pub stake_bond_share: Uint128,
     pub pending_farm_reward: Uint128,
     pub pending_spec_reward: Uint128,
+    pub deposit_amount: Option<Uint128>,
+    pub deposit_time: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -135,10 +139,11 @@ pub struct StateInfo {
     pub total_farm_share: Uint128,
     pub total_weight: u32,
     pub earning: Uint128,
-    pub earning_spec: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {
-    pub earning_spec: Uint128,
+    pub anchor_market: String,
+    pub aust_token: String,
+    pub terraswap_factory: String,
 }

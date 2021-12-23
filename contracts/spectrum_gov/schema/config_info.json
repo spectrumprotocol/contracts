@@ -3,6 +3,8 @@
   "title": "ConfigInfo",
   "type": "object",
   "required": [
+    "aust_token",
+    "burnvault_ratio",
     "effective_delay",
     "expiration_period",
     "mint_end",
@@ -16,6 +18,18 @@
     "warchest_ratio"
   ],
   "properties": {
+    "aust_token": {
+      "type": "string"
+    },
+    "burnvault_address": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "burnvault_ratio": {
+      "$ref": "#/definitions/Decimal"
+    },
     "effective_delay": {
       "type": "integer",
       "format": "uint64",

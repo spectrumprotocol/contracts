@@ -5,6 +5,38 @@
     {
       "type": "object",
       "required": [
+        "harvest"
+      ],
+      "properties": {
+        "harvest": {
+          "type": "object",
+          "properties": {
+            "aust_amount": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Uint128"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "days": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "mint"
       ],
       "properties": {
@@ -131,6 +163,22 @@
         "update_config": {
           "type": "object",
           "properties": {
+            "burnvault_address": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "burnvault_ratio": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Decimal"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "effective_delay": {
               "type": [
                 "integer",

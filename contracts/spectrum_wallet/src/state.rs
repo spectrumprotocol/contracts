@@ -1,9 +1,13 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{CanonicalAddr, Decimal, Order, StdResult, Storage, Uint128};
+use cosmwasm_std::{CanonicalAddr, Order, StdResult, Storage, Uint128};
 use cosmwasm_storage::{bucket, bucket_read, singleton, singleton_read, Bucket, Singleton};
-use spectrum_protocol::wallet::{SharePoolInfo, StatePoolInfo};
+use spectrum_protocol::wallet::StateInfo;
+
+pub fn default_addr() -> CanonicalAddr {
+    CanonicalAddr::from(vec![])
+}
 
 static KEY_CONFIG: &[u8] = b"config";
 
@@ -12,6 +16,9 @@ pub struct Config {
     pub owner: CanonicalAddr,
     pub spectrum_token: CanonicalAddr,
     pub spectrum_gov: CanonicalAddr,
+    #[serde(default = "default_addr")] pub aust_token: CanonicalAddr,
+    #[serde(default = "default_addr")] pub anchor_market: CanonicalAddr,
+    #[serde(default = "default_addr")] pub terraswap_factory: CanonicalAddr,
 }
 
 pub fn config_store(storage: &mut dyn Storage) -> Singleton<Config> {
@@ -24,20 +31,11 @@ pub fn read_config(storage: &dyn Storage) -> StdResult<Config> {
 
 static KEY_STATE: &[u8] = b"state";
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
-pub struct State {
-    pub contract_addr: CanonicalAddr,
-    pub previous_share: Uint128,
-    pub share_index: Decimal, // per weight
-    pub total_weight: u32,
-    #[serde(default)] pub pools: Vec<StatePoolInfo>,
-}
-
-pub fn state_store(storage: &mut dyn Storage) -> Singleton<State> {
+pub fn state_store(storage: &mut dyn Storage) -> Singleton<StateInfo> {
     singleton(storage, KEY_STATE)
 }
 
-pub fn read_state(storage: &dyn Storage) -> StdResult<State> {
+pub fn read_state(storage: &dyn Storage) -> StdResult<StateInfo> {
     singleton_read(storage, KEY_STATE).load()
 }
 
@@ -45,18 +43,10 @@ static PREFIX_REWARD: &[u8] = b"reward";
 
 #[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfo {
-    #[serde(default)]
-    pub amount: Uint128,
-    #[serde(default)]
-    pub lock_start: u64,
-    #[serde(default)]
-    pub lock_end: u64,
-    #[serde(default)]
-    pub lock_amount: Uint128,
-    pub share_index: Decimal,
-    pub share: Uint128,
-    pub weight: u32,
-    #[serde(default)] pub pools: Vec<SharePoolInfo>,
+    #[serde(default)] pub lock_start: u64,
+    #[serde(default)] pub lock_end: u64,
+    #[serde(default)] pub lock_amount: Uint128,
+    #[serde(default)] pub disable_withdraw: bool,
 }
 
 impl RewardInfo {

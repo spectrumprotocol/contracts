@@ -12,6 +12,10 @@ use spectrum_protocol::common::{
 use spectrum_protocol::gov::{PollExecuteMsg, PollStatus, VoterInfo};
 use std::convert::TryInto;
 
+pub fn default_addr() -> CanonicalAddr {
+    CanonicalAddr::from(vec![])
+}
+
 static KEY_CONFIG: &[u8] = b"config";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -29,6 +33,9 @@ pub struct Config {
     pub mint_end: u64,
     pub warchest_address: CanonicalAddr,
     pub warchest_ratio: Decimal,
+    #[serde(default = "default_addr")] pub aust_token: CanonicalAddr,
+    #[serde(default = "default_addr")] pub burnvault_address: CanonicalAddr,
+    #[serde(default)] pub burnvault_ratio: Decimal,
 }
 
 pub fn config_store(storage: &mut dyn Storage) -> Singleton<Config> {
@@ -47,6 +54,7 @@ pub struct StatePool {
     pub total_share: Uint128,
     pub total_balance: Uint128,
     pub active: bool,
+    #[serde(default)] pub aust_index: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
@@ -56,10 +64,16 @@ pub struct State {
     pub poll_deposit: Uint128,
     pub last_mint: u64,
     pub total_weight: u32,
-    pub total_share: Uint128,
-    #[serde(default)] pub prev_balance: Uint128,
-    #[serde(default)] pub total_balance: Uint128,
+    #[serde(default)] pub prev_balance: Uint128,    // SPEC balance - poll_deposit - vault_balances
+    #[serde(default)] pub prev_aust_balance: Uint128,
+    #[serde(default)] pub vault_balances: Uint128,
+    #[serde(default)] pub vault_share_multiplier: Decimal,
     #[serde(default)] pub pools: Vec<StatePool>,
+
+    // for day 0
+    pub total_share: Uint128,
+    #[serde(default)] pub total_balance: Uint128,
+    #[serde(default)] pub aust_index: Decimal,
 }
 
 impl StatePool {
@@ -180,12 +194,16 @@ pub struct BalancePool {
     pub days: u64,
     pub share: Uint128,
     pub unlock: u64,
+    #[serde(default)] pub aust_index: Decimal,
+    #[serde(default)] pub pending_aust: Uint128,
 }
 
-#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Account {
     pub share: Uint128,                        // total staked balance
     pub locked_balance: Vec<(u64, VoterInfo)>, // maps poll_id to weight voted
+    #[serde(default)] pub aust_index: Decimal,
+    #[serde(default)] pub pending_aust: Uint128,
     #[serde(default)] pub pools: Vec<BalancePool>,
 }
 
@@ -206,20 +224,35 @@ impl BalancePool {
 }
 
 impl Account {
-    pub fn add_share(&mut self, days: u64, time: u64, share: Uint128, time_burned: u64) -> StdResult<()> {
+    pub fn create(state: &State) -> Account {
+        Account {
+            share: Uint128::zero(),
+            pending_aust: Uint128::zero(),
+            aust_index: state.aust_index,
+            pools: vec![],
+            locked_balance: vec![],
+        }
+    }
+
+    pub fn add_share(&mut self, days: u64, time: u64, share: Uint128, time_burned: u64, state: &State) -> StdResult<()> {
         if days == 0u64 {
             self.share += share;
         } else {
-            let mut pool = self.pools.iter_mut().find(|it| it.days == days);
-            if pool.is_none() {
+            let mut account_pool = self.pools.iter_mut().find(|it| it.days == days);
+            if account_pool.is_none() {
+                let state_pool = state.pools.iter()
+                    .find(|it| it.days == days)
+                    .ok_or_else(|| StdError::not_found("pool"))?;
                 self.pools.push(BalancePool {
                     days,
                     share: Uint128::zero(),
                     unlock: 0u64,
+                    aust_index: state_pool.aust_index,
+                    pending_aust: Uint128::zero(),
                 });
-                pool = self.pools.iter_mut().find(|it| it.days == days);
+                account_pool = self.pools.iter_mut().find(|it| it.days == days);
             }
-            pool.unwrap().add_share(time, share, time_burned);
+            account_pool.unwrap().add_share(time, share, time_burned);
         }
 
         Ok(())
@@ -257,6 +290,26 @@ impl Account {
         let sum = state.calc_balance(0u64, self.share)? +
             self.pools.iter().fold(init, |acc, it| Ok(acc? + state.calc_balance(it.days, it.share)?))?;
         Ok(sum)
+    }
+
+    pub fn get_aust(&self, days: u64) -> Uint128 {
+        if days == 0u64 {
+            self.pending_aust
+        } else {
+            self.pools.iter().find(|it| it.days == days)
+                .map(|it| it.pending_aust)
+                .unwrap_or_else(Uint128::zero)
+        }
+    }
+
+    pub fn deduct_aust(&mut self, days: u64, amount: Uint128) -> StdResult<()> {
+        if days == 0u64 {
+            self.pending_aust -= amount;
+        } else {
+            let pool = self.pools.iter_mut().find(|it| it.days == days).ok_or_else(|| StdError::not_found("pool"))?;
+            pool.pending_aust -= amount;
+        }
+        Ok(())
     }
 }
 
@@ -367,6 +420,7 @@ static PREFIX_VAULT: &[u8] = b"vault";
 #[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Vault {
     pub weight: u32,
+    #[serde(default)] pub balance: Uint128,
 }
 
 pub fn vault_store(storage: &mut dyn Storage) -> Bucket<Vault> {
