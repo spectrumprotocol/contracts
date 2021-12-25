@@ -4,7 +4,11 @@
   "type": "object",
   "required": [
     "belief_price",
-    "lp_amount"
+    "lp_amount",
+    "provide_a",
+    "provide_b",
+    "receive_a",
+    "swap_ust"
   ],
   "properties": {
     "belief_price": {
@@ -21,6 +25,28 @@
       ]
     },
     "lp_amount": {
+      "$ref": "#/definitions/Uint128"
+    },
+    "provide_a": {
+      "$ref": "#/definitions/Uint128"
+    },
+    "provide_b": {
+      "$ref": "#/definitions/Uint128"
+    },
+    "receive_a": {
+      "$ref": "#/definitions/Uint128"
+    },
+    "swap_a": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Uint128"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "swap_ust": {
       "$ref": "#/definitions/Uint128"
     }
   },

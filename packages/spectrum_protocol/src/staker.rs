@@ -59,6 +59,11 @@ pub struct SimulateZapToBondResponse {
     pub lp_amount: Uint128,
     pub belief_price: Decimal,
     pub belief_price_b: Option<Decimal>,
+    pub swap_ust: Uint128,
+    pub receive_a: Uint128,
+    pub swap_a: Option<Uint128>,
+    pub provide_a: Uint128,
+    pub provide_b: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
