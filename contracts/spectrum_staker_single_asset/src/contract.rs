@@ -9,7 +9,7 @@ use cw20::{Cw20ExecuteMsg};
 use spectrum_protocol::pylon_liquid_farm::Cw20HookMsg as PylonLiquidCw20HookMsg;
 use spectrum_protocol::staker_single_asset::{ConfigInfo, ExecuteMsg, MigrateMsg, QueryMsg, SwapOperation};
 use terraswap::asset::{Asset, AssetInfo};
-use terraswap::pair::{ExecuteMsg as PairExecuteMsg};
+use terraswap::pair::{ExecuteMsg as PairExecuteMsg, Cw20HookMsg as PairCw20HookMsg};
 use terraswap::querier::{query_balance, query_token_balance};
 
 // max slippage tolerance is 0.5
@@ -163,6 +163,8 @@ fn swap_operation(
     compound_rate: Option<Decimal>,
 ) -> StdResult<Response> {
     let splitted = swap_operations.split_first();
+    let tax = provide_asset.compute_tax(&deps.querier)?;
+    let amount = provide_asset.amount.checked_sub(tax)?;
     match splitted {
         None => {
             let contract_addr = match provide_asset.info {
@@ -173,7 +175,7 @@ fn swap_operation(
                 CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr,
                     msg: to_binary(&Cw20ExecuteMsg::Send {
-                        amount: provide_asset.amount,
+                        amount,
                         contract,
                         msg: to_binary(&PylonLiquidCw20HookMsg::bond {
                             staker_addr: Some(staker_addr),
@@ -189,20 +191,16 @@ fn swap_operation(
                 deps.as_ref(),
                 &swap.asset_info,
                 &env.contract.address)?;
-            let swap_message = match swap.asset_info.clone() {
+            let swap_message = match provide_asset.info.clone() {
                 AssetInfo::Token { contract_addr } => CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr,
                     msg: to_binary(&Cw20ExecuteMsg::Send {
                         contract: swap.pair_contract.clone(),
-                        amount: provide_asset.amount,
-                        msg: to_binary(&PairExecuteMsg::Swap {
+                        amount,
+                        msg: to_binary(&PairCw20HookMsg::Swap {
                             to: None,
                             max_spread: Some(max_spread),
                             belief_price: swap.belief_price,
-                            offer_asset: Asset {
-                                amount: provide_asset.amount,
-                                info: swap.asset_info.clone(),
-                            }
                         })?,
                     })?,
                     funds: vec![],
@@ -214,14 +212,11 @@ fn swap_operation(
                         max_spread: Some(max_spread),
                         belief_price: swap.belief_price,
                         offer_asset: Asset {
-                            amount: provide_asset.amount,
-                            info: swap.asset_info.clone(),
+                            amount,
+                            info: provide_asset.info.clone(),
                         },
                     })?,
-                    funds: vec![Coin {
-                        denom,
-                        amount: provide_asset.amount,
-                    }]
+                    funds: vec![Coin { denom, amount }]
                 }),
             };
             Ok(Response::new().add_messages(vec![
