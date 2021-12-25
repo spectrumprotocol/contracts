@@ -15,8 +15,7 @@ use spectrum_protocol::gov_proxy::{
 use crate::proxy::{
     stake, unstake
 };
-use crate::querier::query_nexus_gov;
-use crate::state::{Account, account_store, read_state, State, state_store};
+use crate::state::{read_state, State, state_store};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(

@@ -25,25 +25,25 @@ fn bond_internal(
     deps: DepsMut,
     env: Env,
     sender_addr_raw: CanonicalAddr,
-    bdp_token_raw: CanonicalAddr,
+    dp_token_raw: CanonicalAddr,
     amount_to_auto: Uint128,
     amount_to_stake: Uint128,
-    bdp_token_balance: Uint128,
+    dp_token_balance: Uint128,
     config: &Config,
     reallocate: bool,
 ) -> StdResult<PoolInfo> {
-    let mut pool_info = pool_info_read(deps.storage).load(bdp_token_raw.as_slice())?;
+    let mut pool_info = pool_info_read(deps.storage).load(dp_token_raw.as_slice())?;
     let mut state = read_state(deps.storage)?;
 
     // update reward index; before changing share
     if !pool_info.total_auto_bond_share.is_zero() || !pool_info.total_stake_bond_share.is_zero() {
         deposit_spec_reward(deps.as_ref(), &env, &mut state, config, false)?;
-        spec_reward_to_pool(&state, &mut pool_info, bdp_token_balance)?;
+        spec_reward_to_pool(&state, &mut pool_info, dp_token_balance)?;
     }
 
     // withdraw reward to pending reward; before changing share
     let mut reward_info = rewards_read(deps.storage, &sender_addr_raw)
-        .may_load(bdp_token_raw.as_slice())?
+        .may_load(dp_token_raw.as_slice())?
         .unwrap_or_else(|| RewardInfo {
             farm_share_index: pool_info.farm_share_index,
             auto_spec_share_index: pool_info.auto_spec_share_index,
@@ -61,7 +61,7 @@ fn bond_internal(
         reward_info.deposit_amount.is_zero() &&
         (!reward_info.auto_bond_share.is_zero() || !reward_info.stake_bond_share.is_zero()) {
 
-        let auto_bond_amount = pool_info.calc_user_auto_balance(bdp_token_balance, reward_info.auto_bond_share);
+        let auto_bond_amount = pool_info.calc_user_auto_balance(dp_token_balance, reward_info.auto_bond_share);
         let stake_bond_amount = pool_info.calc_user_stake_balance(reward_info.stake_bond_share);
         reward_info.deposit_amount = auto_bond_amount + stake_bond_amount;
         reward_info.deposit_time = env.block.time.seconds();
@@ -74,7 +74,7 @@ fn bond_internal(
         if reallocate { Decimal::zero() } else { config.deposit_fee },
         amount_to_auto,
         amount_to_stake,
-        bdp_token_balance,
+        dp_token_balance,
     )?;
 
     if !reallocate {
@@ -84,8 +84,8 @@ fn bond_internal(
     }
 
     rewards_store(deps.storage, &sender_addr_raw)
-        .save(bdp_token_raw.as_slice(), &reward_info)?;
-    pool_info_store(deps.storage).save(bdp_token_raw.as_slice(), &pool_info)?;
+        .save(dp_token_raw.as_slice(), &reward_info)?;
+    pool_info_store(deps.storage).save(dp_token_raw.as_slice(), &pool_info)?;
     state_store(deps.storage).save(&state)?;
 
     Ok(pool_info)
@@ -100,10 +100,10 @@ pub fn bond(
     compound_rate: Option<Decimal>
 ) -> StdResult<Response> {
     let staker_addr_raw = deps.api.addr_canonicalize(&sender_addr)?;
-    let bdp_token_raw = deps.api.addr_canonicalize(&dp_token)?;
+    let dp_token_raw = deps.api.addr_canonicalize(&dp_token)?;
 
     let config = read_config(deps.storage)?;
-    if config.bdp_token != bdp_token_raw {
+    if config.dp_token != dp_token_raw {
         return Err(StdError::generic_err("unauthorized"));
     }
 
@@ -119,17 +119,17 @@ pub fn bond(
     let amount_to_stake = amount.checked_sub(amount_to_auto)?;
 
     // needed to deduct sent amount
-    let bdp_token_balance = query_token_balance(&deps.querier, deps.api.addr_validate(&dp_token)?, env.contract.address.clone())?
+    let dp_token_balance = query_token_balance(&deps.querier, deps.api.addr_validate(&dp_token)?, env.contract.address.clone())?
         .checked_sub(amount)?;
 
     bond_internal(
         deps.branch(),
         env,
         staker_addr_raw,
-        bdp_token_raw,
+        dp_token_raw,
         amount_to_auto,
         amount_to_stake,
-        bdp_token_balance,
+        dp_token_balance,
         &config,
         false,
     )?;
@@ -210,18 +210,18 @@ pub fn deposit_spec_reward(
 fn spec_reward_to_pool(
     state: &State,
     pool_info: &mut PoolInfo,
-    bdp_token_balance: Uint128,
+    dp_token_balance: Uint128,
 ) -> StdResult<()> {
-    if bdp_token_balance.is_zero() {
+    if dp_token_balance.is_zero() {
         return Ok(());
     }
 
     let share = (UDec128::from(state.spec_share_index) - pool_info.state_spec_share_index.into())
         * Uint128::from(pool_info.weight as u128);
 
-    // pool_info.total_stake_bond_amount / bdp_token_balance = ratio for auto-stake
+    // pool_info.total_stake_bond_amount / dp_token_balance = ratio for auto-stake
     // now stake_share is additional SPEC rewards for auto-stake
-    let stake_share = share.multiply_ratio(pool_info.total_stake_bond_amount, bdp_token_balance);
+    let stake_share = share.multiply_ratio(pool_info.total_stake_bond_amount, dp_token_balance);
 
     // spec reward to staker is per stake bond share & auto bond share
     if !stake_share.is_zero() {
@@ -266,14 +266,14 @@ fn increase_bond_amount(
     deposit_fee: Decimal,
     amount_to_auto: Uint128,
     amount_to_stake: Uint128,
-    bdp_token_balance: Uint128,
+    dp_token_balance: Uint128,
 ) -> StdResult<Uint128> {
     let (auto_bond_amount, stake_bond_amount, stake_bond_fee) = if deposit_fee.is_zero() {
         (amount_to_auto, amount_to_stake, Uint128::zero())
     } else {
         // calculate target state
         let amount = amount_to_auto + amount_to_stake;
-        let new_balance = bdp_token_balance + amount;
+        let new_balance = dp_token_balance + amount;
         let new_auto_bond_amount =
             new_balance.checked_sub(pool_info.total_stake_bond_amount + amount_to_stake)?;
 
@@ -291,7 +291,7 @@ fn increase_bond_amount(
     };
 
     // convert amount to share & update
-    let auto_bond_share = pool_info.calc_auto_bond_share(auto_bond_amount, bdp_token_balance);
+    let auto_bond_share = pool_info.calc_auto_bond_share(auto_bond_amount, dp_token_balance);
     let stake_bond_share = pool_info.calc_stake_bond_share(stake_bond_amount);
     pool_info.total_auto_bond_share += auto_bond_share;
     pool_info.total_stake_bond_amount += stake_bond_amount + stake_bond_fee;
@@ -299,7 +299,7 @@ fn increase_bond_amount(
     reward_info.auto_bond_share += auto_bond_share;
     reward_info.stake_bond_share += stake_bond_share;
 
-    let new_auto_bond_amount = pool_info.calc_user_auto_balance(bdp_token_balance + amount_to_auto + amount_to_stake, auto_bond_share);
+    let new_auto_bond_amount = pool_info.calc_user_auto_balance(dp_token_balance + amount_to_auto + amount_to_stake, auto_bond_share);
     let new_stake_bond_amount = pool_info.calc_user_stake_balance(stake_bond_share);
 
     Ok(new_auto_bond_amount + new_stake_bond_amount)
@@ -312,7 +312,7 @@ fn unbond_internal(
     staker_addr_raw: CanonicalAddr,
     asset_token_raw: CanonicalAddr,
     amount: Uint128,
-    bdp_token_balance: Uint128,
+    dp_token_balance: Uint128,
     config: &Config,
     reallocate: bool,
 ) -> StdResult<PoolInfo> {
@@ -322,7 +322,7 @@ fn unbond_internal(
         rewards_read(deps.storage, &staker_addr_raw).load(asset_token_raw.as_slice())?;
 
     let user_auto_balance =
-        pool_info.calc_user_auto_balance(bdp_token_balance, reward_info.auto_bond_share);
+        pool_info.calc_user_auto_balance(dp_token_balance, reward_info.auto_bond_share);
     let user_stake_balance = pool_info.calc_user_stake_balance(reward_info.stake_bond_share);
     let user_balance = user_auto_balance + user_stake_balance;
 
@@ -332,7 +332,7 @@ fn unbond_internal(
 
     // distribute reward to pending reward; before changing share
     deposit_spec_reward(deps.as_ref(), &env, &mut state, config, false)?;
-    spec_reward_to_pool(&state, &mut pool_info, bdp_token_balance)?;
+    spec_reward_to_pool(&state, &mut pool_info, dp_token_balance)?;
     before_share_change(&pool_info, &mut reward_info);
 
     // decrease bond amount
@@ -344,8 +344,8 @@ fn unbond_internal(
     let stake_bond_amount = amount.checked_sub(auto_bond_amount)?;
 
     // add 1 to share, otherwise there will always be a fraction
-    let mut auto_bond_share = pool_info.calc_auto_bond_share(auto_bond_amount, bdp_token_balance);
-    if pool_info.calc_user_auto_balance(bdp_token_balance, auto_bond_share) < auto_bond_amount {
+    let mut auto_bond_share = pool_info.calc_auto_bond_share(auto_bond_amount, dp_token_balance);
+    if pool_info.calc_user_auto_balance(dp_token_balance, auto_bond_share) < auto_bond_amount {
         auto_bond_share += Uint128::new(1u128);
     }
     let mut stake_bond_share = pool_info.calc_stake_bond_share(stake_bond_amount);
@@ -397,19 +397,19 @@ pub fn unbond(
     amount: Uint128,
 ) -> StdResult<Response> {
     let staker_addr_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
-    let bdp_token_raw = deps.api.addr_canonicalize(&dp_token)?;
+    let dp_token_raw = deps.api.addr_canonicalize(&dp_token)?;
 
     let config = read_config(deps.storage)?;
 
-    let bdp_token_balance = query_token_balance(&deps.querier, deps.api.addr_validate(&dp_token)?, env.contract.address.clone())?;
+    let dp_token_balance = query_token_balance(&deps.querier, deps.api.addr_validate(&dp_token)?, env.contract.address.clone())?;
 
     unbond_internal(
         deps.branch(),
         env,
         staker_addr_raw,
-        bdp_token_raw,
+        dp_token_raw,
         amount,
-        bdp_token_balance,
+        dp_token_balance,
         &config,
         false,
     )?;
@@ -455,7 +455,7 @@ pub fn update_bond(
 
     let amount = amount_to_auto + amount_to_stake;
 
-    let bdp_token_balance = query_token_balance(&deps.querier, deps.api.addr_validate(&asset_token)?, env.contract.address.clone())?;
+    let dp_token_balance = query_token_balance(&deps.querier, deps.api.addr_validate(&asset_token)?, env.contract.address.clone())?;
 
     unbond_internal(
         deps.branch(),
@@ -463,7 +463,7 @@ pub fn update_bond(
         staker_addr_raw.clone(),
         asset_token_raw.clone(),
         amount,
-        bdp_token_balance,
+        dp_token_balance,
         &config,
         true,
     )?;
@@ -475,7 +475,7 @@ pub fn update_bond(
         asset_token_raw,
         amount_to_auto,
         amount_to_stake,
-        bdp_token_balance.checked_sub(amount)?,
+        dp_token_balance.checked_sub(amount)?,
         &config,
         true,
     )?;
@@ -617,14 +617,14 @@ fn withdraw_reward(
     let mut farm_amount = Uint128::zero();
     let mut farm_share = Uint128::zero();
     for reward_pair in reward_pairs {
-        let (bdp_token_raw, mut reward_info) = reward_pair;
+        let (dp_token_raw, mut reward_info) = reward_pair;
 
         // withdraw reward to pending reward
-        let key = bdp_token_raw.as_slice();
+        let key = dp_token_raw.as_slice();
         let mut pool_info = pool_info_read(deps.storage).load(key)?;
-        let bdp_token_balance = query_token_balance(&deps.querier, deps.api.addr_humanize(&bdp_token_raw)?, env.contract.address.clone())?;
+        let dp_token_balance = query_token_balance(&deps.querier, deps.api.addr_humanize(&dp_token_raw)?, env.contract.address.clone())?;
 
-        spec_reward_to_pool(state, &mut pool_info, bdp_token_balance)?;
+        spec_reward_to_pool(state, &mut pool_info, dp_token_balance)?;
         before_share_change(&pool_info, &mut reward_info);
 
         // update withdraw
@@ -776,8 +776,8 @@ fn read_reward_infos(
     let bucket = pool_info_read(deps.storage);
     let reward_infos: Vec<RewardInfoResponseItem> = reward_pair
         .into_iter()
-        .map(|(bdp_token_raw, reward_info)| {
-            let mut pool_info = bucket.load(bdp_token_raw.as_slice())?;
+        .map(|(dp_token_raw, reward_info)| {
+            let mut pool_info = bucket.load(dp_token_raw.as_slice())?;
 
             // update pending rewards
             let mut reward_info = reward_info;
@@ -787,15 +787,15 @@ fn read_reward_infos(
 
             let has_deposit_amount = !reward_info.deposit_amount.is_zero();
 
-            let bdp_token_balance = query_token_balance(&deps.querier, deps.api.addr_humanize(&bdp_token_raw)?, env.contract.address.clone())?;
-            spec_reward_to_pool(state, &mut pool_info, bdp_token_balance)?;
+            let dp_token_balance = query_token_balance(&deps.querier, deps.api.addr_humanize(&dp_token_raw)?, env.contract.address.clone())?;
+            spec_reward_to_pool(state, &mut pool_info, dp_token_balance)?;
             before_share_change(&pool_info, &mut reward_info);
 
             let auto_bond_amount =
-                pool_info.calc_user_auto_balance(bdp_token_balance, reward_info.auto_bond_share);
+                pool_info.calc_user_auto_balance(dp_token_balance, reward_info.auto_bond_share);
             let stake_bond_amount = pool_info.calc_user_stake_balance(reward_info.stake_bond_share);
             Ok(RewardInfoResponseItem {
-                asset_token: deps.api.addr_humanize(&bdp_token_raw)?.to_string(),
+                asset_token: deps.api.addr_humanize(&dp_token_raw)?.to_string(),
                 farm_share_index,
                 auto_spec_share_index: auto_spec_index,
                 stake_spec_share_index: stake_spec_index,
