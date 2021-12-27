@@ -359,18 +359,15 @@ pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> StdResult<Response> 
             }))?,
             funds: vec![],
         }),
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: deps.api.addr_humanize(&config.pylon_gov)?.to_string(),
-            msg: to_binary(&PylonGovExecuteMsg::Airdrop(PylonGovAirdropMsg::Claim {
-                target: None,
-            }))?,
-            funds: vec![],
-        }),
     ];
 
+    let mut swap_msgs: Vec<CosmosMsg> = vec![];
     let factory_addr = deps.api.addr_validate(&msg.terraswap_factory)?;
     let mut ust = Uint128::zero();
     for (_, airdrop) in farm_staked.claimable_airdrop {
+        if airdrop.amount.is_zero() {
+            continue;
+        }
         let asset_infos = [
             AssetInfo::Token {
                 contract_addr: airdrop.token.clone(),
@@ -392,7 +389,7 @@ pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> StdResult<Response> 
             })?;
         ust += deduct_tax(&deps.querier, simulate_result.return_amount, "uusd".to_string())?;
 
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        swap_msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: airdrop.token,
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 contract: pair.contract_addr.to_string(),
@@ -406,24 +403,37 @@ pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> StdResult<Response> 
             funds: vec![],
         }));
     }
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: deps.api.addr_humanize(&config.anchor_market)?.to_string(),
-        msg: to_binary(&MoneyMarketExecuteMsg::DepositStable {})?,
-        funds: vec![Coin {
-            denom: config.base_denom.clone(),
-            amount: deduct_tax(&deps.querier, ust, "uusd".to_string())?,
-        }],
-    }));
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
-        msg: to_binary(&GovExecuteMsg::mint {})?,
-        funds: vec![],
-    }));
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: env.contract.address.to_string(),
-        msg: to_binary(&ExecuteMsg::send_fee {})?,
-        funds: vec![],
-    }));
+
+    if !swap_msgs.is_empty() {
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: deps.api.addr_humanize(&config.pylon_gov)?.to_string(),
+            msg: to_binary(&PylonGovExecuteMsg::Airdrop(PylonGovAirdropMsg::Claim {
+                target: None,
+            }))?,
+            funds: vec![],
+        }));
+        for swap_msg in swap_msgs {
+            messages.push(swap_msg);
+        }
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: deps.api.addr_humanize(&config.anchor_market)?.to_string(),
+            msg: to_binary(&MoneyMarketExecuteMsg::DepositStable {})?,
+            funds: vec![Coin {
+                denom: config.base_denom.clone(),
+                amount: deduct_tax(&deps.querier, ust, "uusd".to_string())?,
+            }],
+        }));
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
+            msg: to_binary(&GovExecuteMsg::mint {})?,
+            funds: vec![],
+        }));
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: env.contract.address.to_string(),
+            msg: to_binary(&ExecuteMsg::send_fee {})?,
+            funds: vec![],
+        }));
+    }
 
     Ok(Response::new()
         .add_messages(messages)
