@@ -154,6 +154,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
             total_weight: 0u32,
             spec_share_index: Decimal::zero(),
             earning: Uint128::zero(),
+            total_farm_amount: Uint128::zero(),
         }
     );
 
@@ -723,7 +724,7 @@ fn test_compound_mine(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                 contract_addr: MINE_TOKEN.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: MINE_POOL.to_string(),
-                    amount: Uint128::from(2100u128),
+                    amount: Uint128::from(6000u128),
                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
                         max_spread: None,
                         belief_price: None,
@@ -738,7 +739,7 @@ fn test_compound_mine(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                 contract_addr: MINE_TOKEN.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
                     spender: MINE_POOL.to_string(),
-                    amount: Uint128::from(2052u128),
+                    amount: Uint128::from(5863u128),
                     expires: None
                 })
                 .unwrap(),
@@ -752,13 +753,13 @@ fn test_compound_mine(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                             info: AssetInfo::Token {
                                 contract_addr: MINE_TOKEN.to_string(),
                             },
-                            amount: Uint128::from(2052u128),
+                            amount: Uint128::from(5863u128),
                         },
                         Asset {
                             info: AssetInfo::NativeToken {
                                 denom: "uusd".to_string(),
                             },
-                            amount: Uint128::from(2052u128),
+                            amount: Uint128::from(5863u128),
                         },
                     ],
                     slippage_tolerance: None,
@@ -767,7 +768,7 @@ fn test_compound_mine(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                 .unwrap(),
                 funds: vec![Coin {
                     denom: "uusd".to_string(),
-                    amount: Uint128::from(2052u128),
+                    amount: Uint128::from(5863u128),
                 }],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
@@ -873,6 +874,10 @@ fn test_compound_mine_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmM
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(25210u128))]
         ),
         (
+            &AUST_TOKEN.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(591u128))]
+        ),
+        (
             &MINE_STAKING.to_string(),
             &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(12100u128))],
         ),
@@ -923,7 +928,7 @@ fn test_compound_mine_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmM
                 contract_addr: MINE_TOKEN.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: MINE_POOL.to_string(),
-                    amount: Uint128::from(2647u128),
+                    amount: Uint128::from(6352u128),
                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
                         max_spread: None,
                         belief_price: None,
@@ -954,7 +959,7 @@ fn test_compound_mine_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmM
                 contract_addr: MINE_TOKEN.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
                     spender: MINE_POOL.to_string(),
-                    amount: Uint128::from(1996u128),
+                    amount: Uint128::from(5616u128),
                     expires: None
                 })
                     .unwrap(),
@@ -968,13 +973,13 @@ fn test_compound_mine_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmM
                             info: AssetInfo::Token {
                                 contract_addr: MINE_TOKEN.to_string(),
                             },
-                            amount: Uint128::from(1996u128),
+                            amount: Uint128::from(5616u128),
                         },
                         Asset {
                             info: AssetInfo::NativeToken {
                                 denom: "uusd".to_string(),
                             },
-                            amount: Uint128::from(1996u128),
+                            amount: Uint128::from(5616u128),
                         },
                     ],
                     slippage_tolerance: None,
@@ -983,7 +988,7 @@ fn test_compound_mine_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmM
                     .unwrap(),
                 funds: vec![Coin {
                     denom: "uusd".to_string(),
-                    amount: Uint128::from(1996u128),
+                    amount: Uint128::from(5616u128),
                 }],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
