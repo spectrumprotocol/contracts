@@ -1,9 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    attr, from_binary, to_binary, Binary, CanonicalAddr, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Order, Response, StdError, StdResult, Uint128,
-};
+use cosmwasm_std::{attr, from_binary, to_binary, Binary, CanonicalAddr, Decimal, Deps, DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult, Uint128, QueryRequest, WasmQuery, CosmosMsg, WasmMsg, Coin};
 
 use crate::{
     bond::bond,
@@ -11,9 +8,9 @@ use crate::{
     state::{read_config, state_store, store_config, Config, PoolInfo, State},
 };
 
-use cw20::Cw20ReceiveMsg;
-use terraswap::asset::AssetInfo;
-use terraswap::querier::query_pair_info;
+use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
+use terraswap::asset::{Asset, AssetInfo};
+use terraswap::querier::{query_pair_info, simulate};
 
 use crate::bond::{deposit_spec_reward, query_reward_info, unbond, withdraw, update_bond};
 use crate::state::{pool_info_read, pool_info_store, read_state};
@@ -21,6 +18,17 @@ use spectrum_protocol::pylon_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
 use crate::compound::send_fee;
+use pylon_token::gov_msg::{
+    StakingMsg as PylonGovStakingMsg, QueryMsg as PylonGovQueryMsg, ExecuteMsg as PylonGovExecuteMsg,
+    AirdropMsg as PylonGovAirdropMsg,
+};
+use pylon_token::gov_resp::{
+    StakerResponse as PylonStakerResponse
+};
+use terraswap::pair::{Cw20HookMsg as PairCw20HookMsg};
+use spectrum_protocol::farm_helper::deduct_tax;
+use moneymarket::market::{ExecuteMsg as MoneyMarketExecuteMsg};
+use spectrum_protocol::gov::{ExecuteMsg as GovExecuteMsg};
 
 /// (we require 0-1)
 fn validate_percentage(value: Decimal, field: &str) -> StdResult<()> {
@@ -69,6 +77,7 @@ pub fn instantiate(
         previous_spec_share: Uint128::zero(),
         spec_share_index: Decimal::zero(),
         total_farm_share: Uint128::zero(),
+        total_farm_amount: Uint128::zero(),
         total_weight: 0u32,
         earning: Uint128::zero(),
     })?;
@@ -323,30 +332,100 @@ fn query_state(deps: Deps) -> StdResult<StateInfo> {
         total_farm_share: state.total_farm_share,
         total_weight: state.total_weight,
         earning: state.earning,
+        total_farm_amount: state.total_farm_amount,
     })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
-    let mut config = read_config(deps.storage)?;
-    config.anchor_market = deps.api.addr_canonicalize(&msg.anchor_market)?;
-    config.aust_token = deps.api.addr_canonicalize(&msg.aust_token)?;
+pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> StdResult<Response> {
+    let config = read_config(deps.storage)?;
+    let farm_staked: PylonStakerResponse =
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: deps.api.addr_humanize(&config.pylon_gov)?.to_string(),
+            msg: to_binary(&PylonGovQueryMsg::Staker {
+                address: env.contract.address.to_string(),
+            })?,
+        }))?;
 
-    let pair_info = query_pair_info(
-        &deps.querier,
-        deps.api.addr_validate(&msg.terraswap_factory)?,
-        &[
-            AssetInfo::NativeToken {
-                denom: config.base_denom.clone(),
-            },
+    let mut state = read_state(deps.storage)?;
+    state.total_farm_amount += farm_staked.balance;
+    state_store(deps.storage).save(&state)?;
+
+    let mut messages: Vec<CosmosMsg> = vec![
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: deps.api.addr_humanize(&config.pylon_gov)?.to_string(),
+            msg: to_binary(&PylonGovExecuteMsg::Staking(PylonGovStakingMsg::Unstake {
+                amount: None,
+            }))?,
+            funds: vec![],
+        }),
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: deps.api.addr_humanize(&config.pylon_gov)?.to_string(),
+            msg: to_binary(&PylonGovExecuteMsg::Airdrop(PylonGovAirdropMsg::Claim {
+                target: None,
+            }))?,
+            funds: vec![],
+        }),
+    ];
+
+    let factory_addr = deps.api.addr_validate(&msg.terraswap_factory)?;
+    let mut ust = Uint128::zero();
+    for (_, airdrop) in farm_staked.claimable_airdrop {
+        let asset_infos = [
             AssetInfo::Token {
-                contract_addr: deps.api.addr_humanize(&config.pylon_token)?.to_string(),
+                contract_addr: airdrop.token.clone(),
             },
-        ],
-    )?;
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+        ];
+        let pair = query_pair_info(&deps.querier, factory_addr.clone(), &asset_infos)?;
 
-    config.pair_contract = deps.api.addr_canonicalize(&pair_info.contract_addr)?;
-    store_config(deps.storage, &config)?;
+        let simulate_result = simulate(
+            &deps.querier,
+            deps.api.addr_validate(&pair.contract_addr)?,
+            &Asset {
+                info: AssetInfo::Token {
+                    contract_addr: airdrop.token.clone(),
+                },
+                amount: airdrop.amount,
+            })?;
+        ust += deduct_tax(&deps.querier, simulate_result.return_amount, "uusd".to_string())?;
 
-    Ok(Response::default())
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: airdrop.token,
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: pair.contract_addr.to_string(),
+                amount: airdrop.amount,
+                msg: to_binary(&PairCw20HookMsg::Swap {
+                    max_spread: None,
+                    belief_price: None,
+                    to: None,
+                })?,
+            })?,
+            funds: vec![],
+        }));
+    }
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: deps.api.addr_humanize(&config.anchor_market)?.to_string(),
+        msg: to_binary(&MoneyMarketExecuteMsg::DepositStable {})?,
+        funds: vec![Coin {
+            denom: config.base_denom.clone(),
+            amount: deduct_tax(&deps.querier, ust, "uusd".to_string())?,
+        }],
+    }));
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
+        msg: to_binary(&GovExecuteMsg::mint {})?,
+        funds: vec![],
+    }));
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: env.contract.address.to_string(),
+        msg: to_binary(&ExecuteMsg::send_fee {})?,
+        funds: vec![],
+    }));
+
+    Ok(Response::new()
+        .add_messages(messages)
+    )
 }
