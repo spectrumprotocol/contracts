@@ -7,6 +7,7 @@ pub mod math;
 pub mod platform;
 pub mod spec_farm;
 pub mod staker;
+pub mod staker_single_asset;
 pub mod wallet;
 pub mod anchor_farm;
 pub mod mirror_farm;

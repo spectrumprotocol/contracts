@@ -139,11 +139,10 @@ pub struct StateInfo {
     pub total_farm_share: Uint128,
     pub total_weight: u32,
     pub earning: Uint128,
+    pub total_farm_amount: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {
-    pub anchor_market: String,
-    pub aust_token: String,
     pub terraswap_factory: String,
 }

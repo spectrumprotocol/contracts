@@ -10,9 +10,6 @@ use crate::querier::query_pylon_reward_info;
 use cw20::Cw20ExecuteMsg;
 
 use crate::state::{pool_info_read, pool_info_store, read_state, Config, PoolInfo};
-use pylon_token::gov_msg::{
-    Cw20HookMsg as PylonGovCw20HookMsg
-};
 use pylon_token::staking::{
     Cw20HookMsg as PylonStakingCw20HookMsg, ExecuteMsg as PylonStakingExecuteMsg,
 };
@@ -34,7 +31,6 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let pair_contract = deps.api.addr_humanize(&config.pair_contract)?;
     let pylon_staking = deps.api.addr_humanize(&config.pylon_staking)?;
     let pylon_token = deps.api.addr_humanize(&config.pylon_token)?;
-    let pylon_gov = deps.api.addr_humanize(&config.pylon_gov)?;
 
     let pylon_reward_info = query_pylon_reward_info(
         deps.as_ref(),
@@ -78,19 +74,19 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         total_mine_stake_amount += stake_amount;
     }
     let mut state = read_state(deps.storage)?;
+
+    // get reinvest amount
+    let reinvest_allowance = query_token_balance(&deps.querier, pylon_token.clone(), env.contract.address.clone())?
+        .checked_sub(state.total_farm_amount)?;
+
     deposit_farm_share(
-        deps.as_ref(),
-        &env,
         &mut state,
         &mut pool_info,
-        &config,
         total_mine_stake_amount,
     )?;
     state_store(deps.storage).save(&state)?;
     pool_info_store(deps.storage).save(config.pylon_token.as_slice(), &pool_info)?;
 
-    // get reinvest amount
-    let reinvest_allowance = query_token_balance(&deps.querier, pylon_token.clone(), env.contract.address.clone())?;
     let reinvest_amount = reinvest_allowance + compound_amount;
     // split reinvest amount
     let swap_amount = reinvest_amount.multiply_ratio(1u128, 2u128);
@@ -193,19 +189,6 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
             msg: to_binary(&ExecuteMsg::send_fee {})?,
             funds: vec![],
         }));
-    }
-
-    if !total_mine_stake_amount.is_zero() {
-        let stake_mine = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: pylon_token.to_string(),
-            funds: vec![],
-            msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: pylon_gov.to_string(),
-                amount: total_mine_stake_amount,
-                msg: to_binary(&PylonGovCw20HookMsg::Stake {})?,
-            })?,
-        });
-        messages.push(stake_mine);
     }
 
     if !provide_mine.is_zero() {

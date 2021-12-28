@@ -11,12 +11,6 @@ use crate::state::{
 use cw20::Cw20ExecuteMsg;
 
 use crate::querier::query_pylon_pool_balance;
-use pylon_token::gov_msg::{
-    StakingMsg as PylonGovStakingMsg, QueryMsg as PylonGovQueryMsg, ExecuteMsg as PylonGovExecuteMsg
-};
-use pylon_token::gov_resp::{
-    StakerResponse as PylonStakerResponse
-};
 use pylon_token::staking::{Cw20HookMsg as PylonCw20HookMsg, ExecuteMsg as PylonStakingExecuteMsg};
 use spectrum_protocol::farm_helper::compute_deposit_time;
 use spectrum_protocol::gov::{
@@ -149,24 +143,13 @@ pub fn bond(
 }
 
 pub fn deposit_farm_share(
-    deps: Deps,
-    env: &Env,
     state: &mut State,
     pool_info: &mut PoolInfo,
-    config: &Config,
     amount: Uint128,
 ) -> StdResult<()> {
-    let staked: PylonStakerResponse =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: deps.api.addr_humanize(&config.pylon_gov)?.to_string(),
-            msg: to_binary(&PylonGovQueryMsg::Staker {
-                address: env.contract.address.to_string(),
-            })?,
-        }))?;
-
     let mut new_total_share = Uint128::zero();
     if !pool_info.total_stake_bond_share.is_zero() {
-        let new_share = state.calc_farm_share(amount, staked.balance);
+        let new_share = state.calc_farm_share(amount, state.total_farm_amount);
         let share_per_bond = Decimal::from_ratio(new_share, pool_info.total_stake_bond_share);
         pool_info.farm_share_index = pool_info.farm_share_index + share_per_bond;
         pool_info.farm_share += new_share;
@@ -174,6 +157,7 @@ pub fn deposit_farm_share(
     }
 
     state.total_farm_share += new_total_share;
+    state.total_farm_amount += amount;
 
     Ok(())
 }
@@ -566,6 +550,7 @@ pub fn withdraw(
 
     state.previous_spec_share = state.previous_spec_share.checked_sub(spec_share)?;
     state.total_farm_share = state.total_farm_share.checked_sub(farm_share)?;
+    state.total_farm_amount = state.total_farm_amount.checked_sub(farm_amount)?;
 
     state_store(deps.storage).save(&state)?;
 
@@ -590,13 +575,6 @@ pub fn withdraw(
     }
 
     if !farm_amount.is_zero() {
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: deps.api.addr_humanize(&config.pylon_gov)?.to_string(),
-            msg: to_binary(&PylonGovExecuteMsg::Staking(PylonGovStakingMsg::Unstake {
-                amount: Some(farm_amount),
-            }))?,
-            funds: vec![],
-        }));
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.pylon_token)?.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
@@ -648,14 +626,6 @@ fn withdraw_reward(
             .collect::<StdResult<Vec<(CanonicalAddr, RewardInfo)>>>()?;
     }
 
-    let farm_staked: PylonStakerResponse =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: deps.api.addr_humanize(&config.pylon_gov)?.to_string(),
-            msg: to_binary(&PylonGovQueryMsg::Staker {
-                address: env.contract.address.to_string(),
-            })?,
-        }))?;
-
     let lp_balance = query_pylon_pool_balance(
         deps.as_ref(),
         &config.pylon_staking,
@@ -677,10 +647,10 @@ fn withdraw_reward(
 
         // update withdraw
         let (asset_farm_share, asset_farm_amount) = if let Some(request_amount) = request_farm_amount {
-            let avail_amount = calc_farm_balance(reward_info.farm_share, farm_staked.balance, state.total_farm_share);
+            let avail_amount = calc_farm_balance(reward_info.farm_share, state.total_farm_amount, state.total_farm_share);
             let asset_farm_amount = if request_amount > avail_amount { avail_amount } else { request_amount };
-            let mut asset_farm_share = calc_farm_share(asset_farm_amount, farm_staked.balance, state.total_farm_share);
-            if calc_farm_balance(asset_farm_share, farm_staked.balance, state.total_farm_share) < asset_farm_amount {
+            let mut asset_farm_share = calc_farm_share(asset_farm_amount, state.total_farm_amount, state.total_farm_share);
+            if calc_farm_balance(asset_farm_share, state.total_farm_amount, state.total_farm_share) < asset_farm_amount {
                 asset_farm_share += Uint128::new(1u128);
             }
             request_farm_amount = Some(request_amount.checked_sub(asset_farm_amount)?);
@@ -688,7 +658,7 @@ fn withdraw_reward(
         } else {
             (reward_info.farm_share, calc_farm_balance(
                 reward_info.farm_share,
-                farm_staked.balance,
+                state.total_farm_amount,
                 state.total_farm_share,
             ))
         };
@@ -815,14 +785,6 @@ fn read_reward_infos(
         })
         .collect::<StdResult<Vec<(CanonicalAddr, RewardInfo)>>>()?;
 
-    let farm_staked: PylonStakerResponse =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: deps.api.addr_humanize(&config.pylon_gov)?.to_string(),
-            msg: to_binary(&PylonGovQueryMsg::Staker {
-                address: env.contract.address.to_string(),
-            })?,
-        }))?;
-
     let lp_balance =
         query_pylon_pool_balance(deps, &config.pylon_staking, &env.contract.address)?;
 
@@ -861,7 +823,7 @@ fn read_reward_infos(
                 pending_spec_reward: calc_spec_balance(reward_info.spec_share, spec_staked),
                 pending_farm_reward: calc_farm_balance(
                     reward_info.farm_share,
-                    farm_staked.balance,
+                    state.total_farm_amount,
                     state.total_farm_share,
                 ),
                 deposit_amount: if has_deposit_amount {

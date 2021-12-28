@@ -5,11 +5,11 @@
   "required": [
     "anchor_market",
     "aust_token",
-    "bdp_token",
     "community_fee",
     "controller",
     "controller_fee",
     "deposit_fee",
+    "dp_token",
     "gateway_pool",
     "owner",
     "pair_contract",
@@ -27,9 +27,6 @@
     "aust_token": {
       "type": "string"
     },
-    "bdp_token": {
-      "type": "string"
-    },
     "community_fee": {
       "$ref": "#/definitions/Decimal"
     },
@@ -41,6 +38,9 @@
     },
     "deposit_fee": {
       "$ref": "#/definitions/Decimal"
+    },
+    "dp_token": {
+      "type": "string"
     },
     "gateway_pool": {
       "type": "string"
