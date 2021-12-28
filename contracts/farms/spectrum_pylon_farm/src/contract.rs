@@ -347,6 +347,10 @@ pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> StdResult<Response> 
             })?,
         }))?;
 
+    if farm_staked.balance.is_zero() {
+        return Ok(Response::default())
+    }
+
     let mut state = read_state(deps.storage)?;
     state.total_farm_amount += farm_staked.balance;
     state_store(deps.storage).save(&state)?;
