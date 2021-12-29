@@ -23,3 +23,4 @@ pub mod astroport_farm;
 pub mod astroport_luna_ust_farm;
 pub mod astroport_token_luna_farm;
 pub mod astroport_token_ust_farm;
+pub mod spec_astroport_farm;

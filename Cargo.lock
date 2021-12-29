@@ -962,6 +962,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "spectrum-spec-astroport-farm"
+version = "0.2.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
+]
+
+[[package]]
 name = "spectrum-spec-farm"
 version = "0.2.0"
 dependencies = [
