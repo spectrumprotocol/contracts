@@ -1,7 +1,7 @@
 [package]
-name = "spectrum-xastro-gov-proxy"
-version = "0.2.0"
-authors = ["Spectrum Team"]
+name = "generator-proxy-to-spec-farm"
+version = "1.0.0"
+authors = ["Astroport"]
 edition = "2018"
 
 exclude = [
@@ -20,14 +20,15 @@ crate-type = ["cdylib", "rlib"]
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cw20 = { version = "0.8.0" }
 cosmwasm-std = { version = "0.16.0" }
-cosmwasm-storage = { version = "0.16.0" }
-spectrum-protocol = { version = "0.2.0", path = "../../../packages/spectrum_protocol" }
+cw-storage-plus = "0.8.0"
 schemars = "0.8.1"
-serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+serde = { version = "1.0.125", default-features = false, features = ["derive"] }
+thiserror = { version = "1.0.24" }
+cw2 = "0.8.0"
+cw20 = "0.8.0"
+mirror-protocol = {version = "2.1.1"}
+astroport = { path = "../../packages/astroport", default-features = false }
 
-astroport = { version = "0.3.1", path = "../../../packages/astroport" }
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.0" }
-terra-cosmwasm = "2.2.0"
