@@ -40,7 +40,7 @@ cosmwasm-storage = { version = "0.16.0" }
 spectrum-protocol = { version = "0.2.0", path = "../../../packages/spectrum_protocol" }
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-astroport = { version = "0.2.0", path = "../../../packages/astroport" }
+astroport = { path = "../../../packages/astroport", default-features = false }
 moneymarket = { version = "0.3.1", path = "../../../packages/anchor_moneymarket" }
 
 [dev-dependencies]
