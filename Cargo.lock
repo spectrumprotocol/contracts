@@ -738,7 +738,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "spectrum-astroport-native-ust-farm"
+name = "spectrum-astroport-luna-ust-farm"
+version = "0.2.0"
+dependencies = [
+ "astroport",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "moneymarket",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
+]
+
+[[package]]
+name = "spectrum-astroport-token-luna-farm"
 version = "0.2.0"
 dependencies = [
  "astroport",

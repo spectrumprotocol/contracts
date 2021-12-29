@@ -1,5 +1,5 @@
 [package]
-name = "spectrum-astroport-native-ust-farm"
+name = "spectrum-astroport-token-luna-farm"
 version = "0.2.0"
 authors = ["Spectrum team"]
 edition = "2018"

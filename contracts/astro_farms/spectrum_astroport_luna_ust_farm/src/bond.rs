@@ -11,7 +11,7 @@ use crate::querier::{query_astroport_pool_balance, query_farm_gov_balance};
 use astroport::generator::{
     Cw20HookMsg as AstroportCw20HookMsg, ExecuteMsg as AstroportExecuteMsg,
 };
-use spectrum_protocol::astroport_native_ust_farm::{RewardInfoResponse, RewardInfoResponseItem};
+use spectrum_protocol::astroport_luna_ust_farm::{RewardInfoResponse, RewardInfoResponseItem};
 use spectrum_protocol::farm_helper::compute_deposit_time;
 use spectrum_protocol::gov::{
     BalanceResponse as SpecBalanceResponse, ExecuteMsg as SpecExecuteMsg, QueryMsg as SpecQueryMsg,

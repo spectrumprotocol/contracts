@@ -13,7 +13,6 @@ pub struct ConfigInfo {
     pub spectrum_token: String,
     pub spectrum_gov: String,
     pub farm_token: String,
-    pub gov_proxy: Option<String>,
     pub platform: String,
     pub controller: String,
     pub base_denom: String,
@@ -24,6 +23,7 @@ pub struct ConfigInfo {
     pub anchor_market: String,
     pub aust_token: String,
     pub pair_contract: String,
+    pub luna_ust_pair_contract: String,
     pub astro_ust_pair_contract: String,
 }
 
@@ -55,14 +55,11 @@ pub enum ExecuteMsg {
         asset_token: Option<String>,
         spec_amount: Option<Uint128>,
         farm_amount: Option<Uint128>,
-        farm2_amount: Option<Uint128>,
     },
     stake {
         asset_token: String,
     },
-    compound {
-        threshold_compound_astro: Uint128
-    },
+    compound {},
     update_bond {
         asset_token: String,
         amount_to_stake: Uint128,
@@ -106,10 +103,8 @@ pub struct PoolItem {
     pub total_stake_bond_amount: Uint128, // amount stake
     pub weight: u32,
     pub farm_share: Uint128, // MIR share
-    pub farm2_share: Uint128,
     pub state_spec_share_index: Decimal,
     pub farm_share_index: Decimal,       // per stake bond share
-    pub farm2_share_index: Decimal,       // per stake bond share
     pub stake_spec_share_index: Decimal, // per stake bond share
     pub auto_spec_share_index: Decimal,  // per auto bond share
 }
@@ -125,19 +120,16 @@ pub struct RewardInfoResponse {
 pub struct RewardInfoResponseItem {
     pub asset_token: String,
     pub farm_share_index: Decimal,
-    pub farm2_share_index: Decimal,
     pub auto_spec_share_index: Decimal,
     pub stake_spec_share_index: Decimal,
     pub bond_amount: Uint128,
     pub auto_bond_amount: Uint128,
     pub stake_bond_amount: Uint128,
     pub farm_share: Uint128,
-    pub farm2_share: Uint128,
     pub spec_share: Uint128,
     pub auto_bond_share: Uint128,
     pub stake_bond_share: Uint128,
     pub pending_farm_reward: Uint128,
-    pub pending_farm2_reward: Uint128,
     pub pending_spec_reward: Uint128,
     pub deposit_amount: Option<Uint128>,
     pub deposit_time: Option<u64>,
@@ -148,7 +140,6 @@ pub struct StateInfo {
     pub previous_spec_share: Uint128,
     pub spec_share_index: Decimal, // per weight
     pub total_farm_share: Uint128,
-    pub total_farm2_share: Uint128,
     pub total_weight: u32,
     pub earning: Uint128,
 }

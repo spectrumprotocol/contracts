@@ -1,9 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    attr, from_binary, to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Order, Response, StdError, StdResult, Uint128,
-};
+use cosmwasm_std::{attr, from_binary, to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult, Uint128, CanonicalAddr};
 
 use crate::{
     bond::bond,
@@ -15,7 +12,7 @@ use cw20::Cw20ReceiveMsg;
 
 use crate::bond::{deposit_spec_reward, query_reward_info, unbond, update_bond, withdraw};
 use crate::state::{pool_info_read, pool_info_store, read_state};
-use spectrum_protocol::astroport_native_ust_farm::{
+use spectrum_protocol::astroport_token_luna_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
 use crate::compound::send_fee;
@@ -48,7 +45,7 @@ pub fn instantiate(
             spectrum_token: deps.api.addr_canonicalize(&msg.spectrum_token)?,
             spectrum_gov: deps.api.addr_canonicalize(&msg.spectrum_gov)?,
             astro_token: deps.api.addr_canonicalize(&msg.astro_token)?,
-            farm_denom: msg.farm_denom,
+            farm_token: deps.api.addr_canonicalize(&msg.farm_token)?,
             astroport_generator: deps.api.addr_canonicalize(&msg.astroport_generator)?,
             xastro_proxy: deps.api.addr_canonicalize(&msg.xastro_proxy)?,
             platform: deps.api.addr_canonicalize(&msg.platform)?,
@@ -61,6 +58,7 @@ pub fn instantiate(
             anchor_market: deps.api.addr_canonicalize(&msg.anchor_market)?,
             aust_token: deps.api.addr_canonicalize(&msg.aust_token)?,
             pair_contract: deps.api.addr_canonicalize(&msg.pair_contract)?,
+            luna_ust_pair_contract: deps.api.addr_canonicalize(&msg.luna_ust_pair_contract)?,
             astro_ust_pair_contract: deps.api.addr_canonicalize(&msg.astro_ust_pair_contract)?,
         },
     )?;
@@ -210,11 +208,12 @@ fn register_asset(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    asset_denom: String,
+    asset_token: String,
     staking_token: String,
     weight: u32,
 ) -> StdResult<Response> {
     let config: Config = read_config(deps.storage)?;
+    let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
 
     if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(StdError::generic_err("unauthorized"));
@@ -232,7 +231,7 @@ fn register_asset(
     deposit_spec_reward(deps.as_ref(), &env, &mut state, &config, false)?;
 
     let mut pool_info = pool_info_read(deps.storage)
-        .may_load(asset_denom.as_bytes())?
+        .may_load(asset_token_raw.as_slice())?
         .unwrap_or_else(|| PoolInfo {
             staking_token: deps.api.addr_canonicalize(&staking_token).unwrap(),
             total_auto_bond_share: Uint128::zero(),
@@ -248,11 +247,11 @@ fn register_asset(
     state.total_weight = state.total_weight + weight - pool_info.weight;
     pool_info.weight = weight;
 
-    pool_info_store(deps.storage).save(asset_denom.as_bytes(), &pool_info)?;
+    pool_info_store(deps.storage).save(asset_token_raw.as_slice(), &pool_info)?;
     state_store(deps.storage).save(&state)?;
     Ok(Response::new().add_attributes(vec![
         attr("action", "register_asset"),
-        attr("asset_token", asset_denom),
+        attr("asset_token", asset_token),
     ]))
 }
 
@@ -277,7 +276,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
             .addr_humanize(&config.astroport_generator)?
             .to_string(),
         spectrum_token: deps.api.addr_humanize(&config.spectrum_token)?.to_string(),
-        farm_denom: config.farm_denom,
+        farm_token: deps.api.addr_humanize(&config.farm_token)?.to_string(),
         spectrum_gov: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
         platform: deps.api.addr_humanize(&config.platform)?.to_string(),
         controller: deps.api.addr_humanize(&config.controller)?.to_string(),
@@ -291,6 +290,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         anchor_market: deps.api.addr_humanize(&config.anchor_market)?.to_string(),
         aust_token: deps.api.addr_humanize(&config.aust_token)?.to_string(),
         pair_contract: deps.api.addr_humanize(&config.pair_contract)?.to_string(),
+        luna_ust_pair_contract: deps.api.addr_humanize(&config.luna_ust_pair_contract)?.to_string(),
         astro_ust_pair_contract: deps.api.addr_humanize(&config.astro_ust_pair_contract)?.to_string(),
     };
 
@@ -301,9 +301,12 @@ fn query_pools(deps: Deps) -> StdResult<PoolsResponse> {
     let pools = pool_info_read(deps.storage)
         .range(None, None, Order::Descending)
         .map(|item| {
-            let (asset_denom, pool_info) = item?;
+            let (asset_token, pool_info) = item?;
             Ok(PoolItem {
-                asset_token: String::from_utf8(asset_denom)?,
+                asset_token: deps
+                    .api
+                    .addr_humanize(&CanonicalAddr::from(asset_token))?
+                    .to_string(),
                 staking_token: deps
                     .api
                     .addr_humanize(&pool_info.staking_token)?
