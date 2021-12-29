@@ -1,19 +1,13 @@
-use cosmwasm_storage::{singleton_read, singleton, Bucket, bucket, bucket_read, Singleton};
+use cosmwasm_storage::{singleton_read, singleton, Singleton, Bucket, bucket, bucket_read};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{CanonicalAddr, Storage, StdResult, Uint128};
 
-pub fn default_addr() -> CanonicalAddr {
-    CanonicalAddr::from(vec![])
-}
-
 static KEY_CONFIG: &[u8] = b"config";
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    #[serde(default = "default_addr")] pub xastro_token: CanonicalAddr,
     pub farm_token: CanonicalAddr, // Psi token address
-    #[serde(default = "default_addr")] pub farm_gov: CanonicalAddr, // Psi gov address
 }
 
 pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {
