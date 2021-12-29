@@ -41,8 +41,8 @@ spectrum-protocol = { version = "0.2.0", path = "../../../packages/spectrum_prot
 terraswap = "2.4.0"
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+astroport = { version = "0.2.0", path = "../../../packages/astroport" }
 moneymarket = { version = "0.3.1", path = "../../../packages/anchor_moneymarket" }
-astroport = { version = "0.3.1", path = "../../../packages/astroport" }
 
 [dev-dependencies]
 cosmwasm-schema = "0.16.0"
