@@ -332,14 +332,14 @@ pub fn format_lp_token_name(
     querier: &QuerierWrapper,
 ) -> StdResult<String> {
     let mut short_symbols: Vec<String> = vec![];
-    for asset_info in asset_infos {
+    for asset_info in asset_infos.iter() {
         let short_symbol: String;
         match asset_info {
             AssetInfo::NativeToken { denom } => {
                 short_symbol = denom.chars().take(TOKEN_SYMBOL_MAX_LENGTH).collect();
             }
             AssetInfo::Token { contract_addr } => {
-                let token_symbol = query_token_symbol(querier, contract_addr)?;
+                let token_symbol = query_token_symbol(querier, contract_addr.clone())?;
                 short_symbol = token_symbol.chars().take(TOKEN_SYMBOL_MAX_LENGTH).collect();
             }
         }
