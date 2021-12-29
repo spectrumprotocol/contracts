@@ -29,6 +29,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-generator-proxy-to-spec"
+version = "1.0.0"
+dependencies = [
+ "astroport",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "cw2",
+ "cw20",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "thiserror",
+]
+
+[[package]]
 name = "base64"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

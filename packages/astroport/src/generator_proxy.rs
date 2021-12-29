@@ -38,14 +38,23 @@ pub enum CallbackMsg {
     },
 }
 
+/// ## Description
+/// This structure describes the query messages of the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
+    /// Returns the contract's configuration
+    Config {},
+    /// Returns the deposit amount
     Deposit {},
+    /// Returns the balance of reward token
     Reward {},
+    /// Returns the pending rewards
     PendingToken {},
+    /// Returns the reward token contract address
     RewardInfo {},
 }
 
+pub type ConfigResponse = InstantiateMsg;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}
