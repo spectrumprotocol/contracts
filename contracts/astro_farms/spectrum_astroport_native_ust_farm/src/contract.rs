@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Binary, CanonicalAddr, Decimal, Deps, DepsMut, Env, MessageInfo,
+    attr, from_binary, to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo,
     Order, Response, StdError, StdResult, Uint128,
 };
 
@@ -15,7 +15,7 @@ use cw20::Cw20ReceiveMsg;
 
 use crate::bond::{deposit_spec_reward, query_reward_info, unbond, update_bond, withdraw};
 use crate::state::{pool_info_read, pool_info_store, read_state};
-use spectrum_protocol::astroport_ust_farm::{
+use spectrum_protocol::astroport_native_ust_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
 use crate::compound::send_fee;
@@ -48,14 +48,9 @@ pub fn instantiate(
             spectrum_token: deps.api.addr_canonicalize(&msg.spectrum_token)?,
             spectrum_gov: deps.api.addr_canonicalize(&msg.spectrum_gov)?,
             astro_token: deps.api.addr_canonicalize(&msg.astro_token)?,
-            farm_token: deps.api.addr_canonicalize(&msg.farm_token)?,
+            farm_denom: msg.farm_denom,
             astroport_generator: deps.api.addr_canonicalize(&msg.astroport_generator)?,
             xastro_proxy: deps.api.addr_canonicalize(&msg.xastro_proxy)?,
-            gov_proxy: if let Some(gov_proxy) = msg.gov_proxy {
-                Some(deps.api.addr_canonicalize(&gov_proxy)?)
-            } else {
-                None
-            },
             platform: deps.api.addr_canonicalize(&msg.platform)?,
             controller: deps.api.addr_canonicalize(&msg.controller)?,
             base_denom: msg.base_denom,
@@ -74,7 +69,6 @@ pub fn instantiate(
         previous_spec_share: Uint128::zero(),
         spec_share_index: Decimal::zero(),
         total_farm_share: Uint128::zero(),
-        total_farm2_share: Uint128::zero(),
         total_weight: 0u32,
         earning: Uint128::zero(),
     })?;
@@ -116,12 +110,9 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             asset_token,
             spec_amount,
             farm_amount,
-            farm2_amount,
-        } => withdraw(deps, env, info, asset_token, spec_amount, farm_amount, farm2_amount),
+        } => withdraw(deps, env, info, asset_token, spec_amount, farm_amount),
         ExecuteMsg::stake { asset_token } => stake(deps, env, info, asset_token),
-        ExecuteMsg::compound {
-            threshold_compound_astro,
-        } => compound(deps, env, info, threshold_compound_astro),
+        ExecuteMsg::compound {} => compound(deps, env, info),
         ExecuteMsg::update_bond {
             asset_token,
             amount_to_auto,
@@ -219,12 +210,11 @@ fn register_asset(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    asset_token: String,
+    asset_denom: String,
     staking_token: String,
     weight: u32,
 ) -> StdResult<Response> {
     let config: Config = read_config(deps.storage)?;
-    let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
 
     if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(StdError::generic_err("unauthorized"));
@@ -242,7 +232,7 @@ fn register_asset(
     deposit_spec_reward(deps.as_ref(), &env, &mut state, &config, false)?;
 
     let mut pool_info = pool_info_read(deps.storage)
-        .may_load(asset_token_raw.as_slice())?
+        .may_load(asset_denom.as_bytes())?
         .unwrap_or_else(|| PoolInfo {
             staking_token: deps.api.addr_canonicalize(&staking_token).unwrap(),
             total_auto_bond_share: Uint128::zero(),
@@ -251,8 +241,6 @@ fn register_asset(
             weight: 0u32,
             farm_share: Uint128::zero(),
             farm_share_index: Decimal::zero(),
-            farm2_share: Uint128::zero(),
-            farm2_share_index: Decimal::zero(),
             state_spec_share_index: state.spec_share_index,
             auto_spec_share_index: Decimal::zero(),
             stake_spec_share_index: Decimal::zero(),
@@ -260,11 +248,11 @@ fn register_asset(
     state.total_weight = state.total_weight + weight - pool_info.weight;
     pool_info.weight = weight;
 
-    pool_info_store(deps.storage).save(asset_token_raw.as_slice(), &pool_info)?;
+    pool_info_store(deps.storage).save(asset_denom.as_bytes(), &pool_info)?;
     state_store(deps.storage).save(&state)?;
     Ok(Response::new().add_attributes(vec![
         attr("action", "register_asset"),
-        attr("asset_token", asset_token),
+        attr("asset_token", asset_denom),
     ]))
 }
 
@@ -289,13 +277,8 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
             .addr_humanize(&config.astroport_generator)?
             .to_string(),
         spectrum_token: deps.api.addr_humanize(&config.spectrum_token)?.to_string(),
-        farm_token: deps.api.addr_humanize(&config.farm_token)?.to_string(),
+        farm_denom: config.farm_denom,
         spectrum_gov: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
-        gov_proxy: if let Some(gov_proxy) = config.gov_proxy {
-            Some(deps.api.addr_humanize(&gov_proxy)?.to_string())
-        } else {
-            None
-        },
         platform: deps.api.addr_humanize(&config.platform)?.to_string(),
         controller: deps.api.addr_humanize(&config.controller)?.to_string(),
         base_denom: config.base_denom,
@@ -318,12 +301,9 @@ fn query_pools(deps: Deps) -> StdResult<PoolsResponse> {
     let pools = pool_info_read(deps.storage)
         .range(None, None, Order::Descending)
         .map(|item| {
-            let (asset_token, pool_info) = item?;
+            let (asset_denom, pool_info) = item?;
             Ok(PoolItem {
-                asset_token: deps
-                    .api
-                    .addr_humanize(&CanonicalAddr::from(asset_token))?
-                    .to_string(),
+                asset_token: String::from_utf8(asset_denom)?,
                 staking_token: deps
                     .api
                     .addr_humanize(&pool_info.staking_token)?
@@ -333,10 +313,8 @@ fn query_pools(deps: Deps) -> StdResult<PoolsResponse> {
                 total_stake_bond_share: pool_info.total_stake_bond_share,
                 total_stake_bond_amount: pool_info.total_stake_bond_amount,
                 farm_share: pool_info.farm_share,
-                farm2_share: pool_info.farm2_share,
                 state_spec_share_index: pool_info.state_spec_share_index,
                 farm_share_index: pool_info.farm_share_index,
-                farm2_share_index: pool_info.farm2_share_index,
                 stake_spec_share_index: pool_info.stake_spec_share_index,
                 auto_spec_share_index: pool_info.auto_spec_share_index,
             })
@@ -351,7 +329,6 @@ fn query_state(deps: Deps) -> StdResult<StateInfo> {
         spec_share_index: state.spec_share_index,
         previous_spec_share: state.previous_spec_share,
         total_farm_share: state.total_farm_share,
-        total_farm2_share: state.total_farm2_share,
         total_weight: state.total_weight,
         earning: state.earning,
     })

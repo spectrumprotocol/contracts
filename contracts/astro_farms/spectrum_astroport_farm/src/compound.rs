@@ -19,7 +19,7 @@ use astroport::pair::{
 };
 use astroport::querier::{query_token_balance, simulate};
 
-use spectrum_protocol::astro_ust_farm::ExecuteMsg;
+use spectrum_protocol::astroport_farm::ExecuteMsg;
 
 use spectrum_protocol::gov_proxy::Cw20HookMsg as GovProxyCw20HookMsg;
 use spectrum_protocol::gov::{ExecuteMsg as GovExecuteMsg};
@@ -178,8 +178,8 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
 
         // find SPEC swap rate
         let net_commission_amount = deduct_tax(
-            &deps.querier, 
-            total_ust_commission_amount, 
+            &deps.querier,
+            total_ust_commission_amount,
             config.base_denom.clone()
         )?;
 

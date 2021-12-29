@@ -3,41 +3,37 @@ use crate::contract::{execute, instantiate, query};
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
 use crate::state::{pool_info_read, pool_info_store, read_config, read_state, state_store};
 use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{from_binary, to_binary, Coin, CosmosMsg, Decimal, OwnedDeps, Uint128, WasmMsg, Api};
+use cosmwasm_std::{from_binary, to_binary, CosmosMsg, OwnedDeps, Uint128, WasmMsg, Decimal, Api};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use spectrum_protocol::gov::{ExecuteMsg as GovExecuteMsg};
-use std::fmt::Debug;
-use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::factory::PairType;
-use astroport::pair::{Cw20HookMsg as AstroportCw20HookMsg, ExecuteMsg as AstroportPairExecuteMsg};
-use spectrum_protocol::astro_ust_farm::{
+use spectrum_protocol::astroport_native_ust_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
+use spectrum_protocol::gov::ExecuteMsg as GovExecuteMsg;
 use astroport::generator::{
     ExecuteMsg as AstroportExecuteMsg,
 };
-use spectrum_protocol::gov_proxy::{ExecuteMsg as GovProxyExecuteMsg, Cw20HookMsg as GovProxyCw20HookMsg};
-use std::str;
+use spectrum_protocol::gov_proxy::{ExecuteMsg as GovProxyExecuteMsg};
+
+use std::fmt::Debug;
 
 const SPEC_GOV: &str = "SPEC_GOV";
-const SPEC_PLATFORM: &str = "spec_platform";
 const SPEC_TOKEN: &str = "spec_token";
-const ASTRO_GOV_PROXY: &str = "astro_gov_proxy";
 const ASTRO_TOKEN: &str = "astro_token";
 const ASTROPORT_GENERATOR: &str = "astroport_generator";
-const ASTRO_LP: &str = "astro_lp";
 const TEST_CREATOR: &str = "creator";
-const TEST_CONTROLLER: &str = "controller";
-const FAIL_TOKEN: &str = "fail_token";
-const FAIL_LP: &str = "fail_lp";
 const USER1: &str = "user1";
 const USER2: &str = "user2";
+const ASTRO_LP: &str = "anc_lp";
+const SPY_TOKEN: &str = "spy_token";
+const SPY_LP: &str = "spy_lp";
 const ANC_MARKET: &str = "anc_market";
 const AUST_TOKEN: &str = "aust_token";
 const PAIR_CONTRACT: &str = "pair_contract";
-
+const ASTRO_GOV_PROXY: &str = "astro_gov_proxy";
+const ASTRO_UST_PAIR_CONTRACT: &str = "astro_ust_pair_contract";
+const FARM_DENOM: &str = "uluna";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfoResponse {
@@ -68,36 +64,12 @@ pub struct RewardInfoResponseItem {
 fn test() {
     let mut deps = mock_dependencies(&[]);
     deps.querier.with_balance_percent(100);
-    deps.querier.with_astroport_pairs(&[
-        (
-            &"uusdastro_token".to_string(),
-            &PairInfo {
-                asset_infos: [
-                    AssetInfo::Token {
-                        contract_addr: deps.api.addr_validate(ASTRO_TOKEN).unwrap(),
-                    },
-                    AssetInfo::NativeToken {
-                        denom: "uusd".to_string(),
-                    },
-                ],
-                contract_addr: deps.api.addr_validate(PAIR_CONTRACT).unwrap(),
-                liquidity_token: deps.api.addr_validate(ASTRO_LP).unwrap(),
-                pair_type: PairType::Xyk {}
-            },
-        )
-    ]);
-    deps.querier.with_tax(
-        Decimal::percent(1),
-        &[(&"uusd".to_string(), &Uint128::from(1500000u128))],
-    );
 
     let _ = test_config(&mut deps);
     test_register_asset(&mut deps);
-    test_compound_unauthorized(&mut deps);
-    test_compound_zero(&mut deps);
     test_bond(&mut deps);
-    test_compound_astro(&mut deps);
-    test_compound_astro_with_fees(&mut deps);
+    // test_deposit_fee(&mut deps);
+    // test_staked_reward(&mut deps);
 }
 
 fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> ConfigInfo {
@@ -109,10 +81,10 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         spectrum_gov: SPEC_GOV.to_string(),
         spectrum_token: SPEC_TOKEN.to_string(),
         astroport_generator: ASTROPORT_GENERATOR.to_string(),
-        astro_gov_proxy: ASTRO_GOV_PROXY.to_string(),
+        xastro_proxy: ASTRO_GOV_PROXY.to_string(),
         astro_token: ASTRO_TOKEN.to_string(),
-        platform: SPEC_PLATFORM.to_string(),
-        controller: TEST_CONTROLLER.to_string(),
+        platform: TEST_CREATOR.to_string(),
+        controller: TEST_CREATOR.to_string(),
         base_denom: "uusd".to_string(),
         community_fee: Decimal::zero(),
         platform_fee: Decimal::zero(),
@@ -121,6 +93,8 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         anchor_market: ANC_MARKET.to_string(),
         aust_token: AUST_TOKEN.to_string(),
         pair_contract: PAIR_CONTRACT.to_string(),
+        farm_denom: FARM_DENOM.to_string(),
+        astro_ust_pair_contract: ASTRO_UST_PAIR_CONTRACT.to_string(),
     };
 
     // success init
@@ -177,7 +151,7 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
     let msg = ExecuteMsg::register_asset {
-        asset_token: ASTRO_TOKEN.to_string(),
+        asset_token: FARM_DENOM.to_string(),
         staking_token: ASTRO_LP.to_string(),
         weight: 1u32,
     };
@@ -196,7 +170,7 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
         res,
         PoolsResponse {
             pools: vec![PoolItem {
-                asset_token: ASTRO_TOKEN.to_string(),
+                asset_token: FARM_DENOM.to_string(),
                 staking_token: ASTRO_LP.to_string(),
                 weight: 1u32,
                 farm_share: Uint128::zero(),
@@ -211,11 +185,11 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
         }
     );
 
-    // test register fail
+    // register again should fail
     let msg = ExecuteMsg::register_asset {
-        asset_token: FAIL_TOKEN.to_string(),
-        staking_token: FAIL_LP.to_string(),
-        weight: 2u32,
+        asset_token: SPY_TOKEN.to_string(),
+        staking_token: SPY_LP.to_string(),
+        weight: 1u32,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_err());
@@ -224,41 +198,6 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
     let msg = QueryMsg::state {};
     let res: StateInfo = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     assert_eq!(res.total_weight, 1u32);
-}
-
-fn test_compound_unauthorized(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
-    // reinvest err
-    let env = mock_env();
-    let info = mock_info(TEST_CREATOR, &[]);
-    let msg = ExecuteMsg::compound {};
-    let res = execute(deps.as_mut(), env, info, msg);
-    assert!(res.is_err());
-}
-
-fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
-    // reinvest zero
-    let env = mock_env();
-    let info = mock_info(TEST_CONTROLLER, &[]);
-    let msg = ExecuteMsg::compound {};
-    let res = execute(deps.as_mut(), env, info, msg).unwrap();
-
-    assert_eq!(
-        res.messages
-            .into_iter()
-            .map(|it| it.msg)
-            .collect::<Vec<CosmosMsg>>(),
-        vec![
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: ASTROPORT_GENERATOR.to_string(),
-                funds: vec![],
-                msg: to_binary(&AstroportExecuteMsg::Withdraw {
-                    lp_token: deps.api.addr_validate(ASTRO_LP).unwrap(),
-                    amount: Uint128::zero()
-                }
-                ).unwrap(),
-            }),
-        ]
-    );
 }
 
 fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
@@ -270,7 +209,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         amount: Uint128::from(10000u128),
         msg: to_binary(&Cw20HookMsg::bond {
             staker_addr: None,
-            asset_token: ASTRO_TOKEN.to_string(),
+            asset_token: FARM_DENOM.to_string(),
             compound_rate: Some(Decimal::percent(60)),
         }).unwrap(),
     });
@@ -291,7 +230,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     //update_bond success
     let info = mock_info(USER1, &[]);
     let msg = ExecuteMsg::update_bond {
-        asset_token: ASTRO_TOKEN.to_string(),
+        asset_token: FARM_DENOM.to_string(),
         amount_to_stake: Uint128::from(1u128),
         amount_to_auto: Uint128::from(9999u128),
     };
@@ -301,7 +240,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     //update_bond fail due to exceed deposited amount
     let info = mock_info(USER1, &[]);
     let msg = ExecuteMsg::update_bond {
-        asset_token: ASTRO_TOKEN.to_string(),
+        asset_token: FARM_DENOM.to_string(),
         amount_to_stake: Uint128::from(2u128),
         amount_to_auto: Uint128::from(9999u128),
     };
@@ -311,7 +250,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     //update_bond again to original value
     let info = mock_info(USER1, &[]);
     let msg = ExecuteMsg::update_bond {
-        asset_token: ASTRO_TOKEN.to_string(),
+        asset_token: FARM_DENOM.to_string(),
         amount_to_stake: Uint128::from(4000u128),
         amount_to_auto: Uint128::from(6000u128),
     };
@@ -322,7 +261,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let config = read_config(deps_ref.storage).unwrap();
     let mut state = read_state(deps_ref.storage).unwrap();
     let mut pool_info = pool_info_read(deps_ref.storage)
-        .load(config.astro_token.as_slice())
+        .load(config.farm_denom.as_bytes())
         .unwrap();
     deposit_farm_share(
         deps_ref,
@@ -335,7 +274,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         .unwrap();
     state_store(deps.as_mut().storage).save(&state).unwrap();
     pool_info_store(deps.as_mut().storage)
-        .save(config.astro_token.as_slice(), &pool_info)
+        .save(config.farm_denom.as_bytes(), &pool_info)
         .unwrap();
     deps.querier.with_token_balances(&[
         (
@@ -361,7 +300,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: ASTRO_TOKEN.to_string(),
+            asset_token: FARM_DENOM.to_string(),
             pending_farm_reward: Uint128::from(1000u128),
             pending_spec_reward: Uint128::from(2700u128),
             bond_amount: Uint128::from(10000u128),
@@ -382,7 +321,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // unbond 3000 ASTRO-LP
     let info = mock_info(USER1, &[]);
     let msg = ExecuteMsg::unbond {
-        asset_token: ASTRO_TOKEN.to_string(),
+        asset_token: FARM_DENOM.to_string(),
         amount: Uint128::from(3000u128),
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
@@ -432,7 +371,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                     amount: Some(Uint128::from(2700u128)),
                     days: None,
                 })
-                .unwrap(),
+                    .unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: SPEC_TOKEN.to_string(),
@@ -494,7 +433,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: ASTRO_TOKEN.to_string(),
+            asset_token: FARM_DENOM.to_string(),
             pending_farm_reward: Uint128::from(0u128),
             pending_spec_reward: Uint128::from(0u128),
             bond_amount: Uint128::from(7000u128),
@@ -519,7 +458,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         amount: Uint128::from(5000u128),
         msg: to_binary(&Cw20HookMsg::bond {
             staker_addr: None,
-            asset_token: ASTRO_TOKEN.to_string(),
+            asset_token: FARM_DENOM.to_string(),
             compound_rate: None,
         })
             .unwrap(),
@@ -530,7 +469,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let deps_ref = deps.as_ref();
     let mut state = read_state(deps_ref.storage).unwrap();
     let mut pool_info = pool_info_read(deps_ref.storage)
-        .load(config.astro_token.as_slice())
+        .load(config.farm_denom.as_bytes())
         .unwrap();
     deposit_farm_share(
         deps_ref,
@@ -543,7 +482,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         .unwrap();
     state_store(deps.as_mut().storage).save(&state).unwrap();
     pool_info_store(deps.as_mut().storage)
-        .save(config.astro_token.as_slice(), &pool_info)
+        .save(config.farm_denom.as_bytes(), &pool_info)
         .unwrap();
     deps.querier.with_token_balances(&[
         (
@@ -585,7 +524,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: ASTRO_TOKEN.to_string(),
+            asset_token: FARM_DENOM.to_string(),
             pending_farm_reward: Uint128::from(1794u128),
             pending_spec_reward: Uint128::from(582u128),
             bond_amount: Uint128::from(7000u128),
@@ -611,7 +550,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: ASTRO_TOKEN.to_string(),
+            asset_token: FARM_DENOM.to_string(),
             pending_farm_reward: Uint128::from(3205u128),
             pending_spec_reward: Uint128::from(416u128),
             bond_amount: Uint128::from(5000u128),
@@ -630,387 +569,198 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     );
 }
 
-fn test_compound_astro(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
-    let env = mock_env();
-    let info = mock_info(TEST_CONTROLLER, &[]);
+// fn test_staked_reward(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+//     // unbond user1
+//     let info = mock_info(USER1, &[]);
+//     let msg = ExecuteMsg::unbond {
+//         asset_token: MIR_TOKEN.to_string(),
+//         amount: Uint128::from(13200u128),
+//     };
+//     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+//     assert!(res.is_ok());
+//     assert_eq!(
+//         res.unwrap().messages,
+//         [
+//             CosmosMsg::Wasm(WasmMsg::Execute {
+//                 contract_addr: MIR_STAKING.to_string(),
+//                 funds: vec![],
+//                 msg: to_binary(&MirrorStakingExecuteMsg::unbond {
+//                     amount: Uint128::from(13200u128),
+//                     asset_token: MIR_TOKEN.to_string(),
+//                 })
+//                 .unwrap(),
+//             }),
+//             CosmosMsg::Wasm(WasmMsg::Execute {
+//                 contract_addr: MIR_LP.to_string(),
+//                 funds: vec![],
+//                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
+//                     recipient: USER1.to_string(),
+//                     amount: Uint128::from(13200u128),
+//                 })
+//                 .unwrap(),
+//             }),
+//         ]
+//     );
 
-    deps.querier.with_token_balances(&[
-        (
-            &ASTRO_TOKEN.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(12000u128))],
-        ),
-        (
-            &ASTROPORT_GENERATOR.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(12000u128))],
-        ),
-        (
-            &ASTRO_GOV_PROXY.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(5000u128))],
-        ),
-        (
-            &SPEC_GOV.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(1000u128))],
-        ),
-    ]);
+//     // withdraw for user2
+//     let info = mock_info(USER2, &[]);
+//     let msg = ExecuteMsg::withdraw { asset_token: None };
+//     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
+//     assert!(res.is_ok());
+//     assert_eq!(
+//         res.unwrap().messages,
+//         vec![
+//             CosmosMsg::Wasm(WasmMsg::Execute {
+//                 contract_addr: SPEC_GOV.to_string(),
+//                 funds: vec![],
+//                 msg: to_binary(&GovExecuteMsg::withdraw {
+//                     amount: Some(Uint128::from(4700u128)),
+//                 })
+//                 .unwrap(),
+//             }),
+//             CosmosMsg::Wasm(WasmMsg::Execute {
+//                 contract_addr: SPEC_TOKEN.to_string(),
+//                 funds: vec![],
+//                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
+//                     recipient: USER2.to_string(),
+//                     amount: Uint128::from(4700u128),
+//                 })
+//                 .unwrap(),
+//             }),
+//             CosmosMsg::Wasm(WasmMsg::Execute {
+//                 contract_addr: MIR_GOV.to_string(),
+//                 funds: vec![],
+//                 msg: to_binary(&MirrorGovExecuteMsg::WithdrawVotingTokens {
+//                     amount: Some(Uint128::from(7300u128)),
+//                 })
+//                 .unwrap(),
+//             }),
+//             CosmosMsg::Wasm(WasmMsg::Execute {
+//                 contract_addr: MIR_TOKEN.to_string(),
+//                 funds: vec![],
+//                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
+//                     recipient: USER2.to_string(),
+//                     amount: Uint128::from(7300u128),
+//                 })
+//                 .unwrap(),
+//             }),
+//         ]
+//     );
+//     deps.querier.with_balance_percent(120);
+//     deps.querier.with_token_balances(&[
+//         (
+//             &MIR_STAKING.to_string(),
+//             &[
+//                 (&MIR_TOKEN.to_string(), &Uint128::from(90000u128)),
+//                 (&sPY_TOKEN.to_string(), &Uint128::from(72000u128)),
+//             ],
+//         ),
+//         (
+//             &MIR_GOV.to_string(),
+//             &[(
+//                 &MOCK_CONTRACT_ADDR.to_string(),
+//                 &Uint128::from(9200u128),
+//             )],
+//         ),
+//         (
+//             &SPEC_GOV.to_string(),
+//             &[(
+//                 &MOCK_CONTRACT_ADDR.to_string(),
+//                 &Uint128::from(24600u128), //+9000 +20%
+//             )],
+//         ),
+//     ]);
 
-    /*
-    pending rewards 12000 ASTRO
-    USER1 7000 (auto 4200, stake 2800)
-    USER2 5000 (auto 0, stake 5000)
-    total 12000
-    auto 4200 / 12000 * 12000 = 4200
-    stake 7800 / 12000 * 12000 = 7800
-    swap amount 2100 ASTRO -> 2073 UST
-    provide UST = 2052
-    provide ASTRO = 2052
-    remaining = 48
-    */
-    let msg = ExecuteMsg::compound {};
-    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
+//     // query balance1 (still earn gov income even there is no bond)
+//     let msg = QueryMsg::reward_info {
+//         staker_addr: USER1.to_string(),
+//         asset_token: None,
+//         height: 0u64,
+//     };
+//     let res: RewardInfoResponse = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+//     assert_eq!(
+//         res.reward_infos,
+//         vec![
+//             RewardInfoResponseItem {
+//                 asset_token: MIR_TOKEN.to_string(),
+//                 pending_farm_reward: Uint128::from(3330u128), //+33%
+//                 pending_spec_reward: Uint128::from(4678u128), //+20%
+//                 bond_amount: Uint128::from(0u128),
+//                 auto_bond_amount: Uint128::from(0u128),
+//                 stake_bond_amount: Uint128::from(0u128),
+//                 accum_spec_share: Uint128::from(4799u128),
+//             },
+//             RewardInfoResponseItem {
+//                 asset_token: SPY_TOKEN.to_string(),
+//                 pending_farm_reward: Uint128::from(5866u128), //+33%
+//                 pending_spec_reward: Uint128::from(10080u128), //+800+20%
+//                 bond_amount: Uint128::from(9600u128),
+//                 auto_bond_amount: Uint128::from(7200u128),
+//                 stake_bond_amount: Uint128::from(2400u128),
+//                 accum_spec_share: Uint128::from(10200u128),
+//             },
+//         ]
+//     );
 
-    assert_eq!(
-        res.messages
-            .into_iter()
-            .map(|it| it.msg)
-            .collect::<Vec<CosmosMsg>>(),
-        vec![
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: ASTROPORT_GENERATOR.to_string(),
-                funds: vec![],
-                msg: to_binary(&AstroportExecuteMsg::Withdraw {
-                    lp_token: deps.api.addr_validate(ASTRO_LP).unwrap(),
-                    amount: Uint128::zero()
-                }).unwrap(),
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: ASTRO_TOKEN.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: PAIR_CONTRACT.to_string(),
-                    amount: Uint128::from(2100u128),
-                    msg: to_binary(&AstroportCw20HookMsg::Swap {
-                        max_spread: None,
-                        belief_price: None,
-                        to: None,
-                    })
-                    .unwrap()
-                })
-                .unwrap(),
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: ASTRO_TOKEN.to_string(),
-                funds: vec![],
-                msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: ASTRO_GOV_PROXY.to_string(),
-                    amount: Uint128::from(7800u128),
-                    msg: to_binary(&GovProxyCw20HookMsg::Stake {}).unwrap(),
-                })
-                .unwrap(),
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: ASTRO_TOKEN.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-                    spender: PAIR_CONTRACT.to_string(),
-                    amount: Uint128::from(2052u128),
-                    expires: None
-                })
-                .unwrap(),
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: PAIR_CONTRACT.to_string(),
-                msg: to_binary(&AstroportPairExecuteMsg::ProvideLiquidity {
-                    assets: [
-                        Asset {
-                            info: AssetInfo::Token {
-                                contract_addr: deps.api.addr_validate(ASTRO_TOKEN).unwrap(),
-                            },
-                            amount: Uint128::from(2052u128),
-                        },
-                        Asset {
-                            info: AssetInfo::NativeToken {
-                                denom: "uusd".to_string(),
-                            },
-                            amount: Uint128::from(2052u128),
-                        },
-                    ],
-                    slippage_tolerance: None,
-                    auto_stake: Some(true),
-                    receiver: None
-                }).unwrap(),
-                funds: vec![Coin {
-                    denom: "uusd".to_string(),
-                    amount: Uint128::from(2052u128),
-                }],
-            })
-        ]
-    );
+//     // query balance2
+//     let msg = QueryMsg::reward_info {
+//         staker_addr: USER2.to_string(),
+//         asset_token: None,
+//         height: 0u64,
+//     };
+//     let res: RewardInfoResponse = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+//     assert_eq!(
+//         res.reward_infos,
+//         vec![
+//             RewardInfoResponseItem {
+//                 asset_token: MIR_TOKEN.to_string(),
+//                 pending_farm_reward: Uint128::from(0u128),
+//                 pending_spec_reward: Uint128::from(240u128), //+200+20%
+//                 bond_amount: Uint128::from(6000u128),
+//                 auto_bond_amount: Uint128::from(0u128),
+//                 stake_bond_amount: Uint128::from(6000u128),
+//                 accum_spec_share: Uint128::from(1700u128),
+//             },
+//             RewardInfoResponseItem {
+//                 asset_token: SPY_TOKEN.to_string(),
+//                 pending_farm_reward: Uint128::from(0u128),
+//                 pending_spec_reward: Uint128::from(480u128), //+400+20%
+//                 bond_amount: Uint128::from(4800u128),
+//                 auto_bond_amount: Uint128::from(0u128),
+//                 stake_bond_amount: Uint128::from(4800u128),
+//                 accum_spec_share: Uint128::from(3600u128),
+//             },
+//         ]
+//     );
 
-    deps.querier.with_token_balances(&[
-        (
-            &ASTROPORT_GENERATOR.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(12100u128))],
-        ),
-        (
-            &ASTRO_GOV_PROXY.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(12800u128))],
-        ),
-        (
-            &SPEC_GOV.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(1000u128))],
-        ),
-    ]);
-
-    // query balance for user1
-    let msg = QueryMsg::reward_info {
-        staker_addr: USER1.to_string(),
-    };
-    let res: RewardInfoResponse =
-        from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
-    assert_eq!(
-        res.reward_infos,
-        vec![RewardInfoResponseItem {
-            asset_token: ASTRO_TOKEN.to_string(),
-            pending_farm_reward: Uint128::from(4594u128),
-            pending_spec_reward: Uint128::from(586u128),
-            bond_amount: Uint128::from(7100u128),
-            auto_bond_amount: Uint128::from(4300u128),
-            stake_bond_amount: Uint128::from(2800u128),
-            farm_share_index: Decimal::from_ratio(125u128, 1000u128),
-            auto_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
-            stake_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
-            farm_share: Uint128::from(9189u128),
-            spec_share: Uint128::from(586u128),
-            auto_bond_share: Uint128::from(4200u128),
-            stake_bond_share: Uint128::from(2800u128),
-            deposit_amount: Some(Uint128::from(7000u128)),
-            deposit_time: Some(1571797419)
-        },]
-    );
-
-    // query balance for user2
-    let msg = QueryMsg::reward_info {
-        staker_addr: USER2.to_string(),
-    };
-    let res: RewardInfoResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
-    assert_eq!(
-        res.reward_infos,
-        vec![RewardInfoResponseItem {
-            asset_token: ASTRO_TOKEN.to_string(),
-            pending_farm_reward: Uint128::from(8205u128),
-            pending_spec_reward: Uint128::from(413u128),
-            bond_amount: Uint128::from(5000u128),
-            auto_bond_amount: Uint128::from(0u128),
-            stake_bond_amount: Uint128::from(5000u128),
-            farm_share_index: Decimal::from_ratio(125u128, 1000u128),
-            auto_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
-            stake_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
-            farm_share: Uint128::from(16410u128),
-            spec_share: Uint128::from(413u128),
-            auto_bond_share: Uint128::from(0u128),
-            stake_bond_share: Uint128::from(5000u128),
-            deposit_amount: Some(Uint128::from(5000u128)),
-            deposit_time: Some(1571797419)
-        }]
-    );
-}
-
-fn test_compound_astro_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
-    // update fees
-    let env = mock_env();
-    let info = mock_info(SPEC_GOV, &[]);
-    let msg = ExecuteMsg::update_config {
-        owner: None,
-        controller: None,
-        community_fee: Some(Decimal::percent(3u64)),
-        platform_fee: Some(Decimal::percent(1u64)),
-        controller_fee: Some(Decimal::percent(1u64)),
-        deposit_fee: None,
-    };
-    let res = execute(deps.as_mut(), env.clone(), info, msg);
-    assert!(res.is_ok());
-
-    let info = mock_info(TEST_CONTROLLER, &[]);
-
-    deps.querier.with_token_balances(&[
-        (
-            &ASTRO_TOKEN.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(12100u128))],
-        ),
-        (
-            &ASTROPORT_GENERATOR.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(12100u128))],
-        ),
-        (
-            &ASTRO_GOV_PROXY.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(12800u128))],
-        ),
-        (
-            &SPEC_GOV.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(1000u128))],
-        ),
-    ]);
-
-    /*
-    pending rewards 12100 ASTRO
-    USER1 7100 (auto 4300, stake 2800)
-    USER2 5000 (auto 0, stake 5000)
-    total 12100
-    total fee = 605
-    remaining = 11495
-    auto 4300 / 12100 * 11495 = 4085
-    stake 7800 / 12100 * 11495 = 7410
-    swap amount 2042 ASTRO -> 2016 UST
-    provide UST = 1996
-    provide ASTRO = 1996
-    remaining = 46
-    fee swap amount 605 ASTRO -> 591 UST -> 590 SPEC
-    community fee = 363 / 605 * 590 = 354
-    platform fee = 121 / 605 * 590 = 118
-    controller fee = 121 / 605 * 590 = 118
-    total swap amount 2647 ASTRO
-    */
-    let msg = ExecuteMsg::compound {};
-    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
-
-    assert_eq!(
-        res.messages
-            .into_iter()
-            .map(|it| it.msg)
-            .collect::<Vec<CosmosMsg>>(),
-        vec![
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: ASTROPORT_GENERATOR.to_string(),
-                funds: vec![],
-                msg: to_binary(&AstroportExecuteMsg::Withdraw {
-                    lp_token: deps.api.addr_validate(ASTRO_LP).unwrap(),
-                    amount: Uint128::zero()
-                }).unwrap(),
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: ASTRO_TOKEN.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: PAIR_CONTRACT.to_string(),
-                    amount: Uint128::from(2647u128),
-                    msg: to_binary(&AstroportCw20HookMsg::Swap {
-                        max_spread: None,
-                        belief_price: None,
-                        to: None,
-                    }).unwrap()
-                }).unwrap(),
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: ANC_MARKET.to_string(),
-                msg: to_binary(&moneymarket::market::ExecuteMsg::DepositStable {}).unwrap(),
-                funds: vec![Coin {
-                    denom: "uusd".to_string(),
-                    amount: Uint128::from(591u128),
-                }],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: SPEC_GOV.to_string(),
-                msg: to_binary(&spectrum_protocol::gov::ExecuteMsg::mint {}).unwrap(),
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: MOCK_CONTRACT_ADDR.to_string(),
-                msg: to_binary(&ExecuteMsg::send_fee {}).unwrap(),
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: ASTRO_TOKEN.to_string(),
-                funds: vec![],
-                msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: ASTRO_GOV_PROXY.to_string(),
-                    amount: Uint128::from(7410u128),
-                    msg: to_binary(&GovProxyCw20HookMsg::Stake {}).unwrap(),
-                }).unwrap(),
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: ASTRO_TOKEN.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-                    spender: PAIR_CONTRACT.to_string(),
-                    amount: Uint128::from(1996u128),
-                    expires: None
-                })
-                    .unwrap(),
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: PAIR_CONTRACT.to_string(),
-                msg: to_binary(&AstroportPairExecuteMsg::ProvideLiquidity {
-                    assets: [
-                        Asset {
-                            info: AssetInfo::Token {
-                                contract_addr: deps.api.addr_validate(ASTRO_TOKEN).unwrap(),
-                            },
-                            amount: Uint128::from(1996u128),
-                        },
-                        Asset {
-                            info: AssetInfo::NativeToken {
-                                denom: "uusd".to_string(),
-                            },
-                            amount: Uint128::from(1996u128),
-                        },
-                    ],
-                    slippage_tolerance: None,
-                    auto_stake: Some(true),
-                    receiver: None
-                }).unwrap(),
-                funds: vec![Coin {
-                    denom: "uusd".to_string(),
-                    amount: Uint128::from(1996u128),
-                }],
-            }),
-        ]
-    );
-
-    deps.querier.with_token_balances(&[
-        (
-            &AUST_TOKEN.to_string(),
-            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(590u128))]
-        ),
-    ]);
-
-    // cannot call send fee from others
-    let info = mock_info(SPEC_GOV, &[]);
-    let msg = ExecuteMsg::send_fee {};
-    let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
-    assert!(res.is_err());
-
-    let info = mock_info(MOCK_CONTRACT_ADDR, &[]);
-    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
-
-    assert_eq!(
-        res.messages
-            .into_iter()
-            .map(|it| it.msg)
-            .collect::<Vec<CosmosMsg>>(),
-        vec![
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: AUST_TOKEN.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: SPEC_GOV.to_string(),
-                    amount: Uint128::from(354u128),
-                }).unwrap(),
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: AUST_TOKEN.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: SPEC_PLATFORM.to_string(),
-                    amount: Uint128::from(118u128),
-                }).unwrap(),
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: AUST_TOKEN.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: TEST_CONTROLLER.to_string(),
-                    amount: Uint128::from(118u128),
-                }).unwrap(),
-                funds: vec![],
-            }),
-        ]);
-}
+//     // query balance3
+//     let msg = QueryMsg::reward_info {
+//         staker_addr: USER3.to_string(),
+//         asset_token: None,
+//         height: 0u64,
+//     };
+//     let res: RewardInfoResponse = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+//     assert_eq!(
+//         res.reward_infos,
+//         vec![
+//             RewardInfoResponseItem {
+//                 asset_token: MIR_TOKEN.to_string(),
+//                 pending_farm_reward: Uint128::zero(),
+//                 pending_spec_reward: Uint128::from(3358u128), //+2799+20%
+//                 bond_amount: Uint128::from(84000u128),
+//                 auto_bond_amount: Uint128::from(45600u128),
+//                 stake_bond_amount: Uint128::from(38400u128),
+//                 accum_spec_share: Uint128::from(2799u128),
+//             },
+//             RewardInfoResponseItem {
+//                 asset_token: SPY_TOKEN.to_string(),
+//                 pending_farm_reward: Uint128::zero(),
+//                 pending_spec_reward: Uint128::from(5760u128), //+4800+20%
+//                 bond_amount: Uint128::from(57600u128),
+//                 auto_bond_amount: Uint128::from(28800u128),
+//                 stake_bond_amount: Uint128::from(28800u128),
+//                 accum_spec_share: Uint128::from(4800u128),
+//             },
+//         ]
+//     );
+// }

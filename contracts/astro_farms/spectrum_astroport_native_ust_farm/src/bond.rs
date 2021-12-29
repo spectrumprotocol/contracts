@@ -1,7 +1,4 @@
-use cosmwasm_std::{
-    attr, to_binary, Api, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Order, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
-};
+use cosmwasm_std::{attr, to_binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Order, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery, Api};
 
 use crate::state::{
     pool_info_read, pool_info_store, read_config, read_state, rewards_read, rewards_store,
@@ -11,41 +8,41 @@ use crate::state::{
 use cw20::Cw20ExecuteMsg;
 
 use crate::querier::{query_astroport_pool_balance, query_farm_gov_balance};
-use spectrum_protocol::gov_proxy::{ExecuteMsg as GovProxyExecuteMsg};
 use astroport::generator::{
     Cw20HookMsg as AstroportCw20HookMsg, ExecuteMsg as AstroportExecuteMsg,
 };
-use spectrum_protocol::astro_ust_farm::{RewardInfoResponse, RewardInfoResponseItem};
+use spectrum_protocol::astroport_native_ust_farm::{RewardInfoResponse, RewardInfoResponseItem};
 use spectrum_protocol::farm_helper::compute_deposit_time;
 use spectrum_protocol::gov::{
     BalanceResponse as SpecBalanceResponse, ExecuteMsg as SpecExecuteMsg, QueryMsg as SpecQueryMsg,
 };
+use spectrum_protocol::gov_proxy::{ExecuteMsg as GovProxyExecuteMsg};
 use spectrum_protocol::math::UDec128;
 
 #[allow(clippy::too_many_arguments)]
 fn bond_internal(
     deps: DepsMut,
-    env: Env,
+    env: &Env,
     sender_addr_raw: CanonicalAddr,
-    asset_token_raw: CanonicalAddr,
+    asset_denom: String,
     amount_to_auto: Uint128,
     amount_to_stake: Uint128,
     lp_balance: Uint128,
     config: &Config,
     reallocate: bool,
 ) -> StdResult<PoolInfo> {
-    let mut pool_info = pool_info_read(deps.storage).load(asset_token_raw.as_slice())?;
+    let mut pool_info = pool_info_read(deps.storage).load(asset_denom.as_bytes())?;
     let mut state = read_state(deps.storage)?;
 
     // update reward index; before changing share
     if !pool_info.total_auto_bond_share.is_zero() || !pool_info.total_stake_bond_share.is_zero() {
-        deposit_spec_reward(deps.as_ref(), &env, &mut state, config, false)?;
+        deposit_spec_reward(deps.as_ref(), env, &mut state, config, false)?;
         spec_reward_to_pool(&state, &mut pool_info, lp_balance)?;
     }
 
     // withdraw reward to pending reward; before changing share
     let mut reward_info = rewards_read(deps.storage, &sender_addr_raw)
-        .may_load(asset_token_raw.as_slice())?
+        .may_load(asset_denom.as_bytes())?
         .unwrap_or_else(|| RewardInfo {
             farm_share_index: pool_info.farm_share_index,
             auto_spec_share_index: pool_info.auto_spec_share_index,
@@ -91,8 +88,8 @@ fn bond_internal(
     }
 
     rewards_store(deps.storage, &sender_addr_raw)
-        .save(asset_token_raw.as_slice(), &reward_info)?;
-    pool_info_store(deps.storage).save(asset_token_raw.as_slice(), &pool_info)?;
+        .save(asset_denom.as_bytes(), &reward_info)?;
+    pool_info_store(deps.storage).save(asset_denom.as_bytes(), &pool_info)?;
     state_store(deps.storage).save(&state)?;
 
     Ok(pool_info)
@@ -103,14 +100,13 @@ pub fn bond(
     env: Env,
     info: MessageInfo,
     sender_addr: String,
-    asset_token: String,
+    asset_denom: String,
     amount: Uint128,
     compound_rate: Option<Decimal>,
 ) -> StdResult<Response> {
     let staker_addr_raw = deps.api.addr_canonicalize(&sender_addr)?;
-    let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
 
-    let pool_info = pool_info_read(deps.storage).load(asset_token_raw.as_slice())?;
+    let pool_info = pool_info_read(deps.storage).load(asset_denom.as_bytes())?;
 
     // only staking token contract can execute this message
     if pool_info.staking_token != deps.api.addr_canonicalize(info.sender.as_str())? {
@@ -120,6 +116,7 @@ pub fn bond(
     let config = read_config(deps.storage)?;
 
     let compound_rate = compound_rate.unwrap_or_else(Decimal::zero);
+
     let amount_to_auto = amount * compound_rate;
     let amount_to_stake = amount.checked_sub(amount_to_auto)?;
 
@@ -132,9 +129,9 @@ pub fn bond(
 
     bond_internal(
         deps.branch(),
-        env,
+        &env,
         staker_addr_raw,
-        asset_token_raw.clone(),
+        asset_denom,
         amount_to_auto,
         amount_to_stake,
         lp_balance,
@@ -156,14 +153,13 @@ pub fn deposit_farm_share(
     state: &mut State,
     pool_info: &mut PoolInfo,
     config: &Config,
-    amount: Uint128,
+    amount: Uint128,    // ASTRO
 ) -> StdResult<()> {
     let staked = query_farm_gov_balance(
         deps,
-        &config.astro_gov_proxy,
+        &config.xastro_proxy,
         &env.contract.address,
     )?;
-
     let mut new_total_share = Uint128::zero();
     if !pool_info.total_stake_bond_share.is_zero() {
         let new_share = state.calc_farm_share(amount, staked.balance);
@@ -313,7 +309,7 @@ fn increase_bond_amount(
     Ok(new_auto_bond_amount + new_stake_bond_amount)
 }
 
-// stake LP token to Anchor Staking
+// stake LP token to Astroport Generator
 fn stake_token(
     api: &dyn Api,
     astroport_generator: CanonicalAddr,
@@ -343,18 +339,18 @@ fn stake_token(
 #[allow(clippy::too_many_arguments)]
 fn unbond_internal(
     deps: DepsMut,
-    env: Env,
+    env: &Env,
     staker_addr_raw: CanonicalAddr,
-    asset_token_raw: CanonicalAddr,
+    asset_denom: String,
     amount: Uint128,
     lp_balance: Uint128,
     config: &Config,
     reallocate: bool,
 ) -> StdResult<PoolInfo> {
     let mut state = read_state(deps.storage)?;
-    let mut pool_info = pool_info_read(deps.storage).load(asset_token_raw.as_slice())?;
+    let mut pool_info = pool_info_read(deps.storage).load(asset_denom.as_bytes())?;
     let mut reward_info =
-        rewards_read(deps.storage, &staker_addr_raw).load(asset_token_raw.as_slice())?;
+        rewards_read(deps.storage, &staker_addr_raw).load(asset_denom.as_bytes())?;
 
     let user_auto_balance =
         pool_info.calc_user_auto_balance(lp_balance, reward_info.auto_bond_share);
@@ -366,7 +362,7 @@ fn unbond_internal(
     }
 
     // distribute reward to pending reward; before changing share
-    deposit_spec_reward(deps.as_ref(), &env, &mut state, config, false)?;
+    deposit_spec_reward(deps.as_ref(), env, &mut state, config, false)?;
     spec_reward_to_pool(&state, &mut pool_info, lp_balance)?;
     before_share_change(&pool_info, &mut reward_info);
 
@@ -401,7 +397,9 @@ fn unbond_internal(
     reward_info.stake_bond_share = reward_info.stake_bond_share.checked_sub(stake_bond_share)?;
 
     if !reallocate {
-        reward_info.deposit_amount = reward_info.deposit_amount.multiply_ratio(user_balance.checked_sub(amount)?, user_balance);
+        reward_info.deposit_amount = reward_info
+            .deposit_amount
+            .multiply_ratio(user_balance.checked_sub(amount)?, user_balance);
     }
 
     // update rewards info
@@ -411,14 +409,14 @@ fn unbond_internal(
         && reward_info.stake_bond_share.is_zero()
         && !reallocate
     {
-        rewards_store(deps.storage, &staker_addr_raw).remove(asset_token_raw.as_slice());
+        rewards_store(deps.storage, &staker_addr_raw).remove(asset_denom.as_bytes());
     } else {
         rewards_store(deps.storage, &staker_addr_raw)
-            .save(asset_token_raw.as_slice(), &reward_info)?;
+            .save(asset_denom.as_bytes(), &reward_info)?;
     }
 
     // update pool info
-    pool_info_store(deps.storage).save(asset_token_raw.as_slice(), &pool_info)?;
+    pool_info_store(deps.storage).save(asset_denom.as_bytes(), &pool_info)?;
     state_store(deps.storage).save(&state)?;
 
     Ok(pool_info)
@@ -428,14 +426,13 @@ pub fn unbond(
     mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    asset_token: String,
+    asset_denom: String,
     amount: Uint128,
 ) -> StdResult<Response> {
     let staker_addr_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
-    let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
 
     let config = read_config(deps.storage)?;
-    let pool_info = pool_info_read(deps.storage).load(asset_token_raw.as_slice())?;
+    let pool_info = pool_info_read(deps.storage).load(asset_denom.as_bytes())?;
 
     let lp_balance = query_astroport_pool_balance(
         deps.as_ref(),
@@ -446,9 +443,9 @@ pub fn unbond(
 
     let pool_info = unbond_internal(
         deps.branch(),
-        env,
+        &env,
         staker_addr_raw,
-        asset_token_raw,
+        asset_denom.clone(),
         amount,
         lp_balance,
         &config,
@@ -483,7 +480,7 @@ pub fn unbond(
         .add_attributes(vec![
             attr("action", "unbond"),
             attr("staker_addr", info.sender),
-            attr("asset_token", asset_token),
+            attr("asset_token", asset_denom),
             attr("amount", amount),
         ]))
 }
@@ -492,7 +489,7 @@ pub fn update_bond(
     mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    asset_token: String,
+    asset_denom: String,
     amount_to_auto: Uint128,
     amount_to_stake: Uint128,
 ) -> StdResult<Response> {
@@ -500,10 +497,9 @@ pub fn update_bond(
     let config = read_config(deps.storage)?;
 
     let staker_addr_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
-    let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
 
     let amount = amount_to_auto + amount_to_stake;
-    let pool_info = pool_info_read(deps.storage).load(asset_token_raw.as_slice())?;
+    let pool_info = pool_info_read(deps.storage).load(asset_denom.as_bytes())?;
 
     let lp_balance = query_astroport_pool_balance(
         deps.as_ref(),
@@ -514,9 +510,9 @@ pub fn update_bond(
 
     unbond_internal(
         deps.branch(),
-        env.clone(),
+        &env,
         staker_addr_raw.clone(),
-        asset_token_raw.clone(),
+        asset_denom.clone(),
         amount,
         lp_balance,
         &config,
@@ -525,9 +521,9 @@ pub fn update_bond(
 
     bond_internal(
         deps,
-        env,
+        &env,
         staker_addr_raw,
-        asset_token_raw,
+        asset_denom.clone(),
         amount_to_auto,
         amount_to_stake,
         lp_balance.checked_sub(amount)?,
@@ -537,7 +533,7 @@ pub fn update_bond(
 
     Ok(Response::new().add_attributes(vec![
         attr("action", "update_bond"),
-        attr("asset_token", asset_token),
+        attr("asset_token", asset_denom),
         attr("amount_to_auto", amount_to_auto),
         attr("amount_to_stake", amount_to_stake),
     ]))
@@ -547,26 +543,26 @@ pub fn withdraw(
     mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    asset_token: Option<String>,
+    asset_denom: Option<String>,
     spec_amount: Option<Uint128>,
     farm_amount: Option<Uint128>,
 ) -> StdResult<Response> {
     let staker_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
-    let asset_token = asset_token.map(|a| deps.api.addr_canonicalize(&a).unwrap());
     let mut state = read_state(deps.storage)?;
 
     // update pending reward; before withdraw
     let config = read_config(deps.storage)?;
-    let spec_staked =
-        deposit_spec_reward(deps.as_ref(), &env, &mut state, &config, false)?;
+    let spec_staked = deposit_spec_reward(deps.as_ref(), &env, &mut state, &config, false)?;
 
-    let (spec_amount, spec_share, farm_amount, farm_share) = withdraw_reward(
+    let (spec_amount, spec_share,
+        farm_amount, farm_share,
+    ) = withdraw_reward(
         deps.branch(),
-        env,
+        &env,
         &config,
         &state,
         &staker_addr,
-        &asset_token,
+        &asset_denom,
         &spec_staked,
         spec_amount,
         farm_amount,
@@ -601,7 +597,7 @@ pub fn withdraw(
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps
                 .api
-                .addr_humanize(&config.astro_gov_proxy)?
+                .addr_humanize(&config.xastro_proxy)?
                 .to_string(),
             msg: to_binary(&GovProxyExecuteMsg::Unstake {
                 amount: Some(farm_amount),
@@ -628,11 +624,11 @@ pub fn withdraw(
 #[allow(clippy::too_many_arguments)]
 fn withdraw_reward(
     deps: DepsMut,
-    env: Env,
+    env: &Env,
     config: &Config,
     state: &State,
     staker_addr: &CanonicalAddr,
-    asset_token: &Option<CanonicalAddr>,
+    asset_denom: &Option<String>,
     spec_staked: &SpecBalanceResponse,
     mut request_spec_amount: Option<Uint128>,
     mut request_farm_amount: Option<Uint128>,
@@ -640,12 +636,12 @@ fn withdraw_reward(
     let rewards_bucket = rewards_read(deps.storage, staker_addr);
 
     // single reward withdraw; or all rewards
-    let reward_pairs: Vec<(CanonicalAddr, RewardInfo)>;
-    if let Some(asset_token) = asset_token {
-        let key = asset_token.as_slice();
+    let reward_pairs: Vec<(String, RewardInfo)>;
+    if let Some(asset_denom) = asset_denom {
+        let key = asset_denom.as_bytes();
         let reward_info = rewards_bucket.may_load(key)?;
         reward_pairs = if let Some(reward_info) = reward_info {
-            vec![(asset_token.clone(), reward_info)]
+            vec![(asset_denom.clone(), reward_info)]
         } else {
             vec![]
         };
@@ -654,27 +650,26 @@ fn withdraw_reward(
             .range(None, None, Order::Ascending)
             .map(|item| {
                 let (k, v) = item?;
-                Ok((CanonicalAddr::from(k), v))
+                Ok((String::from_utf8(k)?, v))
             })
-            .collect::<StdResult<Vec<(CanonicalAddr, RewardInfo)>>>()?;
+            .collect::<StdResult<Vec<(String, RewardInfo)>>>()?;
     }
 
     let farm_staked = query_farm_gov_balance(
         deps.as_ref(),
-        &config.astro_gov_proxy,
+        &config.xastro_proxy,
         &env.contract.address,
     )?;
-
 
     let mut spec_amount = Uint128::zero();
     let mut spec_share = Uint128::zero();
     let mut farm_amount = Uint128::zero();
     let mut farm_share = Uint128::zero();
     for reward_pair in reward_pairs {
-        let (asset_token_raw, mut reward_info) = reward_pair;
+        let (asset_denom, mut reward_info) = reward_pair;
 
         // withdraw reward to pending reward
-        let key = asset_token_raw.as_slice();
+        let key = asset_denom.as_bytes();
         let mut pool_info = pool_info_read(deps.storage).load(key)?;
         let lp_balance = query_astroport_pool_balance(
             deps.as_ref(),
@@ -706,18 +701,19 @@ fn withdraw_reward(
         farm_share += asset_farm_share;
         farm_amount += asset_farm_amount;
 
-        let (asset_spec_share, asset_spec_amount) = if let Some(request_amount) = request_spec_amount {
-            let avail_amount = calc_spec_balance(reward_info.spec_share, spec_staked);
-            let asset_spec_amount = if request_amount > avail_amount { avail_amount } else { request_amount };
-            let mut asset_spec_share = calc_spec_share(asset_spec_amount, spec_staked);
-            if calc_spec_balance(asset_spec_share, spec_staked) < asset_spec_amount {
-                asset_spec_share += Uint128::new(1u128);
-            }
-            request_spec_amount = Some(request_amount.checked_sub(asset_spec_amount)?);
-            (asset_spec_share, asset_spec_amount)
-        } else {
-            (reward_info.spec_share, calc_spec_balance(reward_info.spec_share, spec_staked))
-        };
+        let (asset_spec_share, asset_spec_amount) =
+            if let Some(request_amount) = request_spec_amount {
+                let avail_amount = calc_spec_balance(reward_info.spec_share, spec_staked);
+                let asset_spec_amount = if request_amount > avail_amount { avail_amount } else { request_amount };
+                let mut asset_spec_share = calc_spec_share(asset_spec_amount, spec_staked);
+                if calc_spec_balance(asset_spec_share, spec_staked) < asset_spec_amount {
+                    asset_spec_share += Uint128::new(1u128);
+                }
+                request_spec_amount = Some(request_amount.checked_sub(asset_spec_amount)?);
+                (asset_spec_share, asset_spec_amount)
+            } else {
+                (reward_info.spec_share, calc_spec_balance(reward_info.spec_share, spec_staked))
+            };
         spec_share += asset_spec_share;
         spec_amount += asset_spec_amount;
         pool_info.farm_share = pool_info.farm_share.checked_sub(asset_farm_share)?;
@@ -739,12 +735,16 @@ fn withdraw_reward(
 
     if let Some(request_amount) = request_farm_amount {
         if !request_amount.is_zero() {
-            return Err(StdError::generic_err("Cannot withdraw more than remaining amount"));
+            return Err(StdError::generic_err(
+                "Cannot withdraw farm_amount more than remaining amount",
+            ));
         }
     }
     if let Some(request_amount) = request_spec_amount {
         if !request_amount.is_zero() {
-            return Err(StdError::generic_err("Cannot withdraw more than remaining amount"));
+            return Err(StdError::generic_err(
+                "Cannot withdraw more than remaining amount",
+            ));
         }
     }
 
@@ -793,14 +793,8 @@ pub fn query_reward_info(
 
     let config = read_config(deps.storage)?;
     let spec_staked = deposit_spec_reward(deps, &env, &mut state, &config, true)?;
-    let reward_infos = read_reward_infos(
-        deps,
-        env,
-        &config,
-        &state,
-        &staker_addr_raw,
-        &spec_staked,
-    )?;
+    let reward_infos =
+        read_reward_infos(deps, env, &config, &state, &staker_addr_raw, &spec_staked)?;
 
     Ok(RewardInfoResponse {
         staker_addr,
@@ -822,21 +816,21 @@ fn read_reward_infos(
         .range(None, None, Order::Ascending)
         .map(|item| {
             let (k, v) = item?;
-            Ok((CanonicalAddr::from(k), v))
+            Ok((String::from_utf8(k)?, v))
         })
-        .collect::<StdResult<Vec<(CanonicalAddr, RewardInfo)>>>()?;
+        .collect::<StdResult<Vec<(String, RewardInfo)>>>()?;
 
-        let farm_staked = query_farm_gov_balance(
-            deps,
-            &config.astro_gov_proxy,
-            &env.contract.address,
-        )?;
+    let farm_staked = query_farm_gov_balance(
+        deps,
+        &config.xastro_proxy,
+        &env.contract.address,
+    )?;
 
     let bucket = pool_info_read(deps.storage);
     let reward_infos: Vec<RewardInfoResponseItem> = reward_pair
         .into_iter()
-        .map(|(asset_token_raw, reward_info)| {
-            let mut pool_info = bucket.load(asset_token_raw.as_slice())?;
+        .map(|(asset_denom, reward_info)| {
+            let mut pool_info = bucket.load(asset_denom.as_bytes())?;
 
             // update pending rewards
             let mut reward_info = reward_info;
@@ -860,7 +854,7 @@ fn read_reward_infos(
                 pool_info.calc_user_auto_balance(lp_balance, reward_info.auto_bond_share);
             let stake_bond_amount = pool_info.calc_user_stake_balance(reward_info.stake_bond_share);
             Ok(RewardInfoResponseItem {
-                asset_token: deps.api.addr_humanize(&asset_token_raw)?.to_string(),
+                asset_token: asset_denom,
                 farm_share_index,
                 auto_spec_share_index: auto_spec_index,
                 stake_spec_share_index: stake_spec_index,
@@ -891,5 +885,5 @@ fn read_reward_infos(
         })
         .collect::<StdResult<Vec<RewardInfoResponseItem>>>()?;
 
-        Ok(reward_infos)
+    Ok(reward_infos)
 }

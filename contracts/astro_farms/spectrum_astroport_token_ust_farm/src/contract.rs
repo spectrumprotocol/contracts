@@ -13,9 +13,9 @@ use crate::{
 
 use cw20::Cw20ReceiveMsg;
 
-use crate::bond::{deposit_spec_reward, query_reward_info, unbond, withdraw, update_bond};
+use crate::bond::{deposit_spec_reward, query_reward_info, unbond, update_bond, withdraw};
 use crate::state::{pool_info_read, pool_info_store, read_state};
-use spectrum_protocol::astro_ust_farm::{
+use spectrum_protocol::astroport_token_ust_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
 use crate::compound::send_fee;
@@ -47,9 +47,15 @@ pub fn instantiate(
             owner: deps.api.addr_canonicalize(&msg.owner)?,
             spectrum_token: deps.api.addr_canonicalize(&msg.spectrum_token)?,
             spectrum_gov: deps.api.addr_canonicalize(&msg.spectrum_gov)?,
-            astroport_generator: deps.api.addr_canonicalize(&msg.astroport_generator)?,
             astro_token: deps.api.addr_canonicalize(&msg.astro_token)?,
-            astro_gov_proxy: deps.api.addr_canonicalize(&msg.astro_gov_proxy)?,
+            farm_token: deps.api.addr_canonicalize(&msg.farm_token)?,
+            astroport_generator: deps.api.addr_canonicalize(&msg.astroport_generator)?,
+            xastro_proxy: deps.api.addr_canonicalize(&msg.xastro_proxy)?,
+            gov_proxy: if let Some(gov_proxy) = msg.gov_proxy {
+                Some(deps.api.addr_canonicalize(&gov_proxy)?)
+            } else {
+                None
+            },
             platform: deps.api.addr_canonicalize(&msg.platform)?,
             controller: deps.api.addr_canonicalize(&msg.controller)?,
             base_denom: msg.base_denom,
@@ -60,6 +66,7 @@ pub fn instantiate(
             anchor_market: deps.api.addr_canonicalize(&msg.anchor_market)?,
             aust_token: deps.api.addr_canonicalize(&msg.aust_token)?,
             pair_contract: deps.api.addr_canonicalize(&msg.pair_contract)?,
+            astro_ust_pair_contract: deps.api.addr_canonicalize(&msg.astro_ust_pair_contract)?,
         },
     )?;
 
@@ -67,6 +74,7 @@ pub fn instantiate(
         previous_spec_share: Uint128::zero(),
         spec_share_index: Decimal::zero(),
         total_farm_share: Uint128::zero(),
+        total_farm2_share: Uint128::zero(),
         total_weight: 0u32,
         earning: Uint128::zero(),
     })?;
@@ -99,22 +107,33 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             asset_token,
             staking_token,
             weight,
-        } => register_asset(
-            deps,
-            env,
-            info,
-            asset_token,
-            staking_token,
-            weight,
-        ),
+        } => register_asset(deps, env, info, asset_token, staking_token, weight),
         ExecuteMsg::unbond {
             asset_token,
             amount,
         } => unbond(deps, env, info, asset_token, amount),
-        ExecuteMsg::withdraw { asset_token, spec_amount, farm_amount } => withdraw(deps, env, info, asset_token, spec_amount, farm_amount),
+        ExecuteMsg::withdraw {
+            asset_token,
+            spec_amount,
+            farm_amount,
+            farm2_amount,
+        } => withdraw(deps, env, info, asset_token, spec_amount, farm_amount, farm2_amount),
         ExecuteMsg::stake { asset_token } => stake(deps, env, info, asset_token),
-        ExecuteMsg::compound {} => compound(deps, env, info),
-        ExecuteMsg::update_bond { asset_token, amount_to_auto, amount_to_stake } => update_bond(deps, env, info, asset_token, amount_to_auto, amount_to_stake),
+        ExecuteMsg::compound {
+            threshold_compound_astro,
+        } => compound(deps, env, info, threshold_compound_astro),
+        ExecuteMsg::update_bond {
+            asset_token,
+            amount_to_auto,
+            amount_to_stake,
+        } => update_bond(
+            deps,
+            env,
+            info,
+            asset_token,
+            amount_to_auto,
+            amount_to_stake,
+        ),
         ExecuteMsg::send_fee {} => send_fee(deps, env, info),
     }
 }
@@ -127,10 +146,10 @@ fn receive_cw20(
 ) -> StdResult<Response> {
     match from_binary(&cw20_msg.msg) {
         Ok(Cw20HookMsg::bond {
-               staker_addr,
-               asset_token,
-               compound_rate,
-           }) => bond(
+            staker_addr,
+            asset_token,
+            compound_rate,
+        }) => bond(
             deps,
             env,
             info,
@@ -232,6 +251,8 @@ fn register_asset(
             weight: 0u32,
             farm_share: Uint128::zero(),
             farm_share_index: Decimal::zero(),
+            farm2_share: Uint128::zero(),
+            farm2_share_index: Decimal::zero(),
             state_spec_share_index: state.spec_share_index,
             auto_spec_share_index: Decimal::zero(),
             stake_spec_share_index: Decimal::zero(),
@@ -252,9 +273,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::config {} => to_binary(&query_config(deps)?),
         QueryMsg::pools {} => to_binary(&query_pools(deps)?),
-        QueryMsg::reward_info {
-            staker_addr,
-        } => to_binary(&query_reward_info(deps, env, staker_addr)?),
+        QueryMsg::reward_info { staker_addr } => {
+            to_binary(&query_reward_info(deps, env, staker_addr)?)
+        }
         QueryMsg::state {} => to_binary(&query_state(deps)?),
     }
 }
@@ -263,11 +284,18 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
     let config = read_config(deps.storage)?;
     let resp = ConfigInfo {
         owner: deps.api.addr_humanize(&config.owner)?.to_string(),
+        astroport_generator: deps
+            .api
+            .addr_humanize(&config.astroport_generator)?
+            .to_string(),
         spectrum_token: deps.api.addr_humanize(&config.spectrum_token)?.to_string(),
-        astroport_generator: deps.api.addr_humanize(&config.astroport_generator)?.to_string(),
-        astro_token: deps.api.addr_humanize(&config.astro_token)?.to_string(),
-        astro_gov_proxy: deps.api.addr_humanize(&config.astro_gov_proxy)?.to_string(),
+        farm_token: deps.api.addr_humanize(&config.farm_token)?.to_string(),
         spectrum_gov: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
+        gov_proxy: if let Some(gov_proxy) = config.gov_proxy {
+            Some(deps.api.addr_humanize(&gov_proxy)?.to_string())
+        } else {
+            None
+        },
         platform: deps.api.addr_humanize(&config.platform)?.to_string(),
         controller: deps.api.addr_humanize(&config.controller)?.to_string(),
         base_denom: config.base_denom,
@@ -275,9 +303,12 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         platform_fee: config.platform_fee,
         controller_fee: config.controller_fee,
         deposit_fee: config.deposit_fee,
+        astro_token: deps.api.addr_humanize(&config.astro_token)?.to_string(),
+        xastro_proxy: deps.api.addr_humanize(&config.xastro_proxy)?.to_string(),
         anchor_market: deps.api.addr_humanize(&config.anchor_market)?.to_string(),
         aust_token: deps.api.addr_humanize(&config.aust_token)?.to_string(),
         pair_contract: deps.api.addr_humanize(&config.pair_contract)?.to_string(),
+        astro_ust_pair_contract: deps.api.addr_humanize(&config.astro_ust_pair_contract)?.to_string(),
     };
 
     Ok(resp)
@@ -302,8 +333,10 @@ fn query_pools(deps: Deps) -> StdResult<PoolsResponse> {
                 total_stake_bond_share: pool_info.total_stake_bond_share,
                 total_stake_bond_amount: pool_info.total_stake_bond_amount,
                 farm_share: pool_info.farm_share,
+                farm2_share: pool_info.farm2_share,
                 state_spec_share_index: pool_info.state_spec_share_index,
                 farm_share_index: pool_info.farm_share_index,
+                farm2_share_index: pool_info.farm2_share_index,
                 stake_spec_share_index: pool_info.stake_spec_share_index,
                 auto_spec_share_index: pool_info.auto_spec_share_index,
             })
@@ -318,6 +351,7 @@ fn query_state(deps: Deps) -> StdResult<StateInfo> {
         spec_share_index: state.spec_share_index,
         previous_spec_share: state.previous_spec_share,
         total_farm_share: state.total_farm_share,
+        total_farm2_share: state.total_farm2_share,
         total_weight: state.total_weight,
         earning: state.earning,
     })
