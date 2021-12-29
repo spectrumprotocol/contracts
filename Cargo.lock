@@ -17,15 +17,32 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "0.2.0"
+version = "0.3.1"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
+ "cw-storage-plus",
  "cw20",
  "schemars",
  "serde",
  "terra-cosmwasm",
  "uint",
+]
+
+[[package]]
+name = "astroport-generator-proxy-to-spec"
+version = "1.0.0"
+dependencies = [
+ "astroport",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "cw2",
+ "cw20",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "thiserror",
 ]
 
 [[package]]
@@ -942,6 +959,20 @@ dependencies = [
  "spectrum-protocol",
  "terra-cosmwasm",
  "terraswap",
+]
+
+[[package]]
+name = "spectrum-spec-astroport-farm"
+version = "0.2.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
 ]
 
 [[package]]

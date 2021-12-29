@@ -4,7 +4,8 @@ members = [
     "contracts/spectrum_*",
     "contracts/astro_farms/*",
     "contracts/farms/*",
-    "contracts/gov_proxies/*"
+    "contracts/gov_proxies/*",
+    "contracts/generator_proxy_to_spec*"
 ]
 
 [profile.release.package.spectrum-protocol]
