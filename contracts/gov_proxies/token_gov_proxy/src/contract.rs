@@ -1,36 +1,27 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{from_binary, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, CosmosMsg, WasmMsg, Uint128};
+use cosmwasm_std::{from_binary, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128};
 
 use crate::{
-    state::{read_config, store_config, Config, state_store, State, read_state},
+    state::{read_config, store_config, Config},
     proxy::{query_staker_info_gov}
 };
 
-use cw20::{Cw20ReceiveMsg, Cw20ExecuteMsg};
+use cw20::Cw20ReceiveMsg;
 
 use spectrum_protocol::gov_proxy::{
-    Cw20HookMsg, ExecuteMsg, QueryMsg,
+    Cw20HookMsg, ExecuteMsg, MigrateMsg, QueryMsg,
 };
 use crate::proxy::{
     stake, unstake
 };
+use crate::state::{read_state, State, state_store};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use astroport::querier::query_token_balance;
-use astroport::staking::{Cw20HookMsg as XAstroCw20HookMsg};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigInfo {
-    pub xastro_token: String,
     pub farm_token: String,
-    pub farm_gov: String,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {
-    pub xastro_token: String,
-    pub farm_gov: String,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -43,9 +34,7 @@ pub fn instantiate(
     store_config(
         deps.storage,
         &Config {
-            xastro_token: deps.api.addr_canonicalize(&msg.xastro_token)?,
             farm_token: deps.api.addr_canonicalize(&msg.farm_token)?,
-            farm_gov: deps.api.addr_canonicalize(&msg.farm_gov)?,
         },
     )?;
 
@@ -94,9 +83,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
     let config = read_config(deps.storage)?;
     let resp = ConfigInfo {
-        xastro_token: deps.api.addr_humanize(&config.xastro_token)?.to_string(),
         farm_token: deps.api.addr_humanize(&config.farm_token)?.to_string(),
-        farm_gov: deps.api.addr_humanize(&config.farm_gov)?.to_string(),
     };
     Ok(resp)
 }
@@ -106,29 +93,6 @@ fn query_state(deps: Deps) -> StdResult<State> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> StdResult<Response> {
-    let mut config = read_config(deps.storage)?;
-    config.xastro_token = deps.api.addr_canonicalize(&msg.xastro_token)?;
-    config.farm_gov = deps.api.addr_canonicalize(&msg.farm_gov)?;
-    store_config(deps.storage, &config)?;
-
-    let farm_token = deps.api.addr_humanize(&config.farm_token)?;
-    let amount = query_token_balance(&deps.querier, farm_token, env.contract.address)?;
-
-    let mut messages: Vec<CosmosMsg> = vec![];
-    if !amount.is_zero() {
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: msg.xastro_token,
-            funds: vec![],
-            msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: msg.farm_gov,
-                msg: to_binary(&XAstroCw20HookMsg::Enter {})?,
-                amount,
-            })?,
-        }));
-    }
-
-    Ok(Response::new()
-        .add_messages(messages)
-    )
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }
