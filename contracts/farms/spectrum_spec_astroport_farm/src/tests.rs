@@ -16,6 +16,7 @@ const TEST_CREATOR: &str = "creator";
 const USER1: &str = "user1";
 const USER2: &str = "user2";
 const LP: &str = "lp_token";
+const GENERATOR_PROXY: &str = "generator";
 
 #[test]
 fn test() {
@@ -34,7 +35,10 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         spectrum_gov: GOV.to_string(),
         spectrum_token: TOKEN.to_string(),
         owner: TEST_CREATOR.to_string(),
+        generator_proxy: None,
     };
+
+    // then use spec-ust farm for astro address for instantiate generator_proxy_to_spec
 
     // success init
     let res = instantiate(deps.as_mut(), env.clone(), info, config.clone());
@@ -61,6 +65,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
     let info = mock_info(GOV, &[]);
     let msg = ExecuteMsg::update_config {
         owner: Some(GOV.to_string()),
+        generator_proxy: Some(GENERATOR_PROXY.to_string())
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
@@ -73,6 +78,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
     let msg = QueryMsg::config {};
     let res: ConfigInfo = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
     config.owner = GOV.to_string();
+    config.generator_proxy = Some(GENERATOR_PROXY.to_string());
     assert_eq!(res, config);
 
     config
@@ -128,14 +134,14 @@ fn clone_storage(storage: &MockStorage) -> MockStorage {
 }
 
 fn test_bond(mut deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
-    // bond err
+    // bond err from non-generator_proxy
     let mut env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
     let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
         sender: USER1.to_string(),
         amount: Uint128::from(100u128),
         msg: to_binary(&Cw20HookMsg::bond {
-            staker_addr: None,
+            staker_addr: LP.to_string(),
             asset_token: TOKEN.to_string(),
         })
         .unwrap(),
@@ -149,7 +155,7 @@ fn test_bond(mut deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     )]);
 
     // bond success
-    let info = mock_info(LP, &[]);
+    let info = mock_info(GENERATOR_PROXY, &[]);
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
@@ -285,7 +291,7 @@ fn test_bond(mut deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         sender: USER2.to_string(),
         amount: Uint128::from(70u128),
         msg: to_binary(&Cw20HookMsg::bond {
-            staker_addr: None,
+            staker_addr: LP.to_string(),
             asset_token: TOKEN.to_string(),
         })
         .unwrap(),
