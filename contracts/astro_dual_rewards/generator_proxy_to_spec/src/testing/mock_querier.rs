@@ -2,8 +2,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use astroport_generator_proxy::anc_staking::StakerInfoResponse;
-use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
+use spectrum_protocol::spec_farm::{
+    RewardInfoResponse
+};use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     from_binary, from_slice, to_binary, Coin, ContractResult, Decimal, Empty, OwnedDeps, Querier,
     QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
@@ -107,11 +108,13 @@ impl WasmMockQuerier {
                 Ok(QueryMsg::StakerInfo {
                     staker: _,
                     block_height: _,
-                }) => SystemResult::Ok(ContractResult::from(to_binary(&StakerInfoResponse {
+                }) => SystemResult::Ok(ContractResult::from(to_binary(&RewardInfoResponse {
                     staker: "generator0000".to_string(),
                     reward_index: Decimal::zero(),
                     bond_amount: self.reward_querier.deposit_amount,
                     pending_reward: self.reward_querier.pending_reward,
+                    staker_addr: todo!(),
+                    reward_infos: todo!(),
                 }))),
                 _ => match from_binary(msg).unwrap() {
                     Cw20QueryMsg::Balance { address } => {

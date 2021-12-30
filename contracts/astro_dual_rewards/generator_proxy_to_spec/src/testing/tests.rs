@@ -2,11 +2,11 @@ use crate::contract::{execute, instantiate, query};
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
 use crate::testing::mock_querier::mock_dependencies;
-use astroport_generator_proxy::anc_staking::{
-    Cw20HookMsg as AncCw20HookMsg, ExecuteMsg as AncExecuteMsg,
+use astroport::generator_proxy::{
+    CallbackMsg, ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
 };
-use astroport_generator_proxy::generator_proxy::{
-    Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
+use spectrum_protocol::spec_farm::{
+    Cw20HookMsg as SpecCw20HookMsg, ExecuteMsg as SpecExecuteMsg, RewardInfoResponse as SpecRewardInfoResponse, QueryMsg as SpecQueryMsg
 };
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{from_binary, to_binary, Addr, CosmosMsg, SubMsg, Uint128, WasmMsg};

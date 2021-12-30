@@ -30,22 +30,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "astroport-generator-proxy-to-spec"
-version = "1.0.0"
-dependencies = [
- "astroport",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus",
- "cw2",
- "cw20",
- "schemars",
- "serde",
- "spectrum-protocol",
- "thiserror",
-]
-
-[[package]]
 name = "base64"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -959,20 +943,6 @@ dependencies = [
  "spectrum-protocol",
  "terra-cosmwasm",
  "terraswap",
-]
-
-[[package]]
-name = "spectrum-spec-astroport-farm"
-version = "0.2.0"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw20",
- "schemars",
- "serde",
- "spectrum-protocol",
- "terra-cosmwasm",
 ]
 
 [[package]]
