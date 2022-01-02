@@ -57,12 +57,12 @@ pub fn stake(
     state_store(deps.storage).save(&state)?;
     account_store(deps.storage).save(key, &account)?;
 
-    let xastro_token = deps.api.addr_humanize(&config.xastro_token)?;
+    let farm_token = deps.api.addr_humanize(&config.farm_token)?;
     let xastro_gov = deps.api.addr_humanize(&config.farm_gov)?;
 
     Ok(Response::new()
         .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: xastro_token.to_string(),
+            contract_addr: farm_token.to_string(),
             funds: vec![],
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 contract: xastro_gov.to_string(),

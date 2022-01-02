@@ -133,7 +133,7 @@ pub fn compound(
         info: AssetInfo::NativeToken { denom: "uusd".to_string() },
         amount: total_ust_reinvest_amount,
     };
-    let ust_swap_rate = simulate(&deps.querier, luna_ust_pair_contract, &ust_asset)?;
+    let ust_swap_rate = simulate(&deps.querier, luna_ust_pair_contract.clone(), &ust_asset)?;
     attributes.push(attr("total_luna_return_amount", ust_swap_rate.return_amount));
 
     let net_swap = ust_swap_rate.return_amount.multiply_ratio(10000u128, 19995u128);
@@ -183,7 +183,7 @@ pub fn compound(
 
     if !total_ust_reinvest_amount.is_zero() {
         let swap_ust = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: pair_contract.to_string(),
+            contract_addr: luna_ust_pair_contract.to_string(),
             msg: to_binary(&AstroportPairExecuteMsg::Swap {
                 offer_asset: ust_asset,
                 max_spread: None,

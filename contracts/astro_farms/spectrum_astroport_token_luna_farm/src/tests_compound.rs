@@ -701,7 +701,7 @@ fn test_compound_astro(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
                 funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: PAIR_CONTRACT.to_string(),
+                contract_addr: LUNA_UST_PAIR_CONTRACT.to_string(),
                 msg: to_binary(&AstroportPairExecuteMsg::Swap {
                     offer_asset: Asset {
                         info: AssetInfo::NativeToken { denom: "uusd".to_string() },
@@ -931,7 +931,7 @@ fn test_compound_astro_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, Wasm
                 funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: PAIR_CONTRACT.to_string(),
+                contract_addr: LUNA_UST_PAIR_CONTRACT.to_string(),
                 msg: to_binary(&AstroportPairExecuteMsg::Swap {
                     offer_asset: Asset {
                         info: AssetInfo::NativeToken { denom: "uusd".to_string() },
