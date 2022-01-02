@@ -2,9 +2,10 @@ use crate::contract::{ConfigInfo, execute, instantiate, query};
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
 use crate::state::{State};
 use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{from_binary, to_binary, OwnedDeps, Uint128};
-use cw20::{Cw20ReceiveMsg};
+use cosmwasm_std::{from_binary, to_binary, OwnedDeps, Uint128, CosmosMsg, WasmMsg};
+use cw20::{Cw20ReceiveMsg, Cw20ExecuteMsg};
 use spectrum_protocol::gov_proxy::{Cw20HookMsg, ExecuteMsg, QueryMsg, StakerResponse};
+use astroport::staking::Cw20HookMsg as AstroportCw20HookMsg;
 
 const TEST_CREATOR: &str = "creator";
 const FARM_CONTRACT: &str = "farm_contract";
@@ -84,8 +85,25 @@ fn test_stake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         amount: Uint128::from(10000u128),
         msg: to_binary(&Cw20HookMsg::Stake {}).unwrap(),
     });
-    let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
-    assert!(res.is_ok());
+    let res = execute(deps.as_mut(), env.clone(), info, msg.clone()).unwrap();
+    assert_eq!(
+        res.messages
+            .into_iter()
+            .map(|it| it.msg)
+            .collect::<Vec<CosmosMsg>>(),
+        vec![
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: FARM_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: FARM_GOV.to_string(),
+                    amount: Uint128::from(10000u128),
+                    msg: to_binary(&AstroportCw20HookMsg::Enter {
+                    }).unwrap(),
+                }).unwrap(),
+                funds: vec![],
+            }),
+        ]
+    );
 
     // verify state
     deps.querier.with_token_balances(&[
@@ -130,8 +148,25 @@ fn test_stake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         amount: Uint128::from(5000u128),
         msg: to_binary(&Cw20HookMsg::Stake {}).unwrap(),
     });
-    let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
-    assert!(res.is_ok());
+    let res = execute(deps.as_mut(), env.clone(), info, msg.clone()).unwrap();
+    assert_eq!(
+        res.messages
+            .into_iter()
+            .map(|it| it.msg)
+            .collect::<Vec<CosmosMsg>>(),
+        vec![
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: FARM_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: FARM_GOV.to_string(),
+                    amount: Uint128::from(5000u128),
+                    msg: to_binary(&AstroportCw20HookMsg::Enter {
+                    }).unwrap(),
+                }).unwrap(),
+                funds: vec![],
+            }),
+        ]
+    );
 
     deps.querier.with_token_balances(&[
         (
