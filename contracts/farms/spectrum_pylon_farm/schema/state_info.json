@@ -6,6 +6,7 @@
     "earning",
     "previous_spec_share",
     "spec_share_index",
+    "total_farm_amount",
     "total_farm_share",
     "total_weight"
   ],
@@ -18,6 +19,9 @@
     },
     "spec_share_index": {
       "$ref": "#/definitions/Decimal"
+    },
+    "total_farm_amount": {
+      "$ref": "#/definitions/Uint128"
     },
     "total_farm_share": {
       "$ref": "#/definitions/Uint128"
