@@ -4,8 +4,8 @@
   "type": "object",
   "required": [
     "anchor_market",
-    "astro_gov_proxy",
     "astro_token",
+    "astro_ust_pair_contract",
     "astroport_generator",
     "aust_token",
     "base_denom",
@@ -13,21 +13,24 @@
     "controller",
     "controller_fee",
     "deposit_fee",
+    "farm_token",
+    "luna_ust_pair_contract",
     "owner",
     "pair_contract",
     "platform",
     "platform_fee",
     "spectrum_gov",
-    "spectrum_token"
+    "spectrum_token",
+    "xastro_proxy"
   ],
   "properties": {
     "anchor_market": {
       "type": "string"
     },
-    "astro_gov_proxy": {
+    "astro_token": {
       "type": "string"
     },
-    "astro_token": {
+    "astro_ust_pair_contract": {
       "type": "string"
     },
     "astroport_generator": {
@@ -51,6 +54,12 @@
     "deposit_fee": {
       "$ref": "#/definitions/Decimal"
     },
+    "farm_token": {
+      "type": "string"
+    },
+    "luna_ust_pair_contract": {
+      "type": "string"
+    },
     "owner": {
       "type": "string"
     },
@@ -67,6 +76,9 @@
       "type": "string"
     },
     "spectrum_token": {
+      "type": "string"
+    },
+    "xastro_proxy": {
       "type": "string"
     }
   },
