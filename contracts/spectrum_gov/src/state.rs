@@ -53,7 +53,7 @@ pub struct StatePool {
     pub days: u64,
     pub total_share: Uint128,
     pub total_balance: Uint128,
-    pub active: bool,
+    #[serde(default)] pub weight: u32,
     #[serde(default)] pub aust_index: Decimal,
 }
 
@@ -69,6 +69,7 @@ pub struct State {
     #[serde(default)] pub vault_balances: Uint128,
     #[serde(default)] pub vault_share_multiplier: Decimal,
     #[serde(default)] pub pools: Vec<StatePool>,
+    #[serde(default)] pub pool_weight: u32,
 
     // for day 0
     pub total_share: Uint128,
@@ -101,7 +102,7 @@ impl State {
             self.total_balance += amount;
         } else {
             let pool = self.pools.iter_mut().find(|it| it.days == days).ok_or_else(|| StdError::not_found("pool"))?;
-            if !pool.active {
+            if pool.weight == 0 {
                 return Err(StdError::generic_err("pool is not active"));
             }
             pool.total_share += share;

@@ -11,7 +11,7 @@ use crate::poll::{
     query_voters,
 };
 use crate::stake::{calc_mintable, mint, query_balances, query_vaults, stake_tokens, upsert_vault, withdraw, validate_minted, reconcile_balance, update_stake, upsert_pool, harvest};
-use crate::state::{config_store, read_config, read_state, state_store, Config, State, read_vaults, read_account, vault_store, account_store};
+use crate::state::{config_store, read_config, read_state, state_store, Config, State};
 use cw20::Cw20ReceiveMsg;
 
 // minimum effective delay around 1 day at 7 second per block
@@ -91,6 +91,7 @@ pub fn instantiate(
         vault_balances: Uint128::zero(),
         vault_share_multiplier: Decimal::one(),
         pools: vec![],
+        pool_weight: 1u32,
     };
 
     config_store(deps.storage).save(&config)?;
@@ -152,7 +153,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             burnvault_ratio,
         ),
         ExecuteMsg::update_stake { amount, from_days, to_days } => update_stake(deps, env, info, amount, from_days, to_days),
-        ExecuteMsg::upsert_pool { days, active } => upsert_pool(deps, env, info, days, active),
+        ExecuteMsg::upsert_pool { days, weight } => upsert_pool(deps, env, info, days, weight),
         ExecuteMsg::upsert_vault {
             vault_address,
             weight,
@@ -378,7 +379,7 @@ fn query_state(deps: Deps, height: u64) -> StdResult<StateInfo> {
                     total_share: state.total_share,
                     total_balance: state.total_balance,
                     aust_index: state.aust_index,
-                    active: true
+                    weight: 1u32
                 },
             ],
             state.pools.into_iter().map(|it| StatePoolInfo {
@@ -386,38 +387,21 @@ fn query_state(deps: Deps, height: u64) -> StdResult<StateInfo> {
                 total_share: it.total_share,
                 total_balance: it.total_balance,
                 aust_index: it.aust_index,
-                active: it.active,
+                weight: it.weight,
             }).collect(),
         ].concat(),
     })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
-    let vaults = read_vaults(deps.storage)?;
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     let mut state = read_state(deps.storage)?;
-    let mut config = read_config(deps.storage)?;
-    config.aust_token = deps.api.addr_canonicalize(&msg.aust_token)?;
-    reconcile_balance(&deps.as_ref(), &mut state, &config, Uint128::zero())?;
-
-    for (addr, mut vault) in vaults {
-        let key = addr.as_slice();
-        let account = read_account(deps.storage, key)?;
-        if let Some(mut account) = account {
-            let amount = account.calc_balance(0u64, &state)?;
-            let share = account.share;
-            account.deduct_share(0u64, share, None)?;
-            state.deduct_share(0u64, share, amount)?;
-            vault.balance += amount;
-            state.vault_balances += amount;
-            vault_store(deps.storage).save(key, &vault)?;
-            account_store(deps.storage).save(key, &account)?;
-        }
+    state.pool_weight = 1u32;
+    for pool in state.pools.iter_mut() {
+        pool.weight = 1u32;
+        state.pool_weight += 1u32;
     }
-    state.vault_share_multiplier = Decimal::from_ratio(state.total_share, state.total_balance);
-
     state_store(deps.storage).save(&state)?;
-    config_store(deps.storage).save(&config)?;
 
     Ok(Response::default())
 }

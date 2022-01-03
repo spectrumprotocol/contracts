@@ -30,7 +30,7 @@ fn reconcile_aust(deps: &Deps, state: &mut State, config: &Config) -> StdResult<
         state.aust_index = state.aust_index + Decimal::from_ratio(change, state.total_share);
     }
     for pool in state.pools.iter_mut() {
-        if !pool.active {
+        if pool.weight == 0u32 {
             continue;
         }
         let change = changes.pop().unwrap();
@@ -47,27 +47,28 @@ fn reconcile_aust(deps: &Deps, state: &mut State, config: &Config) -> StdResult<
 fn distribute_reward(state: &State, diff: Uint128) -> StdResult<Vec<Uint128>> {
     // if amount grow, distribute reward to each pool equally
     // however higher lock pool also earn from lower lock pool
-    let mut pools: Vec<&StatePool> = state.pools.iter().filter(|it| it.active).rev().collect();
+    let mut pools: Vec<&StatePool> = state.pools.iter().filter(|it| it.weight > 0u32).rev().collect();
     let pool_0 = StatePool {
         days: 0u64,
         total_balance: state.total_balance,
         total_share: state.total_share,
         aust_index: state.aust_index,
-        active: true,
+        weight: 1u32,
     };
     pools.push(&pool_0);
 
-    let len: u128 = (pools.len() as u64).into();
+    let pool_weight: u128 = state.pool_weight.into();
     let mut denom = 0u128;
     let mut changes = vec![Uint128::zero(); pools.len()];
     let mut total = Uint128::zero();
     for i in 0..pools.len() {
         let pool = pools.get(i).unwrap();
-        denom += pool.total_balance.u128() * len;
+        denom += pool.total_balance.u128() * pool_weight;
+        let weight: u128 = pool.weight.into();
         if denom != 0u128 {
             for j in 0..=i {
                 let inner_pool = pools.get(j).unwrap();
-                let change = diff.multiply_ratio(inner_pool.total_balance, denom);
+                let change = diff.multiply_ratio(inner_pool.total_balance.u128() * weight, denom);
                 total += change;
                 changes[j] += change;
             }
@@ -99,7 +100,7 @@ fn reconcile_spec(deps: &Deps, state: &mut State, config: &Config, deposited_amo
         let mut changes = distribute_reward(state, diff)?;
         state.total_balance += changes.pop().unwrap();
         for pool in state.pools.iter_mut() {
-            if !pool.active {
+            if pool.weight == 0u32 {
                 continue;
             }
             pool.total_balance += changes.pop().unwrap();
@@ -490,7 +491,7 @@ pub fn upsert_pool(
     env: Env,
     info: MessageInfo,
     days: u64,
-    active: bool,
+    weight: u32,
 ) -> StdResult<Response> {
     let config = read_config(deps.storage)?;
     if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
@@ -501,23 +502,24 @@ pub fn upsert_pool(
 
     let pool = state.pools.iter_mut().find(|it| it.days == days);
     if let Some(pool) = pool {
-        pool.active = active;
-    } else if active {
+        pool.weight = weight;
+    } else if weight > 0u32 {
         state.pools.push(StatePool {
             days,
-            active,
+            weight,
             total_balance: Uint128::zero(),
             total_share: Uint128::zero(),
             aust_index: Decimal::zero(),
         });
         state.pools.sort_by(|a, b| a.days.partial_cmp(&b.days).unwrap());
     }
+    state.pool_weight = state.pools.iter().map(|it| it.weight).sum::<u32>() + 1u32;
 
     state_store(deps.storage).save(&state)?;
 
     Ok(Response::new().add_attributes(vec![
         attr("days", days.to_string()),
-        attr("active", active.to_string()),
+        attr("weight", weight.to_string()),
     ]))
 }
 

@@ -109,7 +109,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
                 days: 0u64,
                 total_balance: Uint128::zero(),
                 total_share: Uint128::zero(),
-                active: true,
+                weight: 1u32,
                 aust_index: Decimal::zero(),
             }],
             prev_aust_balance: Uint128::zero(),
@@ -1274,7 +1274,7 @@ fn test_pools(
     // invalid owner cannot add pool
     let mut env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
-    let msg = ExecuteMsg::upsert_pool { days: 45u64, active: true };
+    let msg = ExecuteMsg::upsert_pool { days: 45u64, weight: 1 };
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
 
@@ -1290,7 +1290,7 @@ fn test_pools(
     assert_eq!(res.pools[1].days, 45u64);
 
     // pool will always sorted
-    let msg = ExecuteMsg::upsert_pool { days: 30u64, active: true };
+    let msg = ExecuteMsg::upsert_pool { days: 30u64, weight: 1 };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
@@ -1573,6 +1573,7 @@ fn test_mintable() {
         vault_balances: Uint128::zero(),
         aust_index: Decimal::zero(),
         vault_share_multiplier: Decimal::one(),
+        pool_weight: 1u32,
     };
     let config = Config {
         owner: CanonicalAddr::from(vec![]),
@@ -1618,7 +1619,7 @@ fn test_reconcile_balance() {
         days: 30u64,
         total_share: Uint128::from(100u128),
         total_balance: Uint128::from(100u128),
-        active: true,
+        weight: 1,
         aust_index: Decimal::zero(),
     };
     let mut deps = mock_dependencies(&[]);
@@ -1636,6 +1637,7 @@ fn test_reconcile_balance() {
         vault_balances: Uint128::zero(),
         aust_index: Decimal::zero(),
         vault_share_multiplier: Decimal::one(),
+        pool_weight: 2u32,
     };
     let config = Config {
         owner: deps.api.addr_canonicalize(MOCK_CONTRACT_ADDR).unwrap(),
@@ -1677,4 +1679,67 @@ fn test_reconcile_balance() {
     assert_eq!(state.pools[0].aust_index, Decimal::from_str("13.25").unwrap());
     assert_eq!(state.total_balance, Uint128::from(315u128));
     assert_eq!(state.pools[0].total_balance, Uint128::from(765u128));
+}
+
+#[test]
+fn test_reconcile_balance_2() {
+    let pool30 = StatePool {
+        days: 30u64,
+        total_share: Uint128::from(2000u128),
+        total_balance: Uint128::from(2000u128),
+        weight: 1,
+        aust_index: Decimal::zero(),
+    };
+    let pool180 = StatePool {
+        days: 180u64,
+        total_share: Uint128::from(1000u128),
+        total_balance: Uint128::from(1000u128),
+        weight: 2,
+        aust_index: Decimal::zero(),
+    };
+    let mut deps = mock_dependencies(&[]);
+    let mut state = State {
+        contract_addr: deps.api.addr_canonicalize(MOCK_CONTRACT_ADDR).unwrap(),
+        poll_count: 0,
+        total_share: Uint128::from(500u128),
+        prev_balance: Uint128::from(3500u128),
+        prev_aust_balance: Uint128::zero(),
+        total_balance: Uint128::from(500u128),
+        poll_deposit: Uint128::zero(),
+        last_mint: 0,
+        total_weight: 0,
+        pools: vec![pool30, pool180],
+        vault_balances: Uint128::zero(),
+        aust_index: Decimal::zero(),
+        vault_share_multiplier: Decimal::one(),
+        pool_weight: 4u32,
+    };
+    let config = Config {
+        owner: deps.api.addr_canonicalize(MOCK_CONTRACT_ADDR).unwrap(),
+        spec_token: deps.api.addr_canonicalize(VOTING_TOKEN).unwrap(),
+        quorum: Decimal::percent(120u64),
+        threshold: Decimal::percent(DEFAULT_THRESHOLD),
+        voting_period: 0,
+        effective_delay: DEFAULT_EFFECTIVE_DELAY,
+        expiration_period: 0,
+        proposal_deposit: Uint128::zero(),
+        mint_per_block: Uint128::from(DEFAULT_MINT_PER_BLOCK),
+        mint_start: DEFAULT_MINT_START,
+        mint_end: DEFAULT_MINT_START + 5,
+        warchest_address: deps.api.addr_canonicalize(WARCHEST).unwrap(),
+        warchest_ratio: Decimal::percent(DEFAULT_WARCHEST_RATIO),
+        aust_token: deps.api.addr_canonicalize(AUST_TOKEN).unwrap(),
+        burnvault_address: deps.api.addr_canonicalize(BURNVAULT).unwrap(),
+        burnvault_ratio: Decimal::percent(50),
+    };
+
+    deps.querier.with_token_balances(&[
+        (&VOTING_TOKEN.to_string(), &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(3500u128))]),
+        (&AUST_TOKEN.to_string(), &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(400u128))]),
+    ]);
+
+    reconcile_balance(&deps.as_ref(), &mut state, &config, Uint128::zero()).unwrap();
+    assert_eq!(state.aust_index, Decimal::from_str("0.028").unwrap());
+    assert_eq!(state.pools[0].aust_index, Decimal::from_str("0.0615").unwrap());
+    assert_eq!(state.pools[1].aust_index, Decimal::from_str("0.263").unwrap());
 }

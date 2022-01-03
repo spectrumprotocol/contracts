@@ -69,7 +69,7 @@ pub enum ExecuteMsg {
     },
     upsert_pool {
         days: u64,
-        active: bool,
+        weight: u32,
     },
     upsert_vault {
         vault_address: String,
@@ -206,7 +206,7 @@ pub struct StatePoolInfo {
     pub days: u64,
     pub total_share: Uint128,
     pub total_balance: Uint128,
-    pub active: bool,
+    #[serde(default)] pub weight: u32,
     #[serde(default)] pub aust_index: Decimal,
 }
 
@@ -243,6 +243,4 @@ pub struct VotersResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {
-    pub aust_token: String,
-}
+pub struct MigrateMsg {}
