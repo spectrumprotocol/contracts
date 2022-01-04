@@ -14,6 +14,7 @@ use spectrum_protocol::anchor_farm::{
 };
 use spectrum_protocol::gov::ExecuteMsg as GovExecuteMsg;
 use std::fmt::Debug;
+use std::str::FromStr;
 
 const SPEC_GOV: &str = "SPEC_GOV";
 const SPEC_TOKEN: &str = "spec_token";
@@ -21,8 +22,10 @@ const ANC_GOV: &str = "anc_gov";
 const ANC_TOKEN: &str = "anc_token";
 const ANC_STAKING: &str = "anc_staking";
 const TEST_CREATOR: &str = "creator";
+const CONTROLLER: &str = "controller";
 const USER1: &str = "user1";
 const USER2: &str = "user2";
+const USER3: &str = "user3";
 const ANC_LP: &str = "anc_lp";
 const SPY_TOKEN: &str = "spy_token";
 const SPY_LP: &str = "spy_lp";
@@ -63,7 +66,7 @@ fn test() {
     let _ = test_config(&mut deps);
     test_register_asset(&mut deps);
     test_bond(&mut deps);
-    // test_deposit_fee(&mut deps);
+    test_deposit_fee(&mut deps);
     // test_staked_reward(&mut deps);
 }
 
@@ -510,6 +513,160 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         USER1 SPEC reward ~ 582
         USER2 SPEC reward ~ 416
     */
+
+    // query balance for user1
+    let msg = QueryMsg::reward_info {
+        staker_addr: USER1.to_string(),
+    };
+    let res: RewardInfoResponse =
+        from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+    assert_eq!(
+        res.reward_infos,
+        vec![RewardInfoResponseItem {
+            asset_token: ANC_TOKEN.to_string(),
+            pending_farm_reward: Uint128::from(1794u128),
+            pending_spec_reward: Uint128::from(582u128),
+            bond_amount: Uint128::from(7000u128),
+            auto_bond_amount: Uint128::from(4200u128),
+            stake_bond_amount: Uint128::from(2800u128),
+            farm_share_index: Decimal::from_ratio(125u128, 1000u128),
+            auto_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
+            stake_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
+            farm_share: Uint128::from(3589u128),
+            spec_share: Uint128::from(582u128),
+            auto_bond_share: Uint128::from(4200u128),
+            stake_bond_share: Uint128::from(2800u128),
+            deposit_amount: Option::from(Uint128::from(7000u128)),
+            deposit_time: Some(1571797419)
+        }]
+    );
+
+    // query balance for user2
+    let msg = QueryMsg::reward_info {
+        staker_addr: USER2.to_string(),
+    };
+    let res: RewardInfoResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
+    assert_eq!(
+        res.reward_infos,
+        vec![RewardInfoResponseItem {
+            asset_token: ANC_TOKEN.to_string(),
+            pending_farm_reward: Uint128::from(3205u128),
+            pending_spec_reward: Uint128::from(416u128),
+            bond_amount: Uint128::from(5000u128),
+            auto_bond_amount: Uint128::from(0u128),
+            stake_bond_amount: Uint128::from(5000u128),
+            farm_share_index: Decimal::from_ratio(125u128, 1000u128),
+            auto_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
+            stake_spec_share_index: Decimal::from_ratio(270u128, 1000u128),
+            farm_share: Uint128::from(6410u128),
+            spec_share: Uint128::from(416u128),
+            auto_bond_share: Uint128::from(0u128),
+            stake_bond_share: Uint128::from(5000u128),
+            deposit_amount: Option::from(Uint128::from(5000u128)),
+            deposit_time: Some(1571797419)
+        }, ]
+    );
+}
+
+fn test_deposit_fee(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+    // alter config, deposit fee
+    let env = mock_env();
+    let info = mock_info(SPEC_GOV, &[]);
+    let msg = ExecuteMsg::update_config {
+        owner: None,
+        controller: Some(CONTROLLER.to_string()),
+        community_fee: None,
+        platform_fee: None,
+        controller_fee: None,
+        deposit_fee: Some(Decimal::percent(20)),
+    };
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
+    assert!(res.is_ok());
+
+    // bond user3
+    let info = mock_info(ANC_LP, &[]);
+    let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
+        sender: USER3.to_string(),
+        amount: Uint128::from(10000u128),
+        msg: to_binary(&Cw20HookMsg::bond {
+            staker_addr: None,
+            asset_token: ANC_TOKEN.to_string(),
+            compound_rate: Some(Decimal::percent(50)),
+        })
+        .unwrap(),
+    });
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
+    assert!(res.is_ok());
+
+    deps.querier.with_token_balances(&[
+        (
+            &ANC_STAKING.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(22000u128))],
+        ),
+        (
+            &ANC_GOV.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(5000u128))],
+        ),
+        (
+            &SPEC_GOV.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(1000u128))],
+        ),
+    ]);
+
+    
+    // query balance for user3
+    let msg = QueryMsg::reward_info {
+        staker_addr: USER3.to_string(),
+    };
+    let res: RewardInfoResponse =
+        from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+    assert_eq!(
+        res.reward_infos,
+        vec![RewardInfoResponseItem {
+            asset_token: ANC_TOKEN.to_string(),
+            pending_farm_reward: Uint128::from(0u128),
+            pending_spec_reward: Uint128::from(0u128),
+            bond_amount: Uint128::from(8000u128),
+            auto_bond_amount: Uint128::from(4000u128),
+            stake_bond_amount: Uint128::from(4000u128),
+            farm_share_index: Decimal::from_str("1.407051282051282051").unwrap(),
+            auto_spec_share_index: Decimal::from_str("0.353333333333333333").unwrap(),
+            stake_spec_share_index: Decimal::from_str("0.353333333333333333").unwrap(),
+            farm_share: Uint128::from(0u128),
+            spec_share: Uint128::from(0u128),
+            auto_bond_share: Uint128::from(4000u128),
+            stake_bond_share: Uint128::from(4000u128),
+            deposit_amount: Option::from(Uint128::from(8000u128)),
+            deposit_time: Some(1571797419)
+        }]
+    );
+
+        // query balance for controller
+        let msg = QueryMsg::reward_info {
+            staker_addr: CONTROLLER.to_string(),
+        };
+        let res: RewardInfoResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+        assert_eq!(
+            res.reward_infos,
+            vec![RewardInfoResponseItem {
+                asset_token: ANC_TOKEN.to_string(),
+                pending_farm_reward: Uint128::from(0u128),
+                pending_spec_reward: Uint128::from(0u128),
+                bond_amount: Uint128::from(2000u128),
+                auto_bond_amount: Uint128::from(2000u128),
+                stake_bond_amount: Uint128::from(0u128),
+                farm_share_index: Decimal::from_str("1.407051282051282051").unwrap(),
+                auto_spec_share_index: Decimal::from_str("0.353333333333333333").unwrap(),
+                stake_spec_share_index: Decimal::from_str("0.353333333333333333").unwrap(),
+                farm_share: Uint128::from(0u128),
+                spec_share: Uint128::from(0u128),
+                auto_bond_share: Uint128::from(2000u128),
+                stake_bond_share: Uint128::from(0u128),
+                deposit_amount: None,
+                deposit_time: None
+            }]
+        );
 
     // query balance for user1
     let msg = QueryMsg::reward_info {
