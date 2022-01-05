@@ -1,11 +1,11 @@
-use crate::contract::{ConfigInfo, execute, instantiate, query};
+use crate::contract::{execute, instantiate, query, ConfigInfo};
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
-use crate::state::{State};
-use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{from_binary, to_binary, OwnedDeps, Uint128, CosmosMsg, WasmMsg};
-use cw20::{Cw20ReceiveMsg, Cw20ExecuteMsg};
-use spectrum_protocol::gov_proxy::{Cw20HookMsg, ExecuteMsg, QueryMsg, StakerResponse};
+use crate::state::State;
 use astroport::staking::Cw20HookMsg as AstroportCw20HookMsg;
+use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
+use cosmwasm_std::{from_binary, to_binary, CosmosMsg, OwnedDeps, Uint128, WasmMsg};
+use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
+use spectrum_protocol::gov_proxy::{Cw20HookMsg, ExecuteMsg, QueryMsg, StakerResponse};
 
 const TEST_CREATOR: &str = "creator";
 const FARM_CONTRACT: &str = "farm_contract";
@@ -67,7 +67,7 @@ fn test_stake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         (
             &FARM_TOKEN.to_string(),
             &[(&FARM_GOV.to_string(), &Uint128::from(20_000_000u128))],
-        )
+        ),
     ]);
 
     let info = mock_info(TEST_CREATOR, &[]);
@@ -91,18 +91,16 @@ fn test_stake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             .into_iter()
             .map(|it| it.msg)
             .collect::<Vec<CosmosMsg>>(),
-        vec![
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: FARM_TOKEN.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: FARM_GOV.to_string(),
-                    amount: Uint128::from(10000u128),
-                    msg: to_binary(&AstroportCw20HookMsg::Enter {
-                    }).unwrap(),
-                }).unwrap(),
-                funds: vec![],
-            }),
-        ]
+        vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: FARM_TOKEN.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: FARM_GOV.to_string(),
+                amount: Uint128::from(10000u128),
+                msg: to_binary(&AstroportCw20HookMsg::Enter {}).unwrap(),
+            })
+            .unwrap(),
+            funds: vec![],
+        }),]
     );
 
     // verify state
@@ -117,10 +115,13 @@ fn test_stake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         (
             &FARM_TOKEN.to_string(),
             &[(&FARM_GOV.to_string(), &Uint128::from(20_000_000u128))],
-        )
+        ),
     ]);
-    let msg = QueryMsg::Staker { address: FARM_CONTRACT.to_string() };
-    let res: StakerResponse = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+    let msg = QueryMsg::Staker {
+        address: FARM_CONTRACT.to_string(),
+    };
+    let res: StakerResponse =
+        from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(
         res,
         StakerResponse {
@@ -140,7 +141,7 @@ fn test_stake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         (
             &FARM_TOKEN.to_string(),
             &[(&FARM_GOV.to_string(), &Uint128::from(22_000_000u128))],
-        )
+        ),
     ]);
     let info = mock_info(FARM_TOKEN, &[]);
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
@@ -154,18 +155,16 @@ fn test_stake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             .into_iter()
             .map(|it| it.msg)
             .collect::<Vec<CosmosMsg>>(),
-        vec![
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: FARM_TOKEN.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: FARM_GOV.to_string(),
-                    amount: Uint128::from(5000u128),
-                    msg: to_binary(&AstroportCw20HookMsg::Enter {
-                    }).unwrap(),
-                }).unwrap(),
-                funds: vec![],
-            }),
-        ]
+        vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: FARM_TOKEN.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: FARM_GOV.to_string(),
+                amount: Uint128::from(5000u128),
+                msg: to_binary(&AstroportCw20HookMsg::Enter {}).unwrap(),
+            })
+            .unwrap(),
+            funds: vec![],
+        }),]
     );
 
     deps.querier.with_token_balances(&[
@@ -179,7 +178,7 @@ fn test_stake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         (
             &FARM_TOKEN.to_string(),
             &[(&FARM_GOV.to_string(), &Uint128::from(22_000_000u128))],
-        )
+        ),
     ]);
 
     let info = mock_info(FARM_TOKEN, &[]);
@@ -188,8 +187,23 @@ fn test_stake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         amount: Uint128::from(4000u128),
         msg: to_binary(&Cw20HookMsg::Stake {}).unwrap(),
     });
-    let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
-    assert!(res.is_ok());
+    let res = execute(deps.as_mut(), env.clone(), info, msg.clone()).unwrap();
+    assert_eq!(
+        res.messages
+            .into_iter()
+            .map(|it| it.msg)
+            .collect::<Vec<CosmosMsg>>(),
+        vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: FARM_TOKEN.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: FARM_GOV.to_string(),
+                amount: Uint128::from(4000u128),
+                msg: to_binary(&AstroportCw20HookMsg::Enter {}).unwrap(),
+            })
+            .unwrap(),
+            funds: vec![],
+        }),]
+    );
 
     deps.querier.with_token_balances(&[
         (
@@ -202,19 +216,20 @@ fn test_stake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         (
             &FARM_TOKEN.to_string(),
             &[(&FARM_GOV.to_string(), &Uint128::from(22_000_000u128))],
-        )
+        ),
     ]);
 
-    let msg = QueryMsg::Staker { address: FARM_CONTRACT.to_string() };
-    let res: StakerResponse = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+    let msg = QueryMsg::Staker {
+        address: FARM_CONTRACT.to_string(),
+    };
+    let res: StakerResponse =
+        from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(
         res,
         StakerResponse {
             balance: Uint128::from(15998u128),
         }
     );
-
-
 }
 
 fn test_unstake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
@@ -222,17 +237,47 @@ fn test_unstake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
 
     // unstake more than available is not allowed
     let info = mock_info(FARM_CONTRACT, &[]);
-    let msg = ExecuteMsg::Unstake { amount: Some(Uint128::from(100000u128)) };
+    let msg = ExecuteMsg::Unstake {
+        amount: Some(Uint128::from(100000u128)),
+    };
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
 
-    // unstake 2000
+    // unstake 2000 ASTRO -> 1819 xASTRO
     let info = mock_info(FARM_CONTRACT, &[]);
-    let msg = ExecuteMsg::Unstake { amount: Some(Uint128::from(2000u128)) };
-    let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
-    assert!(res.is_ok());
+    let msg = ExecuteMsg::Unstake {
+        amount: Some(Uint128::from(2000u128)),
+    };
+    let res = execute(deps.as_mut(), env.clone(), info, msg.clone()).unwrap();
+    assert_eq!(
+        res.messages
+            .into_iter()
+            .map(|it| it.msg)
+            .collect::<Vec<CosmosMsg>>(),
+        vec![
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: XASTRO_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: FARM_GOV.to_string(),
+                    amount: Uint128::from(1819u128),
+                    msg: to_binary(&AstroportCw20HookMsg::Leave {}).unwrap(),
+                })
+                .unwrap(),
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: FARM_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: FARM_CONTRACT.to_string(),
+                    amount: Uint128::from(2000u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            })
+        ]
+    );
 
-    // destination gov will have 16000 - 2000 = 14000
+    // destination gov will have 22000
     deps.querier.with_token_balances(&[
         (
             &XASTRO_TOKEN.to_string(),
@@ -244,10 +289,13 @@ fn test_unstake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         (
             &FARM_TOKEN.to_string(),
             &[(&FARM_GOV.to_string(), &Uint128::from(22_000_000u128))],
-        )
+        ),
     ]);
-    let msg = QueryMsg::Staker { address: FARM_CONTRACT.to_string() };
-    let res: StakerResponse = from_binary(&query(deps.as_ref(), env.clone(), msg.clone()).unwrap()).unwrap();
+    let msg = QueryMsg::Staker {
+        address: FARM_CONTRACT.to_string(),
+    };
+    let res: StakerResponse =
+        from_binary(&query(deps.as_ref(), env.clone(), msg.clone()).unwrap()).unwrap();
     assert_eq!(
         res,
         StakerResponse {
@@ -255,7 +303,7 @@ fn test_unstake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         }
     );
 
-    // destination gov stake grows 10%
+    // destination gov stake grows 10%, 22000 + 2200 = 24200
     deps.querier.with_token_balances(&[
         (
             &XASTRO_TOKEN.to_string(),
@@ -267,11 +315,14 @@ fn test_unstake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         (
             &FARM_TOKEN.to_string(),
             &[(&FARM_GOV.to_string(), &Uint128::from(24_200_000u128))],
-        )
+        ),
     ]);
 
-    let msg = QueryMsg::Staker { address: FARM_CONTRACT.to_string() };
-    let res: StakerResponse = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
+    let msg = QueryMsg::Staker {
+        address: FARM_CONTRACT.to_string(),
+    };
+    let res: StakerResponse =
+        from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(
         res,
         StakerResponse {
@@ -279,13 +330,41 @@ fn test_unstake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         }
     );
 
-    // unstake more than deposited
+    // unstake 13400
     let info = mock_info(FARM_CONTRACT, &[]);
-    let msg = ExecuteMsg::Unstake { amount: Some(Uint128::from(13400u128)) };
-    let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
-    assert!(res.is_ok());
+    let msg = ExecuteMsg::Unstake {
+        amount: Some(Uint128::from(13400u128)),
+    };
+    let res = execute(deps.as_mut(), env.clone(), info, msg.clone()).unwrap();
+    assert_eq!(
+        res.messages
+            .into_iter()
+            .map(|it| it.msg)
+            .collect::<Vec<CosmosMsg>>(),
+        vec![
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: XASTRO_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: FARM_GOV.to_string(),
+                    amount: Uint128::from(11075u128),
+                    msg: to_binary(&AstroportCw20HookMsg::Leave {}).unwrap(),
+                })
+                .unwrap(),
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: FARM_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: FARM_CONTRACT.to_string(),
+                    amount: Uint128::from(13400u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            })
+        ]
+    );
 
-    // destination gov will have 15400 - 13400 + 5% (gain)
+    // destination gov will have 24200 + 1210 (5% gain)
     deps.querier.with_token_balances(&[
         (
             &XASTRO_TOKEN.to_string(),
@@ -297,10 +376,13 @@ fn test_unstake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         (
             &FARM_TOKEN.to_string(),
             &[(&FARM_GOV.to_string(), &Uint128::from(25_410_000u128))],
-        )
+        ),
     ]);
-    let msg = QueryMsg::Staker { address: FARM_CONTRACT.to_string() };
-    let res: StakerResponse = from_binary(&query(deps.as_ref(), env.clone(), msg.clone()).unwrap()).unwrap();
+    let msg = QueryMsg::Staker {
+        address: FARM_CONTRACT.to_string(),
+    };
+    let res: StakerResponse =
+        from_binary(&query(deps.as_ref(), env.clone(), msg.clone()).unwrap()).unwrap();
     assert_eq!(
         res,
         StakerResponse {
@@ -311,8 +393,34 @@ fn test_unstake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // unstake all
     let info = mock_info(FARM_CONTRACT, &[]);
     let msg = ExecuteMsg::Unstake { amount: None };
-    let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
-    assert!(res.is_ok());
+    let res = execute(deps.as_mut(), env.clone(), info, msg.clone()).unwrap();
+    assert_eq!(
+        res.messages
+            .into_iter()
+            .map(|it| it.msg)
+            .collect::<Vec<CosmosMsg>>(),
+        vec![
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: XASTRO_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: FARM_GOV.to_string(),
+                    amount: Uint128::from(1651u128),
+                    msg: to_binary(&AstroportCw20HookMsg::Leave {}).unwrap(),
+                })
+                .unwrap(),
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: FARM_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: FARM_CONTRACT.to_string(),
+                    amount: Uint128::from(2097u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            })
+        ]
+    );
 
     // destination gov will have 0
     deps.querier.with_token_balances(&[
@@ -326,11 +434,14 @@ fn test_unstake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         (
             &FARM_TOKEN.to_string(),
             &[(&FARM_GOV.to_string(), &Uint128::from(25_410_000u128))],
-        )
+        ),
     ]);
 
-    let msg = QueryMsg::Staker { address: FARM_CONTRACT.to_string() };
-    let res: StakerResponse = from_binary(&query(deps.as_ref(), env.clone(), msg.clone()).unwrap()).unwrap();
+    let msg = QueryMsg::Staker {
+        address: FARM_CONTRACT.to_string(),
+    };
+    let res: StakerResponse =
+        from_binary(&query(deps.as_ref(), env.clone(), msg.clone()).unwrap()).unwrap();
     assert_eq!(
         res,
         StakerResponse {
@@ -338,13 +449,15 @@ fn test_unstake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         }
     );
 
-    let msg = QueryMsg::Staker { address: FARM_CONTRACT_2.to_string() };
-    let res: StakerResponse = from_binary(&query(deps.as_ref(), env.clone(), msg.clone()).unwrap()).unwrap();
+    let msg = QueryMsg::Staker {
+        address: FARM_CONTRACT_2.to_string(),
+    };
+    let res: StakerResponse =
+        from_binary(&query(deps.as_ref(), env.clone(), msg.clone()).unwrap()).unwrap();
     assert_eq!(
         res,
         StakerResponse {
             balance: Uint128::from(4619u128),
         }
     );
-
 }
