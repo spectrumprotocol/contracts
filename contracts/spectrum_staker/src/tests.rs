@@ -531,30 +531,6 @@ fn test_zap_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         Err(StdError::generic_err("not support provide_asset as token"))
     );
 
-    // pair_asset as native coin
-    let msg = ExecuteMsg::zap_to_bond {
-        contract: FARM1.to_string(),
-        compound_rate: Some(Decimal::percent(55u64)),
-        provide_asset: Asset {
-            info: AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-            amount: Uint128::from(100_000_000u128),
-        },
-        pair_asset: AssetInfo::NativeToken {
-            denom: "uusd".to_string(),
-        },
-        pair_asset_b: None,
-        belief_price: Some(Decimal::from_ratio(1u128, 1u128)),
-        belief_price_b: None,
-        max_spread: Decimal::percent(1u64),
-    };
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
-    assert_eq!(
-        res,
-        Err(StdError::generic_err("not support pair_asset as native coin"))
-    );
-
     // contract not in allowlist
     let msg = ExecuteMsg::zap_to_bond {
         contract: FARM3.to_string(),
@@ -845,31 +821,6 @@ fn test_zap_unbond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) 
     assert_eq!(
         res,
         Err(StdError::generic_err("Slippage tolerance must be 0 to 0.5"))
-    );
-
-    // target_asset as token
-    let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
-        sender: USER1.to_string(),
-        amount: Uint128::from(100u128),
-        msg: to_binary(&Cw20HookMsg::zap_to_unbond {
-            belief_price: Some(Decimal::from_ratio(1u128, 1u128)),
-            max_spread: Decimal::percent(1u64),
-            sell_asset: AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-            target_asset: AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-            sell_asset_b: None,
-            belief_price_b: None,
-        })
-        .unwrap(),
-    });
-
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
-    assert_eq!(
-        res,
-        Err(StdError::generic_err("not support sell_asset as native coin"))
     );
 
     let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
