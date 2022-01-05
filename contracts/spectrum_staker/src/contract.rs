@@ -451,6 +451,46 @@ fn apply_pool(
     }
 }
 
+fn create_swap_msg(
+    asset_info: AssetInfo,
+    contract: String,
+    amount: Uint128,
+    belief_price: Option<Decimal>,
+    max_spread: Option<Decimal>,
+    to: Option<String>,
+) -> StdResult<CosmosMsg> {
+    Ok(match asset_info {
+        AssetInfo::Token { contract_addr } => CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr,
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract,
+                amount,
+                msg: to_binary(&PairCw20HookMsg::Swap {
+                    belief_price,
+                    max_spread,
+                    to,
+                })?
+            })?,
+            funds: vec![],
+        }),
+        AssetInfo::NativeToken { denom } => CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: contract,
+            msg: to_binary(&PairExecuteMsg::Swap {
+                offer_asset: Asset {
+                    info: AssetInfo::NativeToken { denom: denom.clone() },
+                    amount,
+                },
+                belief_price,
+                max_spread,
+                to,
+            })?,
+            funds: vec![
+                Coin { denom, amount }
+            ],
+        }),
+    })
+}
+
 #[allow(clippy::too_many_arguments)]
 fn zap_to_bond(
     deps: DepsMut,
@@ -604,19 +644,14 @@ fn compute_zap_to_bond(
         };
         apply_pool(&mut pool, &swap_asset_a, simulate_b.return_amount);
         price_b = Some(Decimal::from_ratio(swap_asset_a.amount, simulate_b.return_amount + simulate_b.commission_amount));
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: swap_asset_a.info.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: terraswap_pair_b.contract_addr.to_string(),
-                amount: swap_asset_a.amount,
-                msg: to_binary(&PairCw20HookMsg::Swap {
-                    belief_price: belief_price_b,
-                    max_spread,
-                    to: None,
-                })?
-            })?,
-            funds: vec![],
-        }));
+        messages.push(create_swap_msg(
+            swap_asset_a.info.clone(),
+            terraswap_pair_b.contract_addr.to_string(),
+            swap_asset_a.amount,
+            belief_price_b,
+            max_spread,
+            None,
+        )?);
         swap_a_amount = Some(swap_asset_a.amount);
     }
 
@@ -875,43 +910,17 @@ fn zap_to_unbond_hook(
             }));
         }
 
-        let asset_infos = [prev_target_asset.info.clone(), prev_asset_a.info.clone()];
+        let asset_infos = [prev_target_asset.info, prev_asset_a.info.clone()];
         let terraswap_pair = query_pair_info(&deps.querier, terraswap_factory, &asset_infos)?;
         let swap_amount = current_token_a_amount.checked_sub(prev_asset_a.amount)?;
-        match prev_asset_a.info {
-            AssetInfo::Token { contract_addr } => {
-                messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr,
-                    msg: to_binary(&Cw20ExecuteMsg::Send {
-                        contract: terraswap_pair.contract_addr.to_string(),
-                        amount: swap_amount,
-                        msg: to_binary(&PairCw20HookMsg::Swap {
-                            to: Some(staker_addr),
-                            belief_price: belief_price_a,
-                            max_spread: Some(max_spread),
-                        })?,
-                    })?,
-                    funds: vec![],
-                }));
-            },
-            AssetInfo::NativeToken { denom } => {
-                messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: terraswap_pair.contract_addr.to_string(),
-                    msg: to_binary(&PairExecuteMsg::Swap {
-                        to: Some(staker_addr),
-                        belief_price: belief_price_a,
-                        max_spread: Some(max_spread),
-                        offer_asset: Asset {
-                            info: prev_target_asset.info,
-                            amount: swap_amount,
-                        },
-                    })?,
-                    funds: vec![
-                        Coin { denom, amount: swap_amount },
-                    ],
-                }));
-            }
-        };
+        messages.push(create_swap_msg(
+            prev_asset_a.info,
+            terraswap_pair.contract_addr.to_string(),
+            swap_amount,
+            belief_price_a,
+            Some(max_spread),
+            Some(staker_addr),
+        )?);
 
         Ok(Response::new().add_messages(messages))
     }

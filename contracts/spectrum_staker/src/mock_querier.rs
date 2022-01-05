@@ -236,7 +236,7 @@ impl WasmMockQuerier {
                         match self.terraswap_pair_querier.pools.get(contract_addr) {
                             Some(v) => SystemResult::Ok(ContractResult::from(to_binary(&v))),
                             None => SystemResult::Err(SystemError::InvalidRequest {
-                                error: "No pair info exists".to_string(),
+                                error: "No pool info exists".to_string(),
                                 request: msg.as_slice().into(),
                             }),
                         }
