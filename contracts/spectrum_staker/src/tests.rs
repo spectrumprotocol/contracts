@@ -1,9 +1,10 @@
 use std::collections::HashSet;
 use std::iter::FromIterator;
+use std::str::FromStr;
 
 use crate::contract::{execute, compute_swap_amount, instantiate, query};
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
-use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage};
+use cosmwasm_std::testing::{MOCK_CONTRACT_ADDR, mock_env, mock_info, MockApi, MockStorage};
 use cosmwasm_std::{
     from_binary, to_binary, Coin, CosmosMsg, Decimal, OwnedDeps, StdError, Uint128, WasmMsg,
 };
@@ -19,7 +20,9 @@ const LP: &str = "lp_token";
 const PAIR: &str = "pair0001";
 const TOKEN_B: &str = "token_b";
 const LP_B: &str = "lp_token_b";
-const PAIR_B: &str = "pair0002";
+const PAIR_B: &str = "pair_b";
+const LP_U: &str = "lp_token_u";
+const PAIR_U: &str = "pair_u";
 const FARM1: &str = "farm1";
 const FARM2: &str = "farm2";
 const FARM3: &str = "farm3";
@@ -45,18 +48,44 @@ fn test() {
             liquidity_token: LP.to_string(),
         }),
         (&"tokentoken_b".to_string(),
-        &PairInfo {
-            asset_infos: [
-                AssetInfo::Token {
-                    contract_addr: TOKEN.to_string(),
-                },
-                AssetInfo::Token {
-                    contract_addr: TOKEN_B.to_string(),
-                },
-            ],
-            contract_addr: PAIR_B.to_string(),
-            liquidity_token: LP_B.to_string(),
-        })
+         &PairInfo {
+             asset_infos: [
+                 AssetInfo::Token {
+                     contract_addr: TOKEN.to_string(),
+                 },
+                 AssetInfo::Token {
+                     contract_addr: TOKEN_B.to_string(),
+                 },
+             ],
+             contract_addr: PAIR_B.to_string(),
+             liquidity_token: LP_B.to_string(),
+         }),
+        (&"uusduluna".to_string(),
+         &PairInfo {
+             asset_infos: [
+                 AssetInfo::NativeToken {
+                     denom: "uusd".to_string(),
+                 },
+                 AssetInfo::NativeToken {
+                     denom: "uluna".to_string(),
+                 },
+             ],
+             contract_addr: PAIR_U.to_string(),
+             liquidity_token: LP_U.to_string(),
+         }),
+        (&"ulunatoken".to_string(),
+         &PairInfo {
+             asset_infos: [
+                 AssetInfo::Token {
+                     contract_addr: TOKEN.to_string(),
+                 },
+                 AssetInfo::NativeToken {
+                     denom: "uluna".to_string(),
+                 },
+             ],
+             contract_addr: PAIR.to_string(),
+             liquidity_token: LP.to_string(),
+         }),
     ]);
     deps.querier.with_terraswap_pairs(&[
         (&PAIR.to_string(),
@@ -104,6 +133,7 @@ fn test() {
     test_zap_bond2(&mut deps);
     test_zap_unbond(&mut deps);
     test_zap_unbond2(&mut deps);
+    test_native_assets(&mut deps);
 }
 
 fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
@@ -284,7 +314,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: TOKEN.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-                    spender: "pair0001".to_string(),
+                    spender: PAIR.to_string(),
                     amount: Uint128::from(50_000_000u128),
                     expires: None,
                 })
@@ -292,7 +322,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: "pair0001".to_string(),
+                contract_addr: PAIR.to_string(),
                 msg: to_binary(&TerraswapExecuteMsg::ProvideLiquidity {
                     assets: [
                         Asset {
@@ -578,7 +608,7 @@ fn test_zap_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             .collect::<Vec<CosmosMsg>>(),
         vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: "pair0001".to_string(),
+                contract_addr: PAIR.to_string(),
                 msg: to_binary(&TerraswapExecuteMsg::Swap {
                     offer_asset: Asset {
                         info: AssetInfo::NativeToken {
@@ -684,7 +714,7 @@ fn test_zap_bond2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             .collect::<Vec<CosmosMsg>>(),
         vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: "pair0001".to_string(),
+                contract_addr: PAIR.to_string(),
                 msg: to_binary(&TerraswapExecuteMsg::Swap {
                     offer_asset: Asset {
                         info: AssetInfo::NativeToken {
@@ -705,7 +735,7 @@ fn test_zap_bond2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: TOKEN.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: "pair0002".to_string(),
+                    contract: PAIR_B.to_string(),
                     amount: Uint128::from(47663904u128),
                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
                         max_spread: Some(Decimal::percent(1u64)),
@@ -964,4 +994,91 @@ fn test_get_swap_amount() {
 
     let swap_a = compute_swap_amount(amount_a, Uint128::zero(), pool_a, pool_b);
     assert_eq!(swap_a, Uint128::from(1192_872692u128));
+}
+
+fn test_native_assets(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+    let env = mock_env();
+    let info = mock_info(TEST_CREATOR, &[Coin {
+        denom: "uusd".to_string(),
+        amount: Uint128::from(100_000_000u128),
+    }]);
+
+    let msg = ExecuteMsg::zap_to_bond {
+        contract: FARM1.to_string(),
+        compound_rate: Some(Decimal::percent(100u64)),
+        provide_asset: Asset {
+            info: AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            amount: Uint128::from(100_000_000u128),
+        },
+        pair_asset: AssetInfo::NativeToken {
+            denom: "uluna".to_string(),
+        },
+        pair_asset_b: Some(AssetInfo::Token {
+            contract_addr: TOKEN.to_string(),
+        }),
+        belief_price: Some(Decimal::from_ratio(1u128, 1u128)),
+        belief_price_b: Some(Decimal::from_ratio(1u128, 1u128)),
+        max_spread: Decimal::percent(1u64),
+    };
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+    assert_eq!(
+        res.messages
+            .into_iter()
+            .map(|it| it.msg)
+            .collect::<Vec<CosmosMsg>>(),
+        vec![
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: PAIR_U.to_string(),
+                msg: to_binary(&TerraswapExecuteMsg::Swap {
+                    offer_asset: Asset {
+                        info: AssetInfo::NativeToken { denom: "uusd".to_string() },
+                        amount: Uint128::from(100_000_000u128),
+                    },
+                    belief_price: Some(Decimal::from_str("1").unwrap()),
+                    max_spread: Some(Decimal::percent(1)),
+                    to: None,
+                }).unwrap(),
+                funds: vec![
+                    Coin { denom: "uusd".to_string(), amount: Uint128::from(100_000_000u128) }
+                ],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: PAIR.to_string(),
+                msg: to_binary(&TerraswapExecuteMsg::Swap {
+                    offer_asset: Asset {
+                        info: AssetInfo::NativeToken { denom: "uluna".to_string() },
+                        amount: Uint128::from(47663903u128),
+                    },
+                    belief_price: Some(Decimal::one()),
+                    max_spread: Some(Decimal::percent(1)),
+                    to: None,
+                }).unwrap(),
+                funds: vec![
+                    Coin { denom: "uluna".to_string(), amount: Uint128::from(47663903u128) }
+                ],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: MOCK_CONTRACT_ADDR.to_string(),
+                msg: to_binary(&ExecuteMsg::bond {
+                    contract: FARM1.to_string(),
+                    assets: [
+                        Asset {
+                            info: AssetInfo::NativeToken { denom: "uluna".to_string() },
+                            amount: Uint128::from(52036097u128),
+                        },
+                        Asset {
+                            info: AssetInfo::Token { contract_addr: TOKEN.to_string() },
+                            amount: Uint128::from(47520912u128),
+                        },
+                    ],
+                    slippage_tolerance: Decimal::percent(1),
+                    compound_rate: Some(Decimal::one()),
+                    staker_addr: Some(TEST_CREATOR.to_string()),
+                }).unwrap(),
+                funds: vec![],
+            }),
+        ]
+    );
 }
