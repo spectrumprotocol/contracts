@@ -43,17 +43,7 @@ fn bond_internal(
     // withdraw reward to pending reward; before changing share
     let mut reward_info = rewards_read(deps.storage, &sender_addr_raw)
         .may_load(asset_token_raw.as_slice())?
-        .unwrap_or_else(|| RewardInfo {
-            farm_share_index: pool_info.farm_share_index,
-            auto_spec_share_index: pool_info.auto_spec_share_index,
-            stake_spec_share_index: pool_info.stake_spec_share_index,
-            auto_bond_share: Uint128::zero(),
-            stake_bond_share: Uint128::zero(),
-            spec_share: Uint128::zero(),
-            farm_share: Uint128::zero(),
-            deposit_amount: Uint128::zero(),
-            deposit_time: 0u64,
-        });
+        .unwrap_or_else(|| RewardInfo::create(&pool_info));
     before_share_change(&pool_info, &mut reward_info);
 
     if !reallocate &&
@@ -67,14 +57,34 @@ fn bond_internal(
     }
 
     // increase bond_amount
+    let deposit_fee = if reallocate || sender_addr_raw == config.controller { Decimal::zero() } else { config.deposit_fee };
+    let deposit_fee_auto = amount_to_auto * deposit_fee;
+    let deposit_fee_stake = amount_to_stake * deposit_fee;
+    let auto_bond_amount = amount_to_auto.checked_sub(deposit_fee_auto)?;
+    let stake_bond_amount = amount_to_stake.checked_sub(deposit_fee_stake)?;
     let new_deposit_amount = increase_bond_amount(
         &mut pool_info,
         &mut reward_info,
-        if reallocate { Decimal::zero() } else { config.deposit_fee },
-        amount_to_auto,
-        amount_to_stake,
+        auto_bond_amount,
+        stake_bond_amount,
         lp_balance,
-    )?;
+    );
+
+    let earned_deposit_fee = deposit_fee_auto + deposit_fee_stake;
+    if !earned_deposit_fee.is_zero() {
+        let mut ctrl_reward_info = rewards_read(deps.storage, &config.controller)
+            .may_load(asset_token_raw.as_slice())?
+            .unwrap_or_else(|| RewardInfo::create(&pool_info));
+        increase_bond_amount(
+            &mut pool_info,
+            &mut ctrl_reward_info,
+            earned_deposit_fee,
+            Uint128::zero(),
+            lp_balance + auto_bond_amount + stake_bond_amount,
+        );
+        rewards_store(deps.storage, &config.controller)
+            .save(asset_token_raw.as_slice(), &ctrl_reward_info)?;
+    }
 
     if !reallocate {
         let last_deposit_amount = reward_info.deposit_amount;
@@ -268,46 +278,24 @@ fn before_share_change(pool_info: &PoolInfo, reward_info: &mut RewardInfo) {
 fn increase_bond_amount(
     pool_info: &mut PoolInfo,
     reward_info: &mut RewardInfo,
-    deposit_fee: Decimal,
-    amount_to_auto: Uint128,
-    amount_to_stake: Uint128,
+    auto_bond_amount: Uint128,
+    stake_bond_amount: Uint128,
     lp_balance: Uint128,
-) -> StdResult<Uint128> {
-    let (auto_bond_amount, stake_bond_amount, stake_bond_fee) = if deposit_fee.is_zero() {
-        (amount_to_auto, amount_to_stake, Uint128::zero())
-    } else {
-        // calculate target state
-        let amount = amount_to_auto + amount_to_stake;
-        let new_balance = lp_balance + amount;
-        let new_auto_bond_amount =
-            new_balance.checked_sub(pool_info.total_stake_bond_amount + amount_to_stake)?;
-
-        // calculate deposit fee; split based on auto balance & stake balance
-        let deposit_fee = amount * deposit_fee;
-        let auto_bond_fee = deposit_fee.multiply_ratio(new_auto_bond_amount, new_balance);
-        let stake_bond_fee = deposit_fee.checked_sub(auto_bond_fee)?;
-
-        // calculate amount after fee
-        let remaining_amount = amount.checked_sub(deposit_fee)?;
-        let auto_bond_amount = remaining_amount.multiply_ratio(amount_to_auto, amount);
-        let stake_bond_amount = remaining_amount.checked_sub(auto_bond_amount)?;
-
-        (auto_bond_amount, stake_bond_amount, stake_bond_fee)
-    };
+) -> Uint128 {
 
     // convert amount to share & update
     let auto_bond_share = pool_info.calc_auto_bond_share(auto_bond_amount, lp_balance);
     let stake_bond_share = pool_info.calc_stake_bond_share(stake_bond_amount);
     pool_info.total_auto_bond_share += auto_bond_share;
-    pool_info.total_stake_bond_amount += stake_bond_amount + stake_bond_fee;
+    pool_info.total_stake_bond_amount += stake_bond_amount;
     pool_info.total_stake_bond_share += stake_bond_share;
     reward_info.auto_bond_share += auto_bond_share;
     reward_info.stake_bond_share += stake_bond_share;
 
-    let new_auto_bond_amount = pool_info.calc_user_auto_balance(lp_balance + amount_to_auto + amount_to_stake, auto_bond_share);
+    let new_auto_bond_amount = pool_info.calc_user_auto_balance(lp_balance + auto_bond_amount + stake_bond_amount, auto_bond_share);
     let new_stake_bond_amount = pool_info.calc_user_stake_balance(stake_bond_share);
 
-    Ok(new_auto_bond_amount + new_stake_bond_amount)
+    new_auto_bond_amount + new_stake_bond_amount
 }
 
 // stake LP token to Astroport Generator

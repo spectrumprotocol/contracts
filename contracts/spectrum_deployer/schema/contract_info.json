@@ -1,32 +1,34 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "BoardsResponse",
+  "title": "ContractInfo",
   "type": "object",
   "required": [
-    "boards"
+    "codes"
   ],
   "properties": {
-    "boards": {
+    "codes": {
       "type": "array",
       "items": {
-        "$ref": "#/definitions/BoardInfo"
+        "$ref": "#/definitions/CodeInfo"
       }
     }
   },
   "definitions": {
-    "BoardInfo": {
+    "CodeInfo": {
       "type": "object",
       "required": [
-        "address",
-        "weight"
+        "code_id",
+        "created_time"
       ],
       "properties": {
-        "address": {
-          "type": "string"
-        },
-        "weight": {
+        "code_id": {
           "type": "integer",
-          "format": "uint32",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "created_time": {
+          "type": "integer",
+          "format": "uint64",
           "minimum": 0.0
         }
       }

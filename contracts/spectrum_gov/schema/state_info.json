@@ -61,6 +61,14 @@
           "$ref": "#/definitions/Uint128"
         }
       ]
+    },
+    "vault_share_multiplier": {
+      "default": "0",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Decimal"
+        }
+      ]
     }
   },
   "definitions": {
@@ -71,15 +79,11 @@
     "StatePoolInfo": {
       "type": "object",
       "required": [
-        "active",
         "days",
         "total_balance",
         "total_share"
       ],
       "properties": {
-        "active": {
-          "type": "boolean"
-        },
         "aust_index": {
           "default": "0",
           "allOf": [
@@ -98,6 +102,12 @@
         },
         "total_share": {
           "$ref": "#/definitions/Uint128"
+        },
+        "weight": {
+          "default": 0,
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
         }
       }
     },

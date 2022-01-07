@@ -372,6 +372,7 @@ fn query_state(deps: Deps, height: u64) -> StdResult<StateInfo> {
         prev_aust_balance: state.prev_aust_balance,
         vault_balances: state.vault_balances,
         vault_share_multiplier: state.vault_share_multiplier,
+        pool_weight: state.pool_weight,
         pools: vec![
             vec![
                 StatePoolInfo {

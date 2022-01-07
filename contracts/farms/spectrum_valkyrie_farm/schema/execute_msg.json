@@ -201,7 +201,15 @@
       ],
       "properties": {
         "compound": {
-          "type": "object"
+          "type": "object",
+          "required": [
+            "max_compound"
+          ],
+          "properties": {
+            "max_compound": {
+              "$ref": "#/definitions/Uint128"
+            }
+          }
         }
       },
       "additionalProperties": false

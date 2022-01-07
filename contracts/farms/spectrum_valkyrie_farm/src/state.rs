@@ -166,3 +166,19 @@ pub fn rewards_read<'a>(
 ) -> ReadonlyBucket<'a, RewardInfo> {
     ReadonlyBucket::multilevel(storage, &[PREFIX_REWARD, owner.as_slice()])
 }
+
+impl RewardInfo {
+    pub fn create(pool_info: &PoolInfo) -> RewardInfo {
+        RewardInfo {
+            farm_share_index: pool_info.farm_share_index,
+            auto_spec_share_index: pool_info.auto_spec_share_index,
+            stake_spec_share_index: pool_info.stake_spec_share_index,
+            auto_bond_share: Uint128::zero(),
+            stake_bond_share: Uint128::zero(),
+            spec_share: Uint128::zero(),
+            farm_share: Uint128::zero(),
+            deposit_amount: Uint128::zero(),
+            deposit_time: 0u64,
+        }
+    }
+}

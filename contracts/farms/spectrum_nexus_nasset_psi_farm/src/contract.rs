@@ -324,40 +324,6 @@ fn query_state(deps: Deps) -> StdResult<StateInfo> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
-    let mut config = read_config(deps.storage)?;
-    config.anchor_market = deps.api.addr_canonicalize(&msg.anchor_market)?;
-    config.aust_token = deps.api.addr_canonicalize(&msg.aust_token)?;
-
-    let pair_info = query_pair_info(
-        &deps.querier,
-        deps.api.addr_validate(&msg.terraswap_factory)?,
-        &[
-            AssetInfo::Token {
-                contract_addr: deps.api.addr_humanize(&config.nasset_token)?.to_string(),
-            },
-            AssetInfo::Token {
-                contract_addr: deps.api.addr_humanize(&config.nexus_token)?.to_string(),
-            },
-        ],
-    )?;
-    config.pair_contract = deps.api.addr_canonicalize(&pair_info.contract_addr)?;
-
-    let pair_info = query_pair_info(
-        &deps.querier,
-        deps.api.addr_validate(&msg.terraswap_factory)?,
-        &[
-            AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-            AssetInfo::Token {
-                contract_addr: deps.api.addr_humanize(&config.nexus_token)?.to_string(),
-            },
-        ],
-    )?;
-    config.ust_pair_contract = deps.api.addr_canonicalize(&pair_info.contract_addr)?;
-
-    store_config(deps.storage, &config)?;
-
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
 }

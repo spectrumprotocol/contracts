@@ -5,100 +5,62 @@
     {
       "type": "object",
       "required": [
-        "poll_end"
+        "add_contract"
       ],
       "properties": {
-        "poll_end": {
+        "add_contract": {
           "type": "object",
           "required": [
-            "poll_id"
+            "code_id",
+            "contract_addr"
           ],
           "properties": {
-            "poll_id": {
+            "code_id": {
               "type": "integer",
               "format": "uint64",
               "minimum": 0.0
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "poll_execute"
-      ],
-      "properties": {
-        "poll_execute": {
-          "type": "object",
-          "required": [
-            "poll_id"
-          ],
-          "properties": {
-            "poll_id": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "poll_expire"
-      ],
-      "properties": {
-        "poll_expire": {
-          "type": "object",
-          "required": [
-            "poll_id"
-          ],
-          "properties": {
-            "poll_id": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "poll_start"
-      ],
-      "properties": {
-        "poll_start": {
-          "type": "object",
-          "required": [
-            "description",
-            "execute_msgs",
-            "title"
-          ],
-          "properties": {
-            "description": {
+            },
+            "contract_addr": {
               "type": "string"
-            },
-            "execute_msgs": {
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/PollExecuteMsg"
-              }
-            },
-            "link": {
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "update_contract"
+      ],
+      "properties": {
+        "update_contract": {
+          "type": "object",
+          "required": [
+            "contract_addr"
+          ],
+          "properties": {
+            "add_code_id": {
               "type": [
-                "string",
+                "integer",
                 "null"
-              ]
+              ],
+              "format": "uint64",
+              "minimum": 0.0
             },
-            "title": {
+            "contract_addr": {
               "type": "string"
+            },
+            "remove_code_ids": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "integer",
+                "format": "uint64",
+                "minimum": 0.0
+              }
             }
           }
         }
@@ -108,23 +70,27 @@
     {
       "type": "object",
       "required": [
-        "poll_vote"
+        "migrate"
       ],
       "properties": {
-        "poll_vote": {
+        "migrate": {
           "type": "object",
           "required": [
-            "poll_id",
-            "vote"
+            "code_id",
+            "contract_addr",
+            "msg"
           ],
           "properties": {
-            "poll_id": {
+            "code_id": {
               "type": "integer",
               "format": "uint64",
               "minimum": 0.0
             },
-            "vote": {
-              "$ref": "#/definitions/VoteOption"
+            "contract_addr": {
+              "type": "string"
+            },
+            "msg": {
+              "$ref": "#/definitions/Binary"
             }
           }
         }
@@ -140,21 +106,11 @@
         "update_config": {
           "type": "object",
           "properties": {
-            "effective_delay": {
+            "operator": {
               "type": [
-                "integer",
+                "string",
                 "null"
-              ],
-              "format": "uint64",
-              "minimum": 0.0
-            },
-            "expiration_period": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint64",
-              "minimum": 0.0
+              ]
             },
             "owner": {
               "type": [
@@ -162,58 +118,12 @@
                 "null"
               ]
             },
-            "quorum": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/Decimal"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "threshold": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/Decimal"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "voting_period": {
+            "time_lock": {
               "type": [
                 "integer",
                 "null"
               ],
               "format": "uint64",
-              "minimum": 0.0
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "upsert_board"
-      ],
-      "properties": {
-        "upsert_board": {
-          "type": "object",
-          "required": [
-            "address",
-            "weight"
-          ],
-          "properties": {
-            "address": {
-              "type": "string"
-            },
-            "weight": {
-              "type": "integer",
-              "format": "uint32",
               "minimum": 0.0
             }
           }
@@ -223,44 +133,9 @@
     }
   ],
   "definitions": {
-    "Decimal": {
-      "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
+    "Binary": {
+      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
       "type": "string"
-    },
-    "PollExecuteMsg": {
-      "anyOf": [
-        {
-          "type": "object",
-          "required": [
-            "execute"
-          ],
-          "properties": {
-            "execute": {
-              "type": "object",
-              "required": [
-                "contract",
-                "msg"
-              ],
-              "properties": {
-                "contract": {
-                  "type": "string"
-                },
-                "msg": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "additionalProperties": false
-        }
-      ]
-    },
-    "VoteOption": {
-      "type": "string",
-      "enum": [
-        "yes",
-        "no"
-      ]
     }
   }
 }

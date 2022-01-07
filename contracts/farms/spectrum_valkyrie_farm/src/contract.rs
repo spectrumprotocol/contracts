@@ -327,26 +327,6 @@ fn query_state(deps: Deps) -> StdResult<StateInfo> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
-    let mut config = read_config(deps.storage)?;
-    config.anchor_market = deps.api.addr_canonicalize(&msg.anchor_market)?;
-    config.aust_token = deps.api.addr_canonicalize(&msg.aust_token)?;
-
-    let pair_info = query_pair_info(
-        &deps.querier,
-        deps.api.addr_validate(&msg.terraswap_factory)?,
-        &[
-            AssetInfo::NativeToken {
-                denom: config.base_denom.clone(),
-            },
-            AssetInfo::Token {
-                contract_addr: deps.api.addr_humanize(&config.valkyrie_token)?.to_string(),
-            },
-        ],
-    )?;
-
-    config.pair_contract = deps.api.addr_canonicalize(&pair_info.contract_addr)?;
-    store_config(deps.storage, &config)?;
-
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
 }

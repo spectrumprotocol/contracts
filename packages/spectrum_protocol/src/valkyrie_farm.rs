@@ -144,8 +144,4 @@ pub struct StateInfo {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {
-    pub anchor_market: String,
-    pub aust_token: String,
-    pub terraswap_factory: String,
-}
+pub struct MigrateMsg {}

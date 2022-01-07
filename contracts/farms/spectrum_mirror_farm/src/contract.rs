@@ -353,11 +353,6 @@ fn query_state(deps: Deps) -> StdResult<StateInfo> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
-    let mut config = read_config(deps.storage)?;
-    config.anchor_market = deps.api.addr_canonicalize(&msg.anchor_market)?;
-    config.aust_token = deps.api.addr_canonicalize(&msg.aust_token)?;
-    store_config(deps.storage, &config)?;
-
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
 }

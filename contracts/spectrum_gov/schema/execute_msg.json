@@ -297,16 +297,18 @@
         "upsert_pool": {
           "type": "object",
           "required": [
-            "active",
-            "days"
+            "days",
+            "weight"
           ],
           "properties": {
-            "active": {
-              "type": "boolean"
-            },
             "days": {
               "type": "integer",
               "format": "uint64",
+              "minimum": 0.0
+            },
+            "weight": {
+              "type": "integer",
+              "format": "uint32",
               "minimum": 0.0
             }
           }

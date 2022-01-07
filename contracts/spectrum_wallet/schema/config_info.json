@@ -6,7 +6,6 @@
     "anchor_market",
     "aust_token",
     "owner",
-    "spectrum_farm",
     "spectrum_gov",
     "spectrum_token",
     "terraswap_factory"
@@ -19,9 +18,6 @@
       "type": "string"
     },
     "owner": {
-      "type": "string"
-    },
-    "spectrum_farm": {
       "type": "string"
     },
     "spectrum_gov": {

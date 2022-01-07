@@ -17,19 +17,31 @@
     {
       "type": "object",
       "required": [
-        "contract"
+        "staker"
       ],
       "properties": {
-        "contract": {
+        "staker": {
           "type": "object",
           "required": [
-            "contract_addr"
+            "address"
           ],
           "properties": {
-            "contract_addr": {
+            "address": {
               "type": "string"
             }
           }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "state": {
+          "type": "object"
         }
       },
       "additionalProperties": false
