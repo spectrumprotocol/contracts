@@ -1,2 +1,2 @@
-pub mod lp_staking;
-pub mod gov_staking;
+pub mod staking;
+pub mod gov;

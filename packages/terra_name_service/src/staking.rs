@@ -8,7 +8,7 @@ use cosmwasm_std::{Decimal, Uint128};
 pub enum QueryMsg {
     Config {},
     State { block_height: Option<u64> },
-    StakerInfo { staker: String },
+    StakerInfo { staker: String, block_height: Option<u64> },
 }
 
 // We define a custom struct for each query response
