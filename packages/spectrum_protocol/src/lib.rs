@@ -19,3 +19,8 @@ pub mod orion_farm;
 pub mod nexus_nasset_psi_farm;
 pub mod pylon_liquid_farm;
 pub mod gov_proxy;
+pub mod astroport_farm;
+pub mod astroport_luna_ust_farm;
+pub mod astroport_token_luna_farm;
+pub mod astroport_token_ust_farm;
+pub mod spec_astroport_farm;

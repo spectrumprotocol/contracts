@@ -2,6 +2,7 @@
 members = [
     "packages/*",
     "contracts/spectrum_*",
+    "contracts/astro_farms/*",
     "contracts/farms/*",
     "contracts/gov_proxies/*"
 ]
