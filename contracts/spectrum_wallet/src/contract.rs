@@ -7,7 +7,7 @@ use crate::state::{config_store, read_config, read_reward, read_rewards, reward_
 use cw20::{Cw20ExecuteMsg};
 use terraswap::asset::{Asset, AssetInfo};
 use terraswap::pair::{ExecuteMsg as PairExecuteMsg};
-use terraswap::querier::{query_pair_info, query_token_balance};
+use terraswap::querier::{query_pair_info, query_token_balance, simulate};
 use spectrum_protocol::gov::{BalanceResponse as GovBalanceResponse, Cw20HookMsg as GovCw20HookMsg, ExecuteMsg as GovExecuteMsg, QueryMsg as GovQueryMsg, VoteOption};
 use spectrum_protocol::wallet::{BalanceResponse, ConfigInfo, ExecuteMsg, MigrateMsg, QueryMsg, ShareInfo, SharesResponse, StateInfo};
 use moneymarket::market::{Cw20HookMsg as MarketCw20HookMsg};
@@ -30,6 +30,8 @@ pub fn instantiate(
 
     state_store(deps.storage).save(&StateInfo {
         total_burn: Uint128::zero(),
+        buyback_ust: Uint128::zero(),
+        buyback_spec: Uint128::zero(),
     })?;
 
     Ok(Response::default())
@@ -325,14 +327,25 @@ fn buy_spec(deps: DepsMut, env: Env, info: MessageInfo, ust_amount: Option<Uint1
     };
     let pair_info = query_pair_info(&deps.querier, factory_contract, &[spec_info, ust_info.clone()])?;
     let avail_ust = deps.querier.query_balance(env.contract.address, "uusd")?;
+    let amount = ust_amount.unwrap_or(avail_ust.amount);
     let swap_amount = Asset {
         info: ust_info.clone(),
-        amount: ust_amount.unwrap_or(avail_ust.amount)
+        amount,
     }.deduct_tax(&deps.querier)?.amount;
     let offer_asset = Asset {
         info: ust_info,
         amount: swap_amount,
     };
+
+    let simulate = simulate(
+        &deps.querier,
+        deps.api.addr_validate(&pair_info.contract_addr)?,
+        &offer_asset)?;
+
+    let mut state = read_state(deps.storage)?;
+    state.buyback_ust += amount;
+    state.buyback_spec += simulate.return_amount;
+    state_store(deps.storage).save(&state)?;
 
     Ok(Response::new()
         .add_messages(vec![

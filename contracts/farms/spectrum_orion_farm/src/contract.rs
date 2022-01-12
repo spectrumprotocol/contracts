@@ -12,8 +12,7 @@ use crate::{
 };
 
 use cw20::Cw20ReceiveMsg;
-use terraswap::asset::AssetInfo;
-use terraswap::querier::query_pair_info;
+
 use crate::bond::{deposit_spec_reward, query_reward_info, unbond, withdraw};
 use crate::state::{pool_info_read, pool_info_store, read_state};
 use spectrum_protocol::orion_farm::{

@@ -833,6 +833,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "spectrum-mirror-gov-proxy"
+version = "0.2.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "mirror-protocol",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
+]
+
+[[package]]
 name = "spectrum-nexus-farm"
 version = "0.2.0"
 dependencies = [
