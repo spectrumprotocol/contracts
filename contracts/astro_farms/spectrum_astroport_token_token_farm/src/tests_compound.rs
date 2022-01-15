@@ -30,6 +30,8 @@ const ASTROPORT_GENERATOR: &str = "astroport_generator";
 const FARM_LP: &str = "farm_lp";
 const TEST_CREATOR: &str = "creator";
 const TEST_CONTROLLER: &str = "controller";
+const ASSET_LP: &str = "asset_lp";
+const ASSET_TOKEN: &str = "asset_token";
 const FAIL_TOKEN: &str = "fail_token";
 const FAIL_LP: &str = "fail_lp";
 const USER1: &str = "user1";
@@ -40,6 +42,7 @@ const PAIR_CONTRACT: &str = "pair_contract";
 const XASTRO_PROXY: &str = "xastro_proxy";
 const ASTRO_TOKEN: &str = "astro_token";
 const ASTRO_UST_PAIR_CONTRACT: &str = "astro_ust_pair_contract";
+const FARM_UST_PAIR_CONTRACT: &str = "farm_ust_pair_contract";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfoResponse {
@@ -125,7 +128,6 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         astroport_generator: ASTROPORT_GENERATOR.to_string(),
         platform: SPEC_PLATFORM.to_string(),
         controller: TEST_CONTROLLER.to_string(),
-        base_denom: "uusd".to_string(),
         community_fee: Decimal::zero(),
         platform_fee: Decimal::zero(),
         controller_fee: Decimal::zero(),
@@ -135,7 +137,9 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         pair_contract: PAIR_CONTRACT.to_string(),
         xastro_proxy: XASTRO_PROXY.to_string(),
         astro_token: ASTRO_TOKEN.to_string(),
-        astro_ust_pair_contract: ASTRO_UST_PAIR_CONTRACT.to_string()
+        astro_ust_pair_contract: ASTRO_UST_PAIR_CONTRACT.to_string(),
+        asset_token: ASSET_TOKEN.to_string(),
+        farm_ust_pair_contract: FARM_UST_PAIR_CONTRACT.to_string(),
     };
 
     // success init
@@ -193,8 +197,8 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
     let msg = ExecuteMsg::register_asset {
-        asset_token: FARM_TOKEN.to_string(),
-        staking_token: FARM_LP.to_string(),
+        asset_token: ASSET_TOKEN.to_string(),
+        staking_token: ASSET_LP.to_string(),
         weight: 1u32,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
@@ -212,8 +216,8 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
         res,
         PoolsResponse {
             pools: vec![PoolItem {
-                asset_token: FARM_TOKEN.to_string(),
-                staking_token: FARM_LP.to_string(),
+                asset_token: ASSET_TOKEN.to_string(),
+                staking_token: ASSET_LP.to_string(),
                 weight: 1u32,
                 farm_share: Uint128::zero(),
                 farm2_share: Uint128::zero(),
@@ -248,7 +252,7 @@ fn test_compound_unauthorized(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMoc
     // reinvest err
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
-    let msg = ExecuteMsg::compound { threshold_compound_astro: Uint128::from(10000u128) };
+    let msg = ExecuteMsg::compound { threshold_compound_astro: Some(Uint128::from(10000u128)) };
     let res = execute(deps.as_mut(), env, info, msg);
     assert!(res.is_err());
 }
@@ -257,7 +261,7 @@ fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
     // reinvest zero
     let env = mock_env();
     let info = mock_info(TEST_CONTROLLER, &[]);
-    let msg = ExecuteMsg::compound { threshold_compound_astro: Uint128::from(10000u128) };
+    let msg = ExecuteMsg::compound { threshold_compound_astro: Some(Uint128::from(10000u128)) };
     let res = execute(deps.as_mut(), env, info, msg).unwrap();
 
     assert_eq!(
@@ -270,7 +274,7 @@ fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                 contract_addr: ASTROPORT_GENERATOR.to_string(),
                 funds: vec![],
                 msg: to_binary(&AstroportExecuteMsg::Withdraw {
-                    lp_token: deps.api.addr_validate(FARM_LP).unwrap(),
+                    lp_token: deps.api.addr_validate(ASSET_LP).unwrap(),
                     amount: Uint128::zero()
                 }
                 ).unwrap(),
@@ -292,7 +296,7 @@ fn test_compound_farm_token_and_astro_not_reach_threshold(deps: &mut OwnedDeps<M
         (&ASTRO_TOKEN.to_string(), &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(1_000u128))])
     ]);
 
-    let msg = ExecuteMsg::compound { threshold_compound_astro: Uint128::from(100_000u128) };
+    let msg = ExecuteMsg::compound { threshold_compound_astro: Some(Uint128::from(100_000u128)) };
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
     assert_eq!(
@@ -306,14 +310,14 @@ fn test_compound_farm_token_and_astro_not_reach_threshold(deps: &mut OwnedDeps<M
                 funds: vec![],
                 msg: to_binary(&AstroportExecuteMsg::Withdraw {
                     amount: Uint128::zero(),
-                    lp_token: deps.api.addr_validate(FARM_LP).unwrap(),
+                    lp_token: deps.api.addr_validate(ASSET_LP).unwrap(),
                 }).unwrap(),
             }), //ok
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: FARM_TOKEN.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: PAIR_CONTRACT.to_string(),
-                    amount: Uint128::from(50_000_000u128),
+                    amount: Uint128::from(50_075_112u128),
                     msg: to_binary(&AstroportCw20HookMsg::Swap {
                         max_spread: None,
                         belief_price: None,
@@ -326,7 +330,16 @@ fn test_compound_farm_token_and_astro_not_reach_threshold(deps: &mut OwnedDeps<M
                 contract_addr: FARM_TOKEN.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
                     spender: PAIR_CONTRACT.to_string(),
-                    amount: Uint128::from(48_872_636u128),
+                    amount: Uint128::from(49_924_888u128),
+                    expires: None
+                }).unwrap(),
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: ASSET_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+                    spender: PAIR_CONTRACT.to_string(),
+                    amount: Uint128::from(49_924_887u128),
                     expires: None
                 }).unwrap(),
                 funds: vec![],
@@ -337,30 +350,27 @@ fn test_compound_farm_token_and_astro_not_reach_threshold(deps: &mut OwnedDeps<M
                     assets: [
                         Asset {
                             info: AssetInfo::Token {
-                                contract_addr: deps.api.addr_validate(FARM_TOKEN).unwrap(),
+                                contract_addr: deps.api.addr_validate(ASSET_TOKEN).unwrap(),
                             },
-                            amount: Uint128::from(48_872_636u128),
+                            amount: Uint128::from(49_924_887u128),
                         },
                         Asset {
-                            info: AssetInfo::NativeToken {
-                                denom: "uusd".to_string(),
+                            info: AssetInfo::Token {
+                                contract_addr: deps.api.addr_validate(FARM_TOKEN).unwrap(),
                             },
-                            amount: Uint128::from(48_867_757u128),
+                            amount: Uint128::from(49_924_888u128),
                         },
                     ],
                     slippage_tolerance: None,
                     auto_stake: Some(true),
                     receiver: None
                 }).unwrap(),
-                funds: vec![Coin {
-                    denom: "uusd".to_string(),
-                    amount: Uint128::from(48_867_757u128),
-                }],
+                funds: vec![],
             }),
             // CosmosMsg::Wasm(WasmMsg::Execute {
             //     contract_addr: env.contract.address.to_string(),
             //     msg: to_binary(&ExecuteMsg::stake {
-            //         asset_token: FARM_TOKEN.to_string(),
+            //         asset_token: ASSET_TOKEN.to_string(),
             //     }).unwrap(),
             //     funds: vec![],
             // }),
@@ -381,7 +391,7 @@ fn test_compound_farm_token_and_astro(deps: &mut OwnedDeps<MockStorage, MockApi,
         (&ASTRO_TOKEN.to_string(), &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(100_000_000u128))])
     ]);
 
-    let msg = ExecuteMsg::compound { threshold_compound_astro: Uint128::from(100000u128) };
+    let msg = ExecuteMsg::compound { threshold_compound_astro: Some(Uint128::from(100000u128)) };
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
     assert_eq!(
@@ -395,14 +405,14 @@ fn test_compound_farm_token_and_astro(deps: &mut OwnedDeps<MockStorage, MockApi,
                 funds: vec![],
                 msg: to_binary(&AstroportExecuteMsg::Withdraw {
                     amount: Uint128::zero(),
-                    lp_token: deps.api.addr_validate(FARM_LP).unwrap(),
+                    lp_token: deps.api.addr_validate(ASSET_LP).unwrap(),
                 }).unwrap(),
             }), //ok
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: FARM_TOKEN.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: PAIR_CONTRACT.to_string(),
-                    amount: Uint128::from(643564u128),
+                    amount: Uint128::from(50075112u128),
                     msg: to_binary(&AstroportCw20HookMsg::Swap {
                         max_spread: None,
                         belief_price: None,
@@ -439,7 +449,17 @@ fn test_compound_farm_token_and_astro(deps: &mut OwnedDeps<MockStorage, MockApi,
                 contract_addr: FARM_TOKEN.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
                     spender: PAIR_CONTRACT.to_string(),
-                    amount: Uint128::from(98364632u128),
+                    amount: Uint128::from(49924888u128),
+                    expires: None
+                })
+                .unwrap(),
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: ASSET_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+                    spender: PAIR_CONTRACT.to_string(),
+                    amount: Uint128::from(49924887u128),
                     expires: None
                 })
                 .unwrap(),
@@ -451,15 +471,15 @@ fn test_compound_farm_token_and_astro(deps: &mut OwnedDeps<MockStorage, MockApi,
                     assets: [
                         Asset {
                             info: AssetInfo::Token {
-                                contract_addr: deps.api.addr_validate(FARM_TOKEN).unwrap(),
+                                contract_addr: deps.api.addr_validate(ASSET_TOKEN).unwrap(),
                             },
-                            amount: Uint128::from(98364632u128),
+                            amount: Uint128::from(49924887u128),
                         },
                         Asset {
-                            info: AssetInfo::NativeToken {
-                                denom: "uusd".to_string(),
+                            info: AssetInfo::Token {
+                                contract_addr: deps.api.addr_validate(FARM_TOKEN).unwrap(),
                             },
-                            amount: Uint128::from(98364506u128),
+                            amount: Uint128::from(49924888u128),
                         },
                     ],
                     slippage_tolerance: None,
@@ -467,15 +487,12 @@ fn test_compound_farm_token_and_astro(deps: &mut OwnedDeps<MockStorage, MockApi,
                     receiver: None
                 })
                 .unwrap(),
-                funds: vec![Coin {
-                    denom: "uusd".to_string(),
-                    amount: Uint128::from(98364506u128),
-                }],
+                funds: vec![],
             }),
             // CosmosMsg::Wasm(WasmMsg::Execute {
             //     contract_addr: env.contract.address.to_string(),
             //     msg: to_binary(&ExecuteMsg::stake {
-            //         asset_token: FARM_TOKEN.to_string(),
+            //         asset_token: ASSET_TOKEN.to_string(),
             //     })
             //     .unwrap(),
             //     funds: vec![],
@@ -495,7 +512,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         amount: Uint128::from(10000u128),
         msg: to_binary(&Cw20HookMsg::bond {
             staker_addr: None,
-            asset_token: FARM_TOKEN.to_string(),
+            asset_token: ASSET_TOKEN.to_string(),
             compound_rate: Some(Decimal::percent(60)),
         })
         .unwrap(),
@@ -503,8 +520,8 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
 
-    // bond success user1 1000 FARM-LP
-    let info = mock_info(FARM_LP, &[]);
+    // bond success user1 1000 ASSET-LP
+    let info = mock_info(ASSET_LP, &[]);
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
 
@@ -512,7 +529,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let config = read_config(deps_ref.storage).unwrap();
     let mut state = read_state(deps_ref.storage).unwrap();
     let mut pool_info = pool_info_read(deps_ref.storage)
-        .load(config.farm_token.as_slice())
+        .load(config.asset_token.as_slice())
         .unwrap();
     deposit_farm_share(
         deps_ref,
@@ -532,7 +549,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     ).unwrap();
     state_store(deps.as_mut().storage).save(&state).unwrap();
     pool_info_store(deps.as_mut().storage)
-        .save(config.farm_token.as_slice(), &pool_info)
+        .save(config.asset_token.as_slice(), &pool_info)
         .unwrap();
     deps.querier.with_token_balances(&[
         (
@@ -562,7 +579,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: FARM_TOKEN.to_string(),
+            asset_token: ASSET_TOKEN.to_string(),
             pending_farm_reward: Uint128::from(2000u128),
             pending_farm2_reward: Uint128::from(1000u128),
             pending_spec_reward: Uint128::from(2700u128),
@@ -583,10 +600,10 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         }]
     );
 
-    // unbond 3000 FARM-LP
+    // unbond 3000 ASSET-LP
     let info = mock_info(USER1, &[]);
     let msg = ExecuteMsg::unbond {
-        asset_token: FARM_TOKEN.to_string(),
+        asset_token: ASSET_TOKEN.to_string(),
         amount: Uint128::from(3000u128),
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
@@ -602,13 +619,13 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 contract_addr: ASTROPORT_GENERATOR.to_string(),
                 funds: vec![],
                 msg: to_binary(&AstroportExecuteMsg::Withdraw {
-                    lp_token: deps.api.addr_validate(FARM_LP).unwrap(),
+                    lp_token: deps.api.addr_validate(ASSET_LP).unwrap(),
                     amount: Uint128::from(3000u128),
                 })
                 .unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: FARM_LP.to_string(),
+                contract_addr: ASSET_LP.to_string(),
                 funds: vec![],
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: USER1.to_string(),
@@ -721,7 +738,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: FARM_TOKEN.to_string(),
+            asset_token: ASSET_TOKEN.to_string(),
             pending_farm_reward: Uint128::from(0u128),
             pending_farm2_reward: Uint128::from(0u128),
             pending_spec_reward: Uint128::from(0u128),
@@ -742,14 +759,14 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         },]
     );
 
-    // bond user2 5000 FARM_TOKEN -LP auto-stake
-    let info = mock_info(FARM_LP, &[]);
+    // bond user2 5000 ASSET-LP auto-stake
+    let info = mock_info(ASSET_LP, &[]);
     let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
         sender: USER2.to_string(),
         amount: Uint128::from(5000u128),
         msg: to_binary(&Cw20HookMsg::bond {
             staker_addr: None,
-            asset_token: FARM_TOKEN.to_string(),
+            asset_token: ASSET_TOKEN.to_string(),
             compound_rate: None,
         })
         .unwrap(),
@@ -760,7 +777,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let deps_ref = deps.as_ref();
     let mut state = read_state(deps_ref.storage).unwrap();
     let mut pool_info = pool_info_read(deps_ref.storage)
-        .load(config.farm_token.as_slice())
+        .load(config.asset_token.as_slice())
         .unwrap();
     deposit_farm_share(
         deps_ref,
@@ -780,7 +797,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     ).unwrap();
     state_store(deps.as_mut().storage).save(&state).unwrap();
     pool_info_store(deps.as_mut().storage)
-        .save(config.farm_token.as_slice(), &pool_info)
+        .save(config.asset_token.as_slice(), &pool_info)
         .unwrap();
     deps.querier.with_token_balances(&[
         (
@@ -826,7 +843,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: FARM_TOKEN.to_string(),
+            asset_token: ASSET_TOKEN.to_string(),
             pending_farm_reward: Uint128::from(1794u128),
             pending_farm2_reward: Uint128::from(1794u128),
             pending_spec_reward: Uint128::from(582u128),
@@ -855,7 +872,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: FARM_TOKEN.to_string(),
+            asset_token: ASSET_TOKEN.to_string(),
             pending_farm_reward: Uint128::from(3205u128),
             pending_farm2_reward: Uint128::from(3205u128),
             pending_spec_reward: Uint128::from(416u128),
@@ -941,7 +958,7 @@ fn test_compound_farm_token_and_astro_with_fees(deps: &mut OwnedDeps<MockStorage
     total swap amount 2647 FARM_TOKEN
     */
 
-    let msg = ExecuteMsg::compound { threshold_compound_astro: Uint128::from(1u128) };
+    let msg = ExecuteMsg::compound { threshold_compound_astro: Some(Uint128::from(1u128)) };
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
     assert_eq!(
@@ -954,7 +971,7 @@ fn test_compound_farm_token_and_astro_with_fees(deps: &mut OwnedDeps<MockStorage
                 contract_addr: ASTROPORT_GENERATOR.to_string(),
                 funds: vec![],
                 msg: to_binary(&AstroportExecuteMsg::Withdraw {
-                    lp_token: deps.api.addr_validate(FARM_LP).unwrap(),
+                    lp_token: deps.api.addr_validate(ASSET_LP).unwrap(),
                     amount: Uint128::zero()
                 }).unwrap(),
             }),
@@ -962,7 +979,7 @@ fn test_compound_farm_token_and_astro_with_fees(deps: &mut OwnedDeps<MockStorage
                 contract_addr: FARM_TOKEN.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: PAIR_CONTRACT.to_string(),
-                    amount: Uint128::from(315u128),
+                    amount: Uint128::from(1022u128),
                     msg: to_binary(&AstroportCw20HookMsg::Swap {
                         max_spread: None,
                         belief_price: None,
@@ -985,11 +1002,24 @@ fn test_compound_farm_token_and_astro_with_fees(deps: &mut OwnedDeps<MockStorage
                 funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: FARM_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: FARM_UST_PAIR_CONTRACT.to_string(),
+                    amount: Uint128::from(302u128),
+                    msg: to_binary(&AstroportCw20HookMsg::Swap {
+                        max_spread: None,
+                        belief_price: None,
+                        to: None,
+                    }).unwrap()
+                }).unwrap(),
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: ANC_MARKET.to_string(),
                 msg: to_binary(&moneymarket::market::ExecuteMsg::DepositStable {}).unwrap(),
                 funds: vec![Coin {
                     denom: "uusd".to_string(),
-                    amount: Uint128::from(590u128),
+                    amount: Uint128::from(591u128),
                 }],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
@@ -1026,7 +1056,16 @@ fn test_compound_farm_token_and_astro_with_fees(deps: &mut OwnedDeps<MockStorage
                 contract_addr: FARM_TOKEN.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
                     spender: PAIR_CONTRACT.to_string(),
-                    amount: Uint128::from(2007u128),
+                    amount: Uint128::from(1020u128),
+                    expires: None
+                }).unwrap(),
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: ASSET_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+                    spender: PAIR_CONTRACT.to_string(),
+                    amount: Uint128::from(1019u128),
                     expires: None
                 }).unwrap(),
                 funds: vec![],
@@ -1037,30 +1076,27 @@ fn test_compound_farm_token_and_astro_with_fees(deps: &mut OwnedDeps<MockStorage
                     assets: [
                         Asset {
                             info: AssetInfo::Token {
-                                contract_addr: deps.api.addr_validate(FARM_TOKEN).unwrap(),
+                                contract_addr: deps.api.addr_validate(ASSET_TOKEN).unwrap(),
                             },
-                            amount: Uint128::from(2007u128),
+                            amount: Uint128::from(1019u128),
                         },
                         Asset {
-                            info: AssetInfo::NativeToken {
-                                denom: "uusd".to_string(),
+                            info: AssetInfo::Token {
+                                contract_addr: deps.api.addr_validate(FARM_TOKEN).unwrap(),
                             },
-                            amount: Uint128::from(2007u128),
+                            amount: Uint128::from(1020u128),
                         },
                     ],
                     slippage_tolerance: None,
                     auto_stake: Some(true),
                     receiver: None
                 }).unwrap(),
-                funds: vec![Coin {
-                    denom: "uusd".to_string(),
-                    amount: Uint128::from(2007u128),
-                }],
+                funds: vec![],
             }),
             // CosmosMsg::Wasm(WasmMsg::Execute {
             //     contract_addr: env.contract.address.to_string(),
             //     msg: to_binary(&ExecuteMsg::stake {
-            //         asset_token: FARM_TOKEN.to_string(),
+            //         asset_token: ASSET_TOKEN.to_string(),
             //     })
             //         .unwrap(),
             //     funds: vec![],

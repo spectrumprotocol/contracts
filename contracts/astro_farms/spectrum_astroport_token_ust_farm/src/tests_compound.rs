@@ -248,7 +248,7 @@ fn test_compound_unauthorized(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMoc
     // reinvest err
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
-    let msg = ExecuteMsg::compound { threshold_compound_astro: Uint128::from(10000u128) };
+    let msg = ExecuteMsg::compound { threshold_compound_astro: Some(Uint128::from(10000u128)) };
     let res = execute(deps.as_mut(), env, info, msg);
     assert!(res.is_err());
 }
@@ -257,7 +257,7 @@ fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
     // reinvest zero
     let env = mock_env();
     let info = mock_info(TEST_CONTROLLER, &[]);
-    let msg = ExecuteMsg::compound { threshold_compound_astro: Uint128::from(10000u128) };
+    let msg = ExecuteMsg::compound { threshold_compound_astro: Some(Uint128::from(10000u128)) };
     let res = execute(deps.as_mut(), env, info, msg).unwrap();
 
     assert_eq!(
@@ -292,7 +292,7 @@ fn test_compound_farm_token_and_astro_not_reach_threshold(deps: &mut OwnedDeps<M
         (&ASTRO_TOKEN.to_string(), &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(1_000u128))])
     ]);
 
-    let msg = ExecuteMsg::compound { threshold_compound_astro: Uint128::from(100_000u128) };
+    let msg = ExecuteMsg::compound { threshold_compound_astro: Some(Uint128::from(100_000u128)) };
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
     assert_eq!(
@@ -381,7 +381,7 @@ fn test_compound_farm_token_and_astro(deps: &mut OwnedDeps<MockStorage, MockApi,
         (&ASTRO_TOKEN.to_string(), &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(100_000_000u128))])
     ]);
 
-    let msg = ExecuteMsg::compound { threshold_compound_astro: Uint128::from(100000u128) };
+    let msg = ExecuteMsg::compound { threshold_compound_astro: Some(Uint128::from(100000u128)) };
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
     assert_eq!(
@@ -941,7 +941,7 @@ fn test_compound_farm_token_and_astro_with_fees(deps: &mut OwnedDeps<MockStorage
     total swap amount 2647 FARM_TOKEN
     */
 
-    let msg = ExecuteMsg::compound { threshold_compound_astro: Uint128::from(1u128) };
+    let msg = ExecuteMsg::compound { threshold_compound_astro: Some(Uint128::from(1u128)) };
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
     assert_eq!(

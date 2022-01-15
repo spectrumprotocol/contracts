@@ -47,7 +47,7 @@ pub fn compound(
     let astro_token = deps.api.addr_humanize(&config.astro_token)?;
     let xastro_proxy = deps.api.addr_humanize(&config.xastro_proxy)?;
 
-    let mut pool_info = pool_info_read(deps.storage).load(config.farm_token.as_slice())?;
+    let mut pool_info = pool_info_read(deps.storage).load(config.asset_token.as_slice())?;
 
     // This get pending (ASTRO), and pending proxy rewards
     let pending_token_response = query_astroport_pending_token(
