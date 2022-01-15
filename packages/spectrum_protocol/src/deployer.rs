@@ -28,6 +28,7 @@ pub enum ExecuteMsg {
     },
     update_config {
         owner: Option<String>,
+        manager: Option<String>,
         operator: Option<String>,
         time_lock: Option<u64>,
     },

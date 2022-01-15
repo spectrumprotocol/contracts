@@ -15,7 +15,7 @@ use cw20::Cw20ReceiveMsg;
 
 use crate::bond::{deposit_spec_reward, query_reward_info, unbond, update_bond, withdraw};
 use crate::state::{pool_info_read, pool_info_store, read_state};
-use spectrum_protocol::astroport_token_ust_farm::{
+use spectrum_protocol::astroport_token_token_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
 use crate::compound::send_fee;
@@ -58,7 +58,7 @@ pub fn instantiate(
             },
             platform: deps.api.addr_canonicalize(&msg.platform)?,
             controller: deps.api.addr_canonicalize(&msg.controller)?,
-            base_denom: msg.base_denom,
+            asset_token: deps.api.addr_canonicalize(&msg.asset_token)?,
             community_fee: msg.community_fee,
             platform_fee: msg.platform_fee,
             controller_fee: msg.controller_fee,
@@ -67,6 +67,7 @@ pub fn instantiate(
             aust_token: deps.api.addr_canonicalize(&msg.aust_token)?,
             pair_contract: deps.api.addr_canonicalize(&msg.pair_contract)?,
             astro_ust_pair_contract: deps.api.addr_canonicalize(&msg.astro_ust_pair_contract)?,
+            farm_ust_pair_contract: deps.api.addr_canonicalize(&msg.farm_ust_pair_contract)?,
         },
     )?;
 
@@ -298,7 +299,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         },
         platform: deps.api.addr_humanize(&config.platform)?.to_string(),
         controller: deps.api.addr_humanize(&config.controller)?.to_string(),
-        base_denom: config.base_denom,
+        asset_token: deps.api.addr_humanize(&config.asset_token)?.to_string(),
         community_fee: config.community_fee,
         platform_fee: config.platform_fee,
         controller_fee: config.controller_fee,
@@ -309,6 +310,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         aust_token: deps.api.addr_humanize(&config.aust_token)?.to_string(),
         pair_contract: deps.api.addr_humanize(&config.pair_contract)?.to_string(),
         astro_ust_pair_contract: deps.api.addr_humanize(&config.astro_ust_pair_contract)?.to_string(),
+        farm_ust_pair_contract: deps.api.addr_humanize(&config.farm_ust_pair_contract)?.to_string(),
     };
 
     Ok(resp)

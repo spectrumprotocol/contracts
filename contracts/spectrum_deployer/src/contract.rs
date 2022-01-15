@@ -30,7 +30,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::update_contract { contract_addr, add_code_id, remove_code_ids }
             => update_contract(deps, env, info, contract_addr, add_code_id, remove_code_ids),
         ExecuteMsg::migrate { contract_addr, code_id, msg } => execute_migrate(deps, env, info, contract_addr, code_id, msg),
-        ExecuteMsg::update_config { owner, operator, time_lock } => update_config(deps, info, owner, operator, time_lock),
+        ExecuteMsg::update_config { owner, manager, operator, time_lock } => update_config(deps, info, owner, manager, operator, time_lock),
     }
 }
 
@@ -92,6 +92,7 @@ fn update_config(
     deps: DepsMut,
     info: MessageInfo,
     owner: Option<String>,
+    manager: Option<String>,
     operator: Option<String>,
     time_lock: Option<u64>,
 ) -> StdResult<Response> {
@@ -103,6 +104,10 @@ fn update_config(
 
     if let Some(owner) = owner {
         config.owner = deps.api.addr_canonicalize(&owner)?;
+    }
+
+    if let Some(manager) = manager {
+        config.manager = deps.api.addr_canonicalize(&manager)?;
     }
 
     if let Some(operator) = operator {

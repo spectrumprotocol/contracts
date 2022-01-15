@@ -16,7 +16,7 @@ pub struct ConfigInfo {
     pub gov_proxy: Option<String>,
     pub platform: String,
     pub controller: String,
-    pub base_denom: String,
+    pub asset_token: String,
     pub community_fee: Decimal,
     pub platform_fee: Decimal,
     pub controller_fee: Decimal,
@@ -25,6 +25,7 @@ pub struct ConfigInfo {
     pub aust_token: String,
     pub pair_contract: String,
     pub astro_ust_pair_contract: String,
+    pub farm_ust_pair_contract: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
