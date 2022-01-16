@@ -13,7 +13,6 @@ static KEY_CONFIG: &[u8] = b"config";
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     pub owner: CanonicalAddr,
-    pub manager: CanonicalAddr,
     pub operator: CanonicalAddr,
     pub time_lock: u64,
 }

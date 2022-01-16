@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigInfo {
     pub owner: String,
-    pub manager: String,
     pub operator: String,
     pub time_lock: u64,
 }
@@ -28,7 +27,6 @@ pub enum ExecuteMsg {
     },
     update_config {
         owner: Option<String>,
-        manager: Option<String>,
         operator: Option<String>,
         time_lock: Option<u64>,
     },
