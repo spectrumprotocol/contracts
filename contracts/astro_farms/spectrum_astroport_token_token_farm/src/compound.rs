@@ -137,7 +137,7 @@ pub fn compound(
         )?;
     }
     state_store(deps.storage).save(&state)?;
-    pool_info_store(deps.storage).save(config.farm_token.as_slice(), &pool_info)?;
+    pool_info_store(deps.storage).save(config.asset_token.as_slice(), &pool_info)?;
 
     // swap all
     total_astro_token_swap_amount += compound_amount_astro;
@@ -482,7 +482,7 @@ pub fn send_fee(
     // remaining UST > 100, swap all to farm token, in case ASTRO provides more than farm
     let ust_amount = deps.querier.query_balance(env.contract.address, "uusd")?.amount;
     if ust_amount >= Uint128::from(100_000000u128) {
-        let ust_after_buffer = ust_amount.checked_sub(Uint128::from(5_000000u128))?;
+        let ust_after_tax = deduct_tax(&deps.querier, ust_amount, "uusd".to_string())?;
         let swap_ust: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.farm_ust_pair_contract)?.to_string(),
             msg: to_binary(&AstroportPairExecuteMsg::Swap {
@@ -491,11 +491,11 @@ pub fn send_fee(
                 to: None,
                 offer_asset: Asset {
                     info: AssetInfo::NativeToken { denom: "uusd".to_string() },
-                    amount: ust_after_buffer,
+                    amount: ust_after_tax,
                 },
             })?,
             funds: vec![
-                Coin { denom: "uusd".to_string(), amount: ust_after_buffer },
+                Coin { denom: "uusd".to_string(), amount: ust_after_tax },
             ],
         });
         messages.push(swap_ust);

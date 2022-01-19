@@ -272,40 +272,6 @@ pub fn compound(
         messages.push(swap_astro_token);
     }
 
-    let total_ust_commission_amount = total_ust_commission_amount + total_ust_commission_amount_astro;
-    if !total_ust_commission_amount.is_zero() {
-        let net_commission_amount = deduct_tax(
-            &deps.querier,
-            total_ust_commission_amount,
-            config.base_denom.clone(),
-        )?;
-
-        let mut state = read_state(deps.storage)?;
-        state.earning += net_commission_amount;
-        state_store(deps.storage).save(&state)?;
-
-        attributes.push(attr("net_commission", net_commission_amount));
-
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: deps.api.addr_humanize(&config.anchor_market)?.to_string(),
-            msg: to_binary(&MoneyMarketExecuteMsg::DepositStable {})?,
-            funds: vec![Coin {
-                denom: config.base_denom.clone(),
-                amount: net_commission_amount,
-            }],
-        }));
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
-            msg: to_binary(&GovExecuteMsg::mint {})?,
-            funds: vec![],
-        }));
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: env.contract.address.to_string(),
-            msg: to_binary(&ExecuteMsg::send_fee {})?,
-            funds: vec![],
-        }));
-    }
-
     if let Some(gov_proxy) = config.gov_proxy {
         if !total_farm_token_stake_amount.is_zero() {
             let stake_farm_token = CosmosMsg::Wasm(WasmMsg::Execute {
@@ -368,7 +334,7 @@ pub fn compound(
                 auto_stake: Some(true),
             })?,
             funds: vec![Coin {
-                denom: config.base_denom,
+                denom: config.base_denom.clone(),
                 amount: net_reinvest_ust,
             }],
         });
@@ -382,6 +348,40 @@ pub fn compound(
         //     funds: vec![],
         // });
         // messages.push(stake);
+    }
+
+    let total_ust_commission_amount = total_ust_commission_amount + total_ust_commission_amount_astro;
+    if !total_ust_commission_amount.is_zero() {
+        let net_commission_amount = deduct_tax(
+            &deps.querier,
+            total_ust_commission_amount,
+            config.base_denom.clone(),
+        )?;
+
+        let mut state = read_state(deps.storage)?;
+        state.earning += net_commission_amount;
+        state_store(deps.storage).save(&state)?;
+
+        attributes.push(attr("net_commission", net_commission_amount));
+
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: deps.api.addr_humanize(&config.anchor_market)?.to_string(),
+            msg: to_binary(&MoneyMarketExecuteMsg::DepositStable {})?,
+            funds: vec![Coin {
+                denom: config.base_denom.clone(),
+                amount: net_commission_amount,
+            }],
+        }));
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
+            msg: to_binary(&GovExecuteMsg::mint {})?,
+            funds: vec![],
+        }));
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: env.contract.address.to_string(),
+            msg: to_binary(&ExecuteMsg::send_fee {})?,
+            funds: vec![],
+        }));
     }
 
     attributes.push(attr("action", "compound"));
@@ -522,7 +522,7 @@ pub fn send_fee(
     // remaining UST > 100, swap all to farm token, in case ASTRO provides more than farm
     let ust_amount = deps.querier.query_balance(env.contract.address, "uusd")?.amount;
     if ust_amount >= Uint128::from(100_000000u128) {
-        let ust_after_buffer = ust_amount.checked_sub(Uint128::from(5_000000u128))?;
+        let ust_after_tax = deduct_tax(&deps.querier, ust_amount, "uusd".to_string())?;
         let swap_ust: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.pair_contract)?.to_string(),
             msg: to_binary(&AstroportPairExecuteMsg::Swap {
@@ -531,11 +531,11 @@ pub fn send_fee(
                 to: None,
                 offer_asset: Asset {
                     info: AssetInfo::NativeToken { denom: "uusd".to_string() },
-                    amount: ust_after_buffer,
+                    amount: ust_after_tax,
                 },
             })?,
             funds: vec![
-                Coin { denom: "uusd".to_string(), amount: ust_after_buffer },
+                Coin { denom: "uusd".to_string(), amount: ust_after_tax },
             ],
         });
         messages.push(swap_ust);

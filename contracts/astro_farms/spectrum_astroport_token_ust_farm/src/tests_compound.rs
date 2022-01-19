@@ -985,24 +985,6 @@ fn test_compound_farm_token_and_astro_with_fees(deps: &mut OwnedDeps<MockStorage
                 funds: vec![],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: ANC_MARKET.to_string(),
-                msg: to_binary(&moneymarket::market::ExecuteMsg::DepositStable {}).unwrap(),
-                funds: vec![Coin {
-                    denom: "uusd".to_string(),
-                    amount: Uint128::from(590u128),
-                }],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: SPEC_GOV.to_string(),
-                msg: to_binary(&spectrum_protocol::gov::ExecuteMsg::mint {}).unwrap(),
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: MOCK_CONTRACT_ADDR.to_string(),
-                msg: to_binary(&ExecuteMsg::send_fee {}).unwrap(),
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: FARM_TOKEN.to_string(),
                 funds: vec![],
                 msg: to_binary(&Cw20ExecuteMsg::Send {
@@ -1019,8 +1001,7 @@ fn test_compound_farm_token_and_astro_with_fees(deps: &mut OwnedDeps<MockStorage
                     contract: XASTRO_PROXY.to_string(),
                     amount: Uint128::from(3706u128),
                     msg: to_binary(&GovProxyCw20HookMsg::Stake {}).unwrap(),
-                })
-                    .unwrap(),
+                }).unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: FARM_TOKEN.to_string(),
@@ -1065,6 +1046,24 @@ fn test_compound_farm_token_and_astro_with_fees(deps: &mut OwnedDeps<MockStorage
             //         .unwrap(),
             //     funds: vec![],
             // }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: ANC_MARKET.to_string(),
+                msg: to_binary(&moneymarket::market::ExecuteMsg::DepositStable {}).unwrap(),
+                funds: vec![Coin {
+                    denom: "uusd".to_string(),
+                    amount: Uint128::from(590u128),
+                }],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: SPEC_GOV.to_string(),
+                msg: to_binary(&spectrum_protocol::gov::ExecuteMsg::mint {}).unwrap(),
+                funds: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: MOCK_CONTRACT_ADDR.to_string(),
+                msg: to_binary(&ExecuteMsg::send_fee {}).unwrap(),
+                funds: vec![],
+            }),
         ]
     );
 
