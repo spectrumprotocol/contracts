@@ -4,16 +4,17 @@
   "type": "object",
   "required": [
     "anchor_market",
+    "asset_token",
     "astro_token",
     "astro_ust_pair_contract",
     "astroport_generator",
     "aust_token",
-    "base_denom",
     "community_fee",
     "controller",
     "controller_fee",
     "deposit_fee",
     "farm_token",
+    "farm_ust_pair_contract",
     "owner",
     "pair_contract",
     "platform",
@@ -26,6 +27,9 @@
     "anchor_market": {
       "type": "string"
     },
+    "asset_token": {
+      "type": "string"
+    },
     "astro_token": {
       "type": "string"
     },
@@ -36,9 +40,6 @@
       "type": "string"
     },
     "aust_token": {
-      "type": "string"
-    },
-    "base_denom": {
       "type": "string"
     },
     "community_fee": {
@@ -54,6 +55,9 @@
       "$ref": "#/definitions/Decimal"
     },
     "farm_token": {
+      "type": "string"
+    },
+    "farm_ust_pair_contract": {
       "type": "string"
     },
     "gov_proxy": {
