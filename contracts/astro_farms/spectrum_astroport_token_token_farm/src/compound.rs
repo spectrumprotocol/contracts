@@ -239,11 +239,12 @@ pub fn compound(
             deps.api.addr_humanize(&config.farm_ust_pair_contract)?,
             &net_commission)?;
 
-        let total_ust_commission_amount = deduct_tax(
+        let total_ust_commission_amount_farm = deduct_tax(
             &deps.querier,
             farm_token_swap_rate_to_uusd.return_amount,
             "uusd".to_string(),
-        )? + total_ust_commission_amount_astro;
+        )?;
+        let total_ust_commission_amount = total_ust_commission_amount_farm + total_ust_commission_amount_astro;
         let net_commission_amount = deduct_tax(
             &deps.querier,
             total_ust_commission_amount,
@@ -256,19 +257,22 @@ pub fn compound(
 
         attributes.push(attr("net_commission", net_commission_amount));
 
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: farm_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: deps.api.addr_humanize(&config.farm_ust_pair_contract)?.to_string(),
-                amount: total_farm_token_commission,
-                msg: to_binary(&AstroportPairCw20HookMsg::Swap {
-                    to: None,
-                    max_spread: None,
-                    belief_price: None,
+        let ust_amount = deps.querier.query_balance(env.contract.address.clone(), "uusd")?.amount;
+        if ust_amount < total_ust_commission_amount_farm {
+            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: farm_token.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: deps.api.addr_humanize(&config.farm_ust_pair_contract)?.to_string(),
+                    amount: total_farm_token_commission,
+                    msg: to_binary(&AstroportPairCw20HookMsg::Swap {
+                        to: None,
+                        max_spread: None,
+                        belief_price: None,
+                    })?,
                 })?,
-            })?,
-            funds: vec![],
-        }));
+                funds: vec![],
+            }));
+        }
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.anchor_market)?.to_string(),
             msg: to_binary(&MoneyMarketExecuteMsg::DepositStable {})?,

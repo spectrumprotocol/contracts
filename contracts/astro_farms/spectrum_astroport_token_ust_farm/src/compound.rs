@@ -181,10 +181,14 @@ pub fn compound(
             info: AssetInfo::NativeToken { denom: config.base_denom.clone() },
             amount: total_ust_reinvest_amount_astro,
         });
+
+    let mut max_provide_farm_token = compound_amount;
     if compound_amount >= farm_token_astro {
-        total_farm_token_swap_amount += compound_amount
+        let swap_amount = compound_amount
             .checked_sub(farm_token_astro)?
             .multiply_ratio(1u128, 2u128);
+        max_provide_farm_token = max_provide_farm_token.checked_sub(swap_amount)?;
+        total_farm_token_swap_amount += swap_amount;
     } else {
         total_ust_reinvest_amount_astro = total_ust_reinvest_amount_astro
             .multiply_ratio(compound_amount, farm_token_astro);
@@ -219,12 +223,15 @@ pub fn compound(
         total_ust_reinvest_amount + total_ust_reinvest_amount_astro,
         config.base_denom.clone(),
     )?;
-    let provide_farm_token = compute_provide_after_swap(
+    let mut provide_farm_token = compute_provide_after_swap(
         &pool,
         &farm_token_asset,
         farm_token_swap_rate.return_amount,
         net_reinvest_ust,
     )?;
+    if provide_farm_token > max_provide_farm_token {
+        provide_farm_token = max_provide_farm_token;
+    }
 
     let mut messages: Vec<CosmosMsg> = vec![];
 
@@ -239,20 +246,23 @@ pub fn compound(
     messages.push(manual_claim_pending_token);
 
     if !total_farm_token_swap_amount.is_zero() {
-        let swap_farm_token: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: farm_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: pair_contract.to_string(),
-                amount: total_farm_token_swap_amount,
-                msg: to_binary(&AstroportPairCw20HookMsg::Swap {
-                    max_spread: None,
-                    belief_price: None,
-                    to: None,
+        let ust_amount = deps.querier.query_balance(env.contract.address.clone(), "uusd")?.amount;
+        if ust_amount < total_ust_return_amount {
+            let swap_farm_token: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: farm_token.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: pair_contract.to_string(),
+                    amount: total_farm_token_swap_amount,
+                    msg: to_binary(&AstroportPairCw20HookMsg::Swap {
+                        max_spread: None,
+                        belief_price: None,
+                        to: None,
+                    })?,
                 })?,
-            })?,
-            funds: vec![],
-        });
-        messages.push(swap_farm_token);
+                funds: vec![],
+            });
+            messages.push(swap_farm_token);
+        }
     }
 
     if !total_astro_token_swap_amount.is_zero() {
