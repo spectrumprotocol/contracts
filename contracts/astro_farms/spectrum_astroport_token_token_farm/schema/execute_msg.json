@@ -212,12 +212,16 @@
       "properties": {
         "compound": {
           "type": "object",
-          "required": [
-            "threshold_compound_astro"
-          ],
           "properties": {
             "threshold_compound_astro": {
-              "$ref": "#/definitions/Uint128"
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Uint128"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           }
         }
