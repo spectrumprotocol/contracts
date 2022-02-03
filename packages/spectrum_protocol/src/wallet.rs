@@ -82,6 +82,8 @@ pub struct BalanceResponse {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct StateInfo {
     #[serde(default)] pub total_burn: Uint128,
+    #[serde(default)] pub buyback_ust: Uint128,
+    #[serde(default)] pub buyback_spec: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]

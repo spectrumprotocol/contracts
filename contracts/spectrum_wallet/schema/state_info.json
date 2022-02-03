@@ -3,6 +3,22 @@
   "title": "StateInfo",
   "type": "object",
   "properties": {
+    "buyback_spec": {
+      "default": "0",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Uint128"
+        }
+      ]
+    },
+    "buyback_ust": {
+      "default": "0",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Uint128"
+        }
+      ]
+    },
     "total_burn": {
       "default": "0",
       "allOf": [

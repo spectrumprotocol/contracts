@@ -1,6 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{attr, from_binary, to_binary, Binary, CanonicalAddr, Decimal, Deps, DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult, Uint128, QueryRequest, WasmQuery, CosmosMsg, WasmMsg, Coin};
+use cosmwasm_std::{attr, from_binary, to_binary, Binary, CanonicalAddr, Decimal, Deps, DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult, Uint128};
 
 use crate::{
     bond::bond,
@@ -8,9 +8,7 @@ use crate::{
     state::{read_config, state_store, store_config, Config, PoolInfo, State},
 };
 
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use terraswap::asset::{Asset, AssetInfo};
-use terraswap::querier::{query_pair_info, simulate};
+use cw20::{Cw20ReceiveMsg};
 
 use crate::bond::{deposit_spec_reward, query_reward_info, unbond, withdraw, update_bond};
 use crate::state::{pool_info_read, pool_info_store, read_state};
@@ -18,17 +16,6 @@ use spectrum_protocol::pylon_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
 use crate::compound::send_fee;
-use pylon_token::gov_msg::{
-    StakingMsg as PylonGovStakingMsg, QueryMsg as PylonGovQueryMsg, ExecuteMsg as PylonGovExecuteMsg,
-    AirdropMsg as PylonGovAirdropMsg,
-};
-use pylon_token::gov_resp::{
-    StakerResponse as PylonStakerResponse
-};
-use terraswap::pair::{Cw20HookMsg as PairCw20HookMsg};
-use spectrum_protocol::farm_helper::deduct_tax;
-use moneymarket::market::{ExecuteMsg as MoneyMarketExecuteMsg};
-use spectrum_protocol::gov::{ExecuteMsg as GovExecuteMsg};
 
 /// (we require 0-1)
 fn validate_percentage(value: Decimal, field: &str) -> StdResult<()> {

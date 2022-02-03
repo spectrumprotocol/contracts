@@ -115,6 +115,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
             prev_aust_balance: Uint128::zero(),
             vault_balances: Uint128::zero(),
             vault_share_multiplier: Decimal::one(),
+            pool_weight: 1,
         }
     );
 

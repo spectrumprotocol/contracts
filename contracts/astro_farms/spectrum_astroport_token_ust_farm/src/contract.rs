@@ -121,7 +121,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::stake { asset_token } => stake(deps, env, info, asset_token),
         ExecuteMsg::compound {
             threshold_compound_astro,
-        } => compound(deps, env, info, threshold_compound_astro),
+        } => compound(deps, env, info, threshold_compound_astro.unwrap_or_else(Uint128::zero)),
         ExecuteMsg::update_bond {
             asset_token,
             amount_to_auto,

@@ -106,6 +106,12 @@
         "update_config": {
           "type": "object",
           "properties": {
+            "manager": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "operator": {
               "type": [
                 "string",

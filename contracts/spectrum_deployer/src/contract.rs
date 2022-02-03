@@ -13,7 +13,6 @@ pub fn instantiate(
 ) -> StdResult<Response> {
     let config = Config {
         owner: deps.api.addr_canonicalize(&msg.owner)?,
-        manager: deps.api.addr_canonicalize(&msg.manager)?,
         operator: deps.api.addr_canonicalize(&msg.operator)?,
         time_lock: msg.time_lock,
     };
@@ -28,7 +27,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
     match msg {
         ExecuteMsg::add_contract { contract_addr, code_id } => add_contract(deps, env, info, contract_addr, code_id),
         ExecuteMsg::update_contract { contract_addr, add_code_id, remove_code_ids }
-            => update_contract(deps, env, info, contract_addr, add_code_id, remove_code_ids),
+        => update_contract(deps, env, info, contract_addr, add_code_id, remove_code_ids),
         ExecuteMsg::migrate { contract_addr, code_id, msg } => execute_migrate(deps, env, info, contract_addr, code_id, msg),
         ExecuteMsg::update_config { owner, operator, time_lock } => update_config(deps, info, owner, operator, time_lock),
     }
@@ -41,9 +40,8 @@ fn add_contract(
     contract_addr: String,
     code_id: u64,
 ) -> StdResult<Response> {
-
     let config = read_config(deps.storage)?;
-    if config.manager != deps.api.addr_canonicalize(info.sender.as_str())? {
+    if config.operator != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(StdError::generic_err("unauthorized"));
     }
 
@@ -64,9 +62,8 @@ fn update_contract(
     new_code_id: Option<u64>,
     remove_code_ids: Option<Vec<u64>>,
 ) -> StdResult<Response> {
-
     let config = read_config(deps.storage)?;
-    if config.manager != deps.api.addr_canonicalize(info.sender.as_str())? {
+    if config.operator != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(StdError::generic_err("unauthorized"));
     }
 
@@ -95,7 +92,6 @@ fn update_config(
     operator: Option<String>,
     time_lock: Option<u64>,
 ) -> StdResult<Response> {
-
     let mut config = config_store(deps.storage).load()?;
     if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(StdError::generic_err("unauthorized"));
@@ -126,9 +122,9 @@ fn execute_migrate(
     code_id: u64,
     msg: Binary,
 ) -> StdResult<Response> {
-
     let config = config_store(deps.storage).load()?;
-    if config.operator != deps.api.addr_canonicalize(info.sender.as_str())? {
+    if config.operator != deps.api.addr_canonicalize(info.sender.as_str())? &&
+        config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(StdError::generic_err("unauthorized"));
     }
 
@@ -136,7 +132,7 @@ fn execute_migrate(
         .load(&code_id.to_be_bytes())?;
 
     if code_info.created_time + config.time_lock > env.block.time.seconds() {
-        return Err(StdError::generic_err("contract is in timelock period"))
+        return Err(StdError::generic_err("contract is in timelock period"));
     }
 
     Ok(Response::new()
@@ -160,7 +156,6 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
     let config = read_config(deps.storage)?;
     Ok(ConfigInfo {
         owner: deps.api.addr_humanize(&config.owner)?.to_string(),
-        manager: deps.api.addr_humanize(&config.manager)?.to_string(),
         operator: deps.api.addr_humanize(&config.operator)?.to_string(),
         time_lock: config.time_lock,
     })

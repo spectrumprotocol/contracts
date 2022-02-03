@@ -134,7 +134,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
 
     if !total_psi_commission.is_zero() {
 
-        // find SPEC swap rate
+        // find UST swap rate
         let net_commission = Asset {
             info: AssetInfo::Token {
                 contract_addr: nexus_token.to_string(),

@@ -771,6 +771,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "spectrum-astroport-token-token-farm"
+version = "0.2.0"
+dependencies = [
+ "astroport",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "moneymarket",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
+]
+
+[[package]]
 name = "spectrum-astroport-token-ust-farm"
 version = "0.2.0"
 dependencies = [
@@ -830,6 +846,21 @@ dependencies = [
  "spectrum-protocol",
  "terra-cosmwasm",
  "terraswap",
+]
+
+[[package]]
+name = "spectrum-mirror-gov-proxy"
+version = "0.2.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "mirror-protocol",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
 ]
 
 [[package]]
