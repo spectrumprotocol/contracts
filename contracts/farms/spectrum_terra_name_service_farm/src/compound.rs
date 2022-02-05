@@ -96,7 +96,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     total_tns_swap_amount += swap_amount;
 
     // find TNS swap rate
-    let anc = Asset {
+    let tns = Asset {
         info: AssetInfo::Token {
             contract_addr: terra_name_service_token.to_string(),
         },
@@ -105,7 +105,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let tns_swap_rate = simulate(
         &deps.querier,
         pair_contract.clone(),
-        &anc,
+        &tns,
     )?;
     let total_ust_return_amount = deduct_tax(&deps.querier, tns_swap_rate.return_amount, config.base_denom.clone())?;
     attributes.push(attr("total_ust_return_amount", total_ust_return_amount));
