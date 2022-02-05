@@ -131,7 +131,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
 
     let provide_tns = compute_provide_after_swap(
         &pool,
-        &anc,
+        &tns,
         tns_swap_rate.return_amount,
         net_reinvest_ust
     )?;
