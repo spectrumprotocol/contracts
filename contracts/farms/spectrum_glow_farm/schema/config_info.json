@@ -10,15 +10,15 @@
     "controller",
     "controller_fee",
     "deposit_fee",
+    "glow_gov",
+    "glow_staking",
+    "glow_token",
     "owner",
     "pair_contract",
     "platform",
     "platform_fee",
     "spectrum_gov",
-    "spectrum_token",
-    "glow_gov",
-    "glow_staking",
-    "glow_token"
+    "spectrum_token"
   ],
   "properties": {
     "anchor_market": {
@@ -42,6 +42,15 @@
     "deposit_fee": {
       "$ref": "#/definitions/Decimal"
     },
+    "glow_gov": {
+      "type": "string"
+    },
+    "glow_staking": {
+      "type": "string"
+    },
+    "glow_token": {
+      "type": "string"
+    },
     "owner": {
       "type": "string"
     },
@@ -58,15 +67,6 @@
       "type": "string"
     },
     "spectrum_token": {
-      "type": "string"
-    },
-    "glow_gov": {
-      "type": "string"
-    },
-    "glow_staking": {
-      "type": "string"
-    },
-    "glow_token": {
       "type": "string"
     }
   },
