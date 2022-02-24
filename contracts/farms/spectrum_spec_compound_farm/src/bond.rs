@@ -10,7 +10,7 @@ use crate::state::{
 
 use cw20::Cw20ExecuteMsg;
 
-use crate::querier::{query_spec_pool_balance};
+use crate::querier::{query_spec_pool_balance, query_spec_gov_balance};
 use spectrum_protocol::gov::{ExecuteMsg as SpecGovExecuteMsg, BalanceResponse as SpecGovBalanceResponse};
 use spectrum_protocol::spec_farm::{Cw20HookMsg as SpecStakingCw20HookMsg, ExecuteMsg as SpecStakingExecuteMsg};
 use spectrum_protocol::farm_helper::compute_deposit_time;
@@ -90,7 +90,12 @@ fn bond_internal(
     if !reallocate {
         let last_deposit_amount = reward_info.deposit_amount;
         reward_info.deposit_amount = last_deposit_amount + new_deposit_amount;
-        reward_info.deposit_time = compute_deposit_time(last_deposit_amount, new_deposit_amount, reward_info.deposit_time, env.block.time.seconds())?;
+        reward_info.deposit_time = compute_deposit_time(
+            last_deposit_amount,
+            new_deposit_amount,
+             reward_info.deposit_time,
+             env.block.time.seconds(),
+        )?;
     }
 
     rewards_store(deps.storage, &sender_addr_raw)
@@ -110,11 +115,6 @@ pub fn bond(
     amount: Uint128,
     compound_rate: Option<Decimal>,
 ) -> StdResult<Response> {
-
-    if compound_rate.is_none() || compound_rate.unwrap_or_else(Decimal::zero) != Decimal::one(){
-        return Err(StdError::generic_err("auto-stake is disabled"));
-    }
-
     let staker_addr_raw = deps.api.addr_canonicalize(&sender_addr)?;
     let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
 
@@ -160,20 +160,18 @@ pub fn bond(
 }
 
 pub fn deposit_farm_share(
-    _deps: Deps,
+    deps: Deps,
     env: &Env,
     state: &mut State,
     pool_info: &mut PoolInfo,
-    _config: &Config,
+    config: &Config,
     amount: Uint128,
 ) -> StdResult<()> {
-    let staked = SpecGovBalanceResponse {
-        balance: Uint128::zero(),
-        share: Uint128::zero(),
-        locked_balance: vec![],
-        pools: vec![],
-    };
-
+    let staked = query_spec_gov_balance(
+        deps,
+        &config.spectrum_gov,
+        &env.contract.address
+    )?;
     let mut new_total_share = Uint128::zero();
     if !pool_info.total_stake_bond_share.is_zero() {
         let new_share = state.calc_farm_share(amount, staked.balance);
