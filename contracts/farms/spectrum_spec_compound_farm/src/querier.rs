@@ -6,13 +6,14 @@ use spectrum_protocol::spec_farm::{QueryMsg as SpecQueryMsg, RewardInfoResponse}
 pub fn query_spec_reward_info(
     deps: Deps,
     spectrum_staking: &CanonicalAddr,
-    staker: &Addr
+    staker: &Addr,
+    spectrum_token: &CanonicalAddr
 ) -> StdResult<RewardInfoResponse> {
     deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: deps.api.addr_humanize(spectrum_staking)?.to_string(),
         msg: to_binary(&SpecQueryMsg::reward_info {
             staker_addr: staker.to_string(),
-            asset_token: None,
+            asset_token: Some(deps.api.addr_humanize(spectrum_token)?.to_string()),
         })?,
     }))
 }
@@ -23,5 +24,5 @@ pub fn query_spec_pool_balance(
     staker: &Addr,
     spectrum_token: &CanonicalAddr
 ) -> StdResult<Uint128> {
-    Ok(query_spec_reward_info(deps, spectrum_staking, staker)?.reward_infos.iter().find(|it| it.asset_token == deps.api.addr_humanize(spectrum_token).unwrap().to_string()).ok_or_else(|| StdError::not_found("pool"))?.bond_amount)
+    Ok(query_spec_reward_info(deps, spectrum_staking, staker, spectrum_token)?.reward_infos.iter().find(|it| it.asset_token == deps.api.addr_humanize(spectrum_token).unwrap().to_string()).ok_or_else(|| StdError::not_found("pool"))?.bond_amount)
 }

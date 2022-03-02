@@ -12,10 +12,11 @@ use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrap
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
 use terraswap::pair::{PoolResponse, SimulationResponse};
 
-use orion::orion_staking::StakerInfoResponse as OrionStakerInfoResponse;
+use spectrum_protocol::spec_farm::{Cw20HookMsg as SpecStakingCw20HookMsg, ExecuteMsg as SpecStakingExecuteMsg, RewardInfoResponse, RewardInfoResponseItem};
+
 use spectrum_protocol::gov::BalanceResponse as SpecBalanceResponse;
 
-const ORION_STAKING: &str = "orion_staking";
+const SPEC_STAKING: &str = "spec_staking";
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
@@ -133,22 +134,21 @@ impl Querier for WasmMockQuerier {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
 enum MockQueryMsg {
     balance {
         address: String,
     },
-    StakerInfo {
-        staker: String,
-        timestamp: Option<u64>,
+    reward_info {
+        staker_addr: String,
+        asset_token: Option<String>,
     },
-    Pair {
+    pair {
         asset_infos: [AssetInfo; 2],
     },
-    Simulation {
+    simulation {
         offer_asset: Asset,
     },
-    Pool {},
+    pool {},
 }
 
 impl WasmMockQuerier {
@@ -191,23 +191,26 @@ impl WasmMockQuerier {
                             pools: vec![],
                         })))
                     }
-                    MockQueryMsg::StakerInfo {
-                        staker,
-                        timestamp: _,
+                    MockQueryMsg::reward_info {
+                        staker_addr,
+                        asset_token,
                     } => {
-                        let contract_addr = &ORION_STAKING.to_string();
-                        let balance = self.read_token_balance(contract_addr, staker.clone());
+                        let contract_addr = &SPEC_STAKING.to_string();
+                        let balance = self.read_token_balance(contract_addr, staker_addr.clone());
                         SystemResult::Ok(ContractResult::from(to_binary(
-                            &OrionStakerInfoResponse {
-                                staker,
-                                reward_index: Decimal::zero(),
-                                bond_amount: balance,
-                                pending_reward: balance,
-                                orders: vec![]
+                            &RewardInfoResponse {
+                                staker_addr,
+                                reward_infos: vec![RewardInfoResponseItem{ 
+                                    asset_token: asset_token.unwrap(), 
+                                    bond_amount: balance, 
+                                    spec_share: Uint128::zero(),
+                                    spec_share_index: Decimal::zero(),
+                                    pending_spec_reward: balance,
+                                 }]
                             },
                         )))
                     }
-                    MockQueryMsg::Pair { asset_infos } => {
+                    MockQueryMsg::pair { asset_infos } => {
                         let key = asset_infos[0].to_string() + asset_infos[1].to_string().as_str();
                         match self.terraswap_factory_querier.pairs.get(&key) {
                             Some(v) => SystemResult::Ok(ContractResult::from(to_binary(&v))),
@@ -217,7 +220,7 @@ impl WasmMockQuerier {
                             }),
                         }
                     }
-                    MockQueryMsg::Simulation { offer_asset } => {
+                    MockQueryMsg::simulation { offer_asset } => {
                         let commission_amount = offer_asset.amount.multiply_ratio(3u128, 1000u128);
                         let return_amount = offer_asset.amount.checked_sub(commission_amount);
                         match return_amount {
@@ -231,7 +234,7 @@ impl WasmMockQuerier {
                             Err(_e) => SystemResult::Err(SystemError::Unknown {}),
                         }
                     }
-                    MockQueryMsg::Pool {} => {
+                    MockQueryMsg::pool {} => {
                         let pair_info = self.terraswap_factory_querier.pairs.iter()
                             .map(|it| it.1)
                             .find(|pair| &pair.contract_addr == contract_addr)

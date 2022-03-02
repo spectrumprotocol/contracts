@@ -37,6 +37,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         deps.as_ref(),
         &config.spectrum_staking,
         &env.contract.address,
+        &config.spectrum_token
     )?;
 
     let mut total_spec_swap_amount = Uint128::zero();

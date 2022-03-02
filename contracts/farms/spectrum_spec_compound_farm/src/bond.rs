@@ -161,7 +161,7 @@ pub fn bond(
 
 pub fn deposit_farm_share(
     _deps: Deps,
-    env: &Env,
+    _env: &Env,
     state: &mut State,
     pool_info: &mut PoolInfo,
     _config: &Config,
@@ -190,7 +190,7 @@ pub fn deposit_farm_share(
 
 pub fn deposit_spec_reward(
     deps: Deps,
-    _env: &Env,
+    env: &Env,
     state: &mut State,
     config: &Config,
     query: bool,
