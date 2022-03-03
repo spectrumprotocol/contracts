@@ -22,9 +22,9 @@ use spectrum_protocol::{
     },
 };
 use moneymarket::market::{ExecuteMsg as MoneyMarketExecuteMsg};
-use pylon_gateway::pool_msg::{
-    ExecuteMsg as PylonGatewayExecuteMsg
-};
+use basset_vault::{nasset_token_rewards::{ExecuteMsg as nAssetTokenRewardsExecuteMsg, AnyoneMsg as NAssetTokenRewardsAnyoneMsg}};
+use basset_vault::{basset_vault::{ExecuteMsg as bAssetVaultExecuteMsg, AnyoneMsg as bAssetVaultAnyoneMsg}};
+
 use spectrum_protocol::nasset_farm::ExecuteMsg;
 
 pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
@@ -36,8 +36,9 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
 
     let pair_contract = deps.api.addr_humanize(&config.pair_contract)?;
     let reward_token = deps.api.addr_humanize(&config.reward_token)?;
-    let gateway_pool = deps.api.addr_humanize(&config.nasset_rewards)?;
-    let dp_token = deps.api.addr_humanize(&config.nasset_token)?;
+    let nasset_rewards = deps.api.addr_humanize(&config.nasset_rewards)?;
+    let nasset_vault = deps.api.addr_humanize(&config.nasset_vault)?;
+    let asset_token = deps.api.addr_humanize(&config.nasset_token)?;
 
     let gov_proxy = if let Some(gov_proxy) = &config.gov_proxy {
         Some(deps.api.addr_humanize(gov_proxy)?)
@@ -48,10 +49,9 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let reward_info = query_claimable_reward(
         deps.as_ref(),
         &config.nasset_rewards,
-        &env.contract.address,
-        Some(env.block.time.seconds()),
+        &env.contract.address
     )?;
-    let dp_token_balance = query_token_balance(&deps.querier, dp_token, env.contract.address.clone())?;
+    let asset_token_balance = query_token_balance(&deps.querier, asset_token, env.contract.address.clone())?;
 
     let mut total_reward_token_stake_amount = Uint128::zero();
     let mut total_reward_token_commission = Uint128::zero();
@@ -65,17 +65,17 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
 
     // calculate auto-compound, auto-stake, and commission in reward_token
     let mut pool_info = pool_info_read(deps.storage).load(config.nasset_token.as_slice())?;
-    let reward = reward_info.amount;
-    if !reward.is_zero() && !reward_info.amount.is_zero() {
+    let reward = reward_info.rewards;
+    if !reward.is_zero() && !reward_info.rewards.is_zero() {
         let commission = reward * total_fee;
         let reward_token_amount = reward.checked_sub(commission)?;
         // add commission to total swap amount
         total_reward_token_commission += commission;
 
-        let auto_bond_amount = dp_token_balance
+        let auto_bond_amount = asset_token_balance
             .checked_sub(pool_info.total_stake_bond_amount)?;
         compound_amount =
-            reward_token_amount.multiply_ratio(auto_bond_amount, dp_token_balance);
+            reward_token_amount.multiply_ratio(auto_bond_amount, asset_token_balance);
         let stake_amount = reward_token_amount.checked_sub(compound_amount)?;
 
         attributes.push(attr("commission", commission));
@@ -105,24 +105,37 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         },
         amount: total_reward_token_swap_amount,
     };
-    let reward_token_swap_rate_to_dp_token = simulate(
+    let reward_token_swap_rate_to_asset_token = simulate(
         &deps.querier,
         pair_contract.clone(),
         &reward_token_asset,
     )?;
 
-    let earned_dp_token = reward_token_swap_rate_to_dp_token.return_amount;
+    let earned_asset_token = reward_token_swap_rate_to_asset_token.return_amount;
 
     let mut messages: Vec<CosmosMsg> = vec![];
-    let withdraw_all_reward_token: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: gateway_pool.to_string(),
+    let honest_work: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: nasset_vault.to_string(),
         funds: vec![],
-        msg: to_binary(&PylonGatewayExecuteMsg::Claim { target: None })?,
+        msg: to_binary(&bAssetVaultExecuteMsg::Anyone {
+            anyone_msg: bAssetVaultAnyoneMsg::HonestWork {},
+        })?,
+    });
+    messages.push(honest_work);
+
+    let withdraw_all_reward_token: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: nasset_rewards.to_string(),
+        funds: vec![],
+        msg: to_binary(&nAssetTokenRewardsExecuteMsg::Anyone {
+            anyone_msg: NAssetTokenRewardsAnyoneMsg::ClaimRewards {
+                recipient: None,
+            },
+        })?,
     });
     messages.push(withdraw_all_reward_token);
 
     if !total_reward_token_swap_amount.is_zero() {
-        let swap_reward_token_to_dp_token: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
+        let swap_reward_token_to_asset_token: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: reward_token.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 contract: pair_contract.to_string(),
@@ -135,7 +148,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
             })?,
             funds: vec![],
         });
-        messages.push(swap_reward_token_to_dp_token);
+        messages.push(swap_reward_token_to_asset_token);
     }
 
     if !total_reward_token_commission.is_zero() {
@@ -214,7 +227,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
 
     attributes.push(attr("action", "compound"));
     attributes.push(attr("reward_token", reward_token));
-    attributes.push(attr("earned_dp_token", earned_dp_token));
+    attributes.push(attr("earned_asset_token", earned_asset_token));
 
     Ok(Response::new()
         .add_messages(messages)

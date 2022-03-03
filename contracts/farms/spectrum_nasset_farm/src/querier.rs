@@ -6,8 +6,7 @@ use spectrum_protocol::gov_proxy::{QueryMsg as GovProxyQueryMsg, StakerResponse}
 pub fn query_claimable_reward(
     deps: Deps,
     gateway_pool: &CanonicalAddr,
-    address: &Addr,
-    timestamp: Option<u64>,
+    address: &Addr
 ) -> StdResult<AccruedRewardsResponse> {
     deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: deps.api.addr_humanize(gateway_pool)?.to_string(),
