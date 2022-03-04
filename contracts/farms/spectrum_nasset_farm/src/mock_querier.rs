@@ -12,10 +12,9 @@ use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrap
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
 use terraswap::pair::{PoolResponse, SimulationResponse};
 use terraswap::router::{SimulateSwapOperationsResponse, SwapOperation};
-use pylon_gateway::pool_resp::{BalanceOfResponse, ClaimableRewardResponse};
+use basset_vault::nasset_token_rewards::{QueryMsg as nAssetQueryMsg, AccruedRewardsResponse};
 use spectrum_protocol::gov::BalanceResponse as SpecBalanceResponse;
 
-const GATEWAY_POOL: &str = "gateway_pool";
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
@@ -138,12 +137,8 @@ enum MockQueryMsg {
     Balance {
         address: String,
     },
-    ClaimableReward {
-        owner: String,
-        timestamp: Option<u64>
-    },
-    BalanceOf {
-        owner: String,
+    AccruedRewards {
+        address: String
     },
     Pair {
         asset_infos: [AssetInfo; 2],
@@ -201,22 +196,11 @@ impl WasmMockQuerier {
                             pools: vec![],
                         })))
                     }
-                    MockQueryMsg::ClaimableReward { owner, timestamp: _ } => {
-                        let balance = self.read_token_balance(contract_addr, owner);
-                        SystemResult::Ok(ContractResult::from(to_binary(&ClaimableRewardResponse {
-                            amount: balance,
+                    MockQueryMsg::AccruedRewards { address } => {
+                        let balance = self.read_token_balance(contract_addr, address);
+                        SystemResult::Ok(ContractResult::from(to_binary(&AccruedRewardsResponse {
+                            rewards: balance,
                         })))
-                    }
-                    MockQueryMsg::BalanceOf {
-                        owner
-                    } => {
-                        let contract_addr = &GATEWAY_POOL.to_string();
-                        let balance = self.read_token_balance(contract_addr, owner);
-                        SystemResult::Ok(ContractResult::from(to_binary(
-                            &BalanceOfResponse {
-                                amount: balance,
-                            },
-                        )))
                     }
                     MockQueryMsg::Pair { asset_infos } => {
                         let key = asset_infos[0].to_string() + asset_infos[1].to_string().as_str();
