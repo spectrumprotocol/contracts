@@ -9,8 +9,9 @@
     "controller",
     "controller_fee",
     "deposit_fee",
-    "dp_token",
-    "gateway_pool",
+    "nasset_rewards",
+    "nasset_token",
+    "nasset_vault",
     "owner",
     "pair_contract",
     "platform",
@@ -39,17 +40,20 @@
     "deposit_fee": {
       "$ref": "#/definitions/Decimal"
     },
-    "dp_token": {
-      "type": "string"
-    },
-    "gateway_pool": {
-      "type": "string"
-    },
     "gov_proxy": {
       "type": [
         "string",
         "null"
       ]
+    },
+    "nasset_rewards": {
+      "type": "string"
+    },
+    "nasset_token": {
+      "type": "string"
+    },
+    "nasset_vault": {
+      "type": "string"
     },
     "owner": {
       "type": "string"

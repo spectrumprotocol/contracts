@@ -113,11 +113,11 @@
         "register_asset": {
           "type": "object",
           "required": [
-            "dp_token",
+            "asset_token",
             "weight"
           ],
           "properties": {
-            "dp_token": {
+            "asset_token": {
               "type": "string"
             },
             "weight": {
