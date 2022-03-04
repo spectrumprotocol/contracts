@@ -5,11 +5,11 @@ use spectrum_protocol::gov_proxy::{QueryMsg as GovProxyQueryMsg, StakerResponse}
 
 pub fn query_claimable_reward(
     deps: Deps,
-    gateway_pool: &CanonicalAddr,
+    nasset_rewards: &CanonicalAddr,
     address: &Addr
 ) -> StdResult<AccruedRewardsResponse> {
     deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: deps.api.addr_humanize(gateway_pool)?.to_string(),
+        contract_addr: deps.api.addr_humanize(nasset_rewards)?.to_string(),
         msg: to_binary(&nAssetQueryMsg::AccruedRewards {
             address: address.to_string()
         })?,
