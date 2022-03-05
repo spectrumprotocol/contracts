@@ -101,13 +101,13 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             deposit_fee,
         ),
         ExecuteMsg::register_asset {
-            asset_token: dp_token,
+            asset_token,
             weight,
         } => register_asset(
             deps,
             env,
             info,
-            dp_token,
+            asset_token,
             weight,
         ),
         ExecuteMsg::unbond {
@@ -200,11 +200,11 @@ fn register_asset(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    dp_token: String,
+    asset_token: String,
     weight: u32,
 ) -> StdResult<Response> {
     let config: Config = read_config(deps.storage)?;
-    let dp_token_raw = deps.api.addr_canonicalize(&dp_token)?;
+    let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
 
     if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(StdError::generic_err("unauthorized"));
@@ -215,14 +215,14 @@ fn register_asset(
         .count();
 
     if pool_count >= 1 {
-        return Err(StdError::generic_err("Already registered one dp token"));
+        return Err(StdError::generic_err("Already registered one nAsset token"));
     }
 
     let mut state = read_state(deps.storage)?;
     deposit_spec_reward(deps.as_ref(), &env, &mut state, &config, false)?;
 
     let mut pool_info = pool_info_read(deps.storage)
-        .may_load(dp_token_raw.as_slice())?
+        .may_load(asset_token_raw.as_slice())?
         .unwrap_or_else(|| PoolInfo {
             total_auto_bond_share: Uint128::zero(),
             total_stake_bond_share: Uint128::zero(),
@@ -237,11 +237,11 @@ fn register_asset(
     state.total_weight = state.total_weight + weight - pool_info.weight;
     pool_info.weight = weight;
 
-    pool_info_store(deps.storage).save(dp_token_raw.as_slice(), &pool_info)?;
+    pool_info_store(deps.storage).save(asset_token_raw.as_slice(), &pool_info)?;
     state_store(deps.storage).save(&state)?;
     Ok(Response::new().add_attributes(vec![
         attr("action", "register_asset"),
-        attr("dp_token", dp_token),
+        attr("asset_token", asset_token),
     ]))
 }
 
@@ -291,11 +291,11 @@ fn query_pools(deps: Deps) -> StdResult<PoolsResponse> {
     let pools = pool_info_read(deps.storage)
         .range(None, None, Order::Descending)
         .map(|item| {
-            let (dp_token, pool_info) = item?;
+            let (asset_token, pool_info) = item?;
             Ok(PoolItem {
                 asset_token: deps
                     .api
-                    .addr_humanize(&CanonicalAddr::from(dp_token))?
+                    .addr_humanize(&CanonicalAddr::from(asset_token))?
                     .to_string(),
                 weight: pool_info.weight,
                 total_auto_bond_share: pool_info.total_auto_bond_share,

@@ -3,7 +3,7 @@ name = "spectrum-nasset-farm"
 version = "0.2.0"
 authors = ["Spectrum team"]
 edition = "2018"
-description = "Contract to auto-compound bDP Pylon liquid pool"
+description = "Contract to auto-compound Nexus nAssetl"
 license = "Apache-2.0"
 
 exclude = [

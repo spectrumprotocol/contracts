@@ -211,7 +211,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
 
-    // bond success user1 10000 DP Token
+    // bond success user1 10000 nAsset Token
     let info = mock_info(NASSET_TOKEN, &[]);
     deps.querier.with_token_balances(&[
         (
@@ -317,7 +317,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         },]
     );
 
-    // unbond 3000 DP Token
+    // unbond 3000 nAsset Token
     let info = mock_info(USER1, &[]);
     let msg = ExecuteMsg::unbond {
         asset_token: NASSET_TOKEN.to_string(),
@@ -448,7 +448,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         }]
     );
 
-    // bond user2 5000 DP Token auto-stake
+    // bond user2 5000 nAsset Token auto-stake
     let info = mock_info(NASSET_TOKEN, &[]);
     let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
         sender: USER2.to_string(),

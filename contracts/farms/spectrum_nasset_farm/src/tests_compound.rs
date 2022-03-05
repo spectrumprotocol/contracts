@@ -30,7 +30,7 @@ const NASSET_TOKEN_REWARD_TOKEN_LP: &str = "nasset_token_reward_lp";
 const REWARD_UST_LP: &str = "reward_ust_lp";
 const TEST_CREATOR: &str = "creator";
 const TEST_CONTROLLER: &str = "controller";
-const DP_TOKEN_2: &str = "fail_token";
+const nAsset_TOKEN_2: &str = "fail_token";
 const USER1: &str = "user1";
 const USER2: &str = "user2";
 const NASSET_REWARDS: &str = "NASSET_REWARDS";
@@ -245,7 +245,7 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
 
     // test register fail
     let msg = ExecuteMsg::register_asset {
-        asset_token: DP_TOKEN_2.to_string(),
+        asset_token: nAsset_TOKEN_2.to_string(),
         weight: 2u32,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
@@ -321,7 +321,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
 
-    // bond success user1 10000 DP Token
+    // bond success user1 10000 nAsset Token
     let info = mock_info(NASSET_TOKEN, &[]);
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
@@ -390,7 +390,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         },]
     );
 
-    // unbond 3000 DP token
+    // unbond 3000 nAsset token
     let info = mock_info(USER1, &[]);
     let msg = ExecuteMsg::unbond {
         asset_token: NASSET_TOKEN.to_string(),
@@ -515,7 +515,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         },]
     );
 
-    // bond user2 5000 DP Token auto-compound
+    // bond user2 5000 nAsset Token auto-compound
     let info = mock_info(NASSET_TOKEN, &[]);
     let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
         sender: USER2.to_string(),
@@ -651,8 +651,8 @@ fn test_compound_reward_token(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMoc
     total 12000
     auto 4200 / 12000 * 12000 = 4200
     stake 7800 / 12000 * 12000 = 7800
-    swap amount 4200 reward token -> 4187 dp token
-    provide dp token = 4187
+    swap amount 4200 reward token -> 4187 nasset token
+    provide nasset token = 4187
     */
     let msg = ExecuteMsg::compound {};
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();

@@ -412,7 +412,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert!(res.is_err());
 
-    // bond success user1 10000 DP Token
+    // bond success user1 10000 nAsset Token
     let info = mock_info(NASSET_TOKEN, &[]);
     let res = execute(deps.as_mut(), env.clone(), info, msg);
     assert!(res.is_ok());
@@ -475,7 +475,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         },]
     );
 
-    // unbond 3000 DP token
+    // unbond 3000 nAsset token
     let info = mock_info(USER1, &[]);
     let msg = ExecuteMsg::unbond {
         asset_token: NASSET_TOKEN.to_string(),
@@ -579,7 +579,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         },]
     );
 
-    // bond user2 5000 DP Token auto-compound
+    // bond user2 5000 nAsset Token auto-compound
     let info = mock_info(NASSET_TOKEN, &[]);
     let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
         sender: USER2.to_string(),
@@ -701,8 +701,8 @@ fn test_compound_reward_token(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMoc
     total 12000
     auto 12000 / 12000 * 12000 = 12000
     stake 0 / 12000 * 12000 = 0
-    swap amount 12000 reward token -> 11640 dp token
-    provide dp token = 11640
+    swap amount 12000 reward token -> 11640 nasset token
+    provide nasset token = 11640
     */
     let msg = ExecuteMsg::compound {};
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
