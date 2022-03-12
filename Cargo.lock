@@ -401,6 +401,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "glow"
+version = "0.2.0"
+dependencies = [
+ "cosmwasm-bignumber",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+]
+
+[[package]]
 name = "group"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -830,6 +843,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "spectrum-glow-farm"
+version = "0.2.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "glow",
+ "moneymarket",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
+ "terraswap",
+]
+
+[[package]]
 name = "spectrum-gov"
 version = "0.2.0"
 dependencies = [
@@ -1067,6 +1097,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "spectrum-terra-name-service-farm"
+version = "0.2.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "moneymarket",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
+ "terra-name-service",
+ "terraswap",
+]
+
+[[package]]
 name = "spectrum-terraworld-farm"
 version = "0.2.0"
 dependencies = [
@@ -1202,6 +1249,19 @@ dependencies = [
  "cosmwasm-std",
  "schemars",
  "serde",
+]
+
+[[package]]
+name = "terra-name-service"
+version = "0.2.0"
+dependencies = [
+ "cosmwasm-bignumber",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
 ]
 
 [[package]]
