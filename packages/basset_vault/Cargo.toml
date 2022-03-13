@@ -1,0 +1,32 @@
+[package]
+name = "basset-vault"
+version = "1.0.0"
+authors = ["Nexus Labs"]
+edition = "2018"
+description = "Common basset-vault types"
+license = "Apache-2.0"
+repository = "https://github.com/Nexus-Protocol/basset-vault-contracts"
+homepage = "todo"
+documentation = "todo"
+
+[features]
+# for quicker tests, cargo test --lib
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+
+[dependencies]
+cw20 = { version = "0.8.0" }
+cw20-base = { version = "0.8.0", features = ["library"] }
+cosmwasm-std = { version = "0.16.0", features = ["iterator"] }
+cosmwasm-storage = { version = "0.16.0", features = ["iterator"] }
+schemars = "0.8.1"
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+cosmwasm-bignumber = "2.2.0"
+
+[profile.release]
+opt-level = 3
+debug = false
+debug-assertions = false
+codegen-units = 1
+incremental = false
+overflow-checks = true
