@@ -36,6 +36,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 
 [[package]]
+name = "basset-vault"
+version = "1.0.0"
+dependencies = [
+ "cosmwasm-bignumber",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "cw20-base",
+ "schemars",
+ "serde",
+]
+
+[[package]]
 name = "bigint"
 version = "4.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -86,9 +99,9 @@ dependencies = [
 
 [[package]]
 name = "cosmwasm-crypto"
-version = "0.16.0"
+version = "0.16.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bfa1715a9b71c7c31385a3f021dee2fd0a17b82043ab937467e103aa25043d2e"
+checksum = "bfee62162cc81a332ec61e9131d3515a557adadf512bfa607011b2d80e1c5494"
 dependencies = [
  "digest",
  "ed25519-zebra",
@@ -918,6 +931,24 @@ dependencies = [
  "serde",
  "spectrum-protocol",
  "terra-cosmwasm",
+]
+
+[[package]]
+name = "spectrum-nasset-farm"
+version = "0.2.0"
+dependencies = [
+ "anchor-token",
+ "basset-vault",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "moneymarket",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
+ "terraswap",
 ]
 
 [[package]]
