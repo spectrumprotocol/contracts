@@ -7,7 +7,9 @@ use cw20::Cw20ReceiveMsg;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub cw20_token_addr: Addr,
-    pub reward_denom: String,
+    pub cw20_token_reward_addr: String,
+    pub daily_rewards: Uint128,
+    pub open_every_block_time: u64,
     pub unbonding_period: u64,
 }
 
@@ -32,7 +34,7 @@ pub enum ExecuteMsg {
 
     /// Unbound user staking balance
     /// Withdraws released stake
-    WithdrawStake { cap: Option<Uint128> },
+    WithdrawStake {},
 
     ////////////////////
     /// User's operations
@@ -77,8 +79,10 @@ pub enum QueryMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
     pub cw20_token_addr: String,
-    pub reward_denom: String,
+    pub cw20_token_reward_addr: String,
     pub unbonding_period: u64,
+    pub daily_rewards: Uint128,
+    pub open_every_block_time: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -86,6 +90,7 @@ pub struct StateResponse {
     pub global_index: Decimal,
     pub total_balance: Uint128,
     pub prev_reward_balance: Uint128,
+    pub open_block_time: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

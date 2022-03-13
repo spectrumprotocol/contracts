@@ -451,6 +451,11 @@ pub fn unbond(
                 msg: to_binary(&LoterraStakingExecuteMsg::UnbondStake { amount })?,
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: deps.api.addr_humanize(&config.loterra_staking)?.to_string(),
+                funds: vec![],
+                msg: to_binary(&LoterraStakingExecuteMsg::WithdrawStake {})?,
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: deps
                     .api
                     .addr_humanize(&pool_info.staking_token)?
