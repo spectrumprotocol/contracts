@@ -455,6 +455,12 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 .unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: LOTA_STAKING.to_string(),
+                funds: vec![],
+                msg: to_binary(&LoterraStakingExecuteMsg::WithdrawStake {})
+                .unwrap(),
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: LOTA_LP.to_string(),
                 funds: vec![],
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
