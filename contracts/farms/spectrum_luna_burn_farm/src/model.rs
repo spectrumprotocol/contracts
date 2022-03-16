@@ -19,6 +19,9 @@ pub struct ConfigInfo {
     pub anchor_market: String,
     pub aust_token: String,
     pub max_unbond_count: usize,
+    pub bluna_token: String,
+    pub stluna_token: String,
+    pub lunax_token: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

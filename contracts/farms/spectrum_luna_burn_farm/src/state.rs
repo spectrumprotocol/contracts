@@ -20,6 +20,9 @@ pub struct Config {
     pub anchor_market: CanonicalAddr,
     pub aust_token: CanonicalAddr,
     pub max_unbond_count: usize,
+    pub bluna_token: CanonicalAddr,
+    pub stluna_token: CanonicalAddr,
+    pub lunax_token: CanonicalAddr,
 }
 
 pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {
