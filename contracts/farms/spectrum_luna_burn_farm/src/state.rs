@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{CanonicalAddr, Decimal, StdResult, Storage, Uint128};
+use cosmwasm_std::{Addr, CanonicalAddr, Decimal, StdResult, Storage, Uint128};
 use cosmwasm_storage::{bucket, bucket_read, singleton, singleton_read, Bucket, Singleton, ReadonlyBucket};
 
 static KEY_CONFIG: &[u8] = b"config";
@@ -20,9 +20,7 @@ pub struct Config {
     pub anchor_market: CanonicalAddr,
     pub aust_token: CanonicalAddr,
     pub max_unbond_count: usize,
-    pub bluna_token: CanonicalAddr,
-    pub stluna_token: CanonicalAddr,
-    pub lunax_token: CanonicalAddr,
+    pub burn_period: u64,
 }
 
 pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {
@@ -47,6 +45,7 @@ pub struct State {
     pub unbonding_index: Uint128,
     pub claimable_amount: Uint128,
     pub earning: Uint128,
+    pub burn_counter: u64,
 }
 
 pub fn state_store(storage: &mut dyn Storage) -> Singleton<State> {
@@ -151,4 +150,72 @@ pub fn user_unbonding_read<'a>(
     owner: &CanonicalAddr,
 ) -> ReadonlyBucket<'a, Unbonding> {
     ReadonlyBucket::multilevel(storage, &[PREFIX_USER_UNBONDING, owner.as_slice()])
+}
+
+#[allow(non_camel_case_types)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub enum HubType {
+    bluna,
+    lunax,
+    cluna,
+    stluna,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Hub {
+    pub token: Addr,
+    pub hub_address: Addr,
+    pub hub_type: HubType,
+}
+
+static PREFIX_HUB: &[u8] = b"hub";
+
+pub fn hub_store(
+    storage: &mut dyn Storage,
+) -> Bucket<Hub> {
+    bucket(storage, PREFIX_HUB)
+}
+
+pub fn hub_read(
+    storage: &dyn Storage,
+    token: &[u8],
+) -> StdResult<Option<Hub>> {
+    bucket_read(storage, PREFIX_HUB).may_load(token)
+}
+
+pub fn hubs_read(
+    storage: &dyn Storage,
+) -> ReadonlyBucket<Hub> {
+    bucket_read(storage, PREFIX_HUB)
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Burn {
+    pub batch_id: u64,
+    pub input_amount: Uint128,
+    pub start_burn: u64,
+    pub end_burn: u64,
+    pub hub_type: HubType,
+    pub hub_address: Addr,
+}
+
+static PREFIX_BURN: &[u8] = b"burn";
+
+pub fn burn_store(
+    storage: &mut dyn Storage,
+) -> Bucket<Burn> {
+    bucket(storage, PREFIX_BURN)
+}
+
+pub fn burn_read(
+    storage: &dyn Storage,
+    burn_id: &[u8],
+) -> StdResult<Option<Burn>> {
+    bucket_read(storage, PREFIX_BURN).may_load(burn_id)
+}
+
+pub fn burns_read(
+    storage: &dyn Storage,
+) -> ReadonlyBucket<Burn> {
+    bucket_read(storage, PREFIX_BURN)
 }

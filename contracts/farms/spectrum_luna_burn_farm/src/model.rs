@@ -3,6 +3,8 @@
 use cosmwasm_std::{Decimal, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use terraswap::asset::AssetInfo;
+use crate::state::HubType;
 
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -19,9 +21,7 @@ pub struct ConfigInfo {
     pub anchor_market: String,
     pub aust_token: String,
     pub max_unbond_count: usize,
-    pub bluna_token: String,
-    pub stluna_token: String,
-    pub lunax_token: String,
+    pub burn_period: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -38,6 +38,7 @@ pub enum ExecuteMsg {
         controller_fee: Option<Decimal>,
         deposit_fee: Option<Decimal>,
         max_unbond_count: Option<usize>,
+        burn_period: Option<u64>,
     },
     // Unbond lp token
     unbond {
@@ -49,8 +50,22 @@ pub enum ExecuteMsg {
         // If the asset token is not given, then all rewards are withdrawn
         spec_amount: Option<Uint128>,
     },
-    // compound {},
+    register_hub {
+        token: String,
+        hub_address: String,
+        hub_type: HubType,
+    },
+    burn {
+        amount: Uint128,
+        swap_operations: Vec<SwapOperation>,
+    },
     // send_fee {},
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct SwapOperation {
+    pub to_asset_info: AssetInfo,
+    pub pair_address: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -61,6 +76,8 @@ pub enum QueryMsg {
         staker_addr: String,
     },
     state {},
+    hubs {},
+    burns {},
 }
 
 // We define a custom struct for each query response

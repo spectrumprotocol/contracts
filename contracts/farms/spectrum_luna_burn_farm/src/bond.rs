@@ -153,7 +153,7 @@ fn unbond_internal(
 ) -> StdResult<()> {
     let mut state = read_state(deps.storage)?;
     let mut reward_info = rewards_read(deps.storage, &staker_addr_raw)?
-        .expect("not found");
+        .ok_or_else(|| StdError::generic_err("not found"))?;
 
     let user_balance = state.calc_bond_amount(reward_info.bond_share);
     if user_balance < amount {
@@ -229,7 +229,7 @@ pub fn claim_unbond(
 
     let staker_addr_raw = deps.api.addr_canonicalize(&info.sender.to_string())?;
     let mut reward_info = rewards_read(deps.storage, staker_addr_raw.as_slice())?
-        .expect("not found");
+        .ok_or_else(|| StdError::generic_err("not found"))?;
     let unbondings = user_unbonding_store(deps.storage, &staker_addr_raw)
         .range(None, None, Order::Ascending)
         .map(|it| {
@@ -345,7 +345,7 @@ fn withdraw_reward(
     mut request_spec_amount: Option<Uint128>,
 ) -> StdResult<(Uint128, Uint128)> {
     let mut reward_info = rewards_read(deps.storage, staker_addr)?
-        .expect("not found");
+        .ok_or_else(|| StdError::generic_err("not found"))?;
 
     let mut spec_amount = Uint128::zero();
     let mut spec_share = Uint128::zero();

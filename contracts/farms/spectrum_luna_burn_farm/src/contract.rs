@@ -1,9 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    attr, to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, Uint128,
-};
+use cosmwasm_std::{attr, to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, Order};
 
 use crate::{
     bond::bond,
@@ -11,7 +8,8 @@ use crate::{
 };
 
 use crate::bond::{claim_unbond, query_reward_info, unbond, withdraw};
-use crate::state::{read_state};
+use crate::burn::burn;
+use crate::state::{Burn, burns_read, Hub, hub_store, hubs_read, HubType, read_state};
 use crate::model::{ConfigInfo, ExecuteMsg, MigrateMsg, QueryMsg};
 
 /// (we require 0-1)
@@ -50,6 +48,7 @@ pub fn instantiate(
             anchor_market: deps.api.addr_canonicalize(&msg.anchor_market)?,
             aust_token: deps.api.addr_canonicalize(&msg.aust_token)?,
             max_unbond_count: msg.max_unbond_count,
+            burn_period: msg.burn_period,
         },
     )?;
 
@@ -64,6 +63,7 @@ pub fn instantiate(
         unbonding_index: Uint128::zero(),
         claimable_amount: Uint128::zero(),
         earning: Uint128::zero(),
+        burn_counter: 0u64,
     })?;
 
     Ok(Response::default())
@@ -93,6 +93,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             controller_fee,
             deposit_fee,
             max_unbond_count,
+            burn_period,
         } => update_config(
             deps,
             info,
@@ -103,6 +104,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             controller_fee,
             deposit_fee,
             max_unbond_count,
+            burn_period,
         ),
         ExecuteMsg::unbond {
             amount,
@@ -113,6 +115,10 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             withdraw(deps, env, info, spec_amount),
         // ExecuteMsg::compound {} => compound(deps, env, info),
         // ExecuteMsg::send_fee {} => send_fee(deps, env, info),
+        ExecuteMsg::register_hub { token, hub_address, hub_type } =>
+            register_hub(deps, info, token, hub_address, hub_type),
+        ExecuteMsg::burn { amount, swap_operations } =>
+            burn(deps, env, info, amount, swap_operations)
     }
 }
 
@@ -127,6 +133,7 @@ pub fn update_config(
     controller_fee: Option<Decimal>,
     deposit_fee: Option<Decimal>,
     max_unbond_count: Option<usize>,
+    burn_period: Option<u64>,
 ) -> StdResult<Response> {
     let mut config: Config = read_config(deps.storage)?;
 
@@ -169,9 +176,37 @@ pub fn update_config(
         config.max_unbond_count = max_unbond_count;
     }
 
+    if let Some(burn_period) = burn_period {
+        config.burn_period = burn_period;
+    }
+
     store_config(deps.storage, &config)?;
 
     Ok(Response::new().add_attributes(vec![attr("action", "update_config")]))
+}
+
+pub fn register_hub(
+    deps: DepsMut,
+    info: MessageInfo,
+    token: String,
+    hub_address: String,
+    hub_type: HubType,
+) -> StdResult<Response> {
+    let config: Config = read_config(deps.storage)?;
+
+    if deps.api.addr_canonicalize(info.sender.as_str())? != config.owner {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    let token_raw = deps.api.addr_canonicalize(&token)?;
+    let hub = Hub {
+        token: deps.api.addr_validate(&token)?,
+        hub_address: deps.api.addr_validate(&hub_address)?,
+        hub_type,
+    };
+    hub_store(deps.storage).save(token_raw.as_slice(), &hub)?;
+
+    Ok(Response::default())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -182,6 +217,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             staker_addr,
         } => to_binary(&query_reward_info(deps, env, staker_addr)?),
         QueryMsg::state {} => to_binary(&query_state(deps)?),
+        QueryMsg::hubs {} => to_binary(&query_hubs(deps)?),
+        QueryMsg::burns {} => to_binary(&query_burns(deps)?),
     }
 }
 
@@ -200,6 +237,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         anchor_market: deps.api.addr_humanize(&config.anchor_market)?.to_string(),
         aust_token: deps.api.addr_humanize(&config.aust_token)?.to_string(),
         max_unbond_count: config.max_unbond_count,
+        burn_period: config.burn_period,
     };
 
     Ok(resp)
@@ -207,6 +245,25 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
 
 fn query_state(deps: Deps) -> StdResult<State> {
     read_state(deps.storage)
+}
+
+fn query_hubs(deps: Deps) -> StdResult<Vec<Hub>> {
+    hubs_read(deps.storage).range(None, None, Order::Ascending)
+        .map(|item| {
+            let (_, v) = item?;
+            Ok(v)
+        })
+        .collect()
+
+}
+
+fn query_burns(deps: Deps) -> StdResult<Vec<Burn>> {
+    burns_read(deps.storage).range(None, None, Order::Ascending)
+        .map(|item| {
+            let (_, v) = item?;
+            Ok(v)
+        })
+        .collect()
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

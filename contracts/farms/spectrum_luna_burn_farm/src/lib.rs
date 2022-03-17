@@ -4,3 +4,4 @@ pub mod contract;
 pub mod state;
 pub mod hub;
 pub mod stader;
+pub mod burn;
