@@ -65,7 +65,8 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
 
     // calculate auto-compound, auto-stake, and commission in reward_token
     let mut pool_info = pool_info_read(deps.storage).load(config.nasset_token.as_slice())?;
-    let reward = reward_info.rewards;
+    let psi_balance = query_token_balance(&deps.querier, reward_token.clone(), env.contract.address.clone())?;
+    let reward = reward_info.rewards + psi_balance;
     if !reward.is_zero() && !reward_info.rewards.is_zero() {
         let commission = reward * total_fee;
         let reward_token_amount = reward.checked_sub(commission)?;
