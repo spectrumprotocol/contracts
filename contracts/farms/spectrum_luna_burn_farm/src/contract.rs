@@ -144,7 +144,7 @@ pub fn update_config(
     platform_fee: Option<Decimal>,
     controller_fee: Option<Decimal>,
     deposit_fee: Option<Decimal>,
-    max_unbond_count: Option<usize>,
+    max_unbond_count: Option<u32>,
     burn_period: Option<u64>,
 ) -> StdResult<Response> {
     let mut config: Config = read_config(deps.storage)?;

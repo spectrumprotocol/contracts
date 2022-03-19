@@ -5,3 +5,4 @@ pub mod state;
 pub mod hub;
 pub mod stader;
 pub mod burn;
+pub mod prism;

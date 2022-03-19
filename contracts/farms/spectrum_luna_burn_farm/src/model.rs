@@ -20,7 +20,7 @@ pub struct ConfigInfo {
     pub deposit_fee: Decimal,
     pub anchor_market: String,
     pub aust_token: String,
-    pub max_unbond_count: usize,
+    pub max_unbond_count: u32,
     pub burn_period: u64,
     pub ust_pair_contract: String,
 }
@@ -38,7 +38,7 @@ pub enum ExecuteMsg {
         platform_fee: Option<Decimal>,
         controller_fee: Option<Decimal>,
         deposit_fee: Option<Decimal>,
-        max_unbond_count: Option<usize>,
+        max_unbond_count: Option<u32>,
         burn_period: Option<u64>,
     },
     // Unbond luna

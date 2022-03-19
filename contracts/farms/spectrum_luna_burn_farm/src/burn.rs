@@ -11,6 +11,7 @@ use spectrum_protocol::gov::{ExecuteMsg as GovExecuteMsg};
 use crate::bond::update_claimable;
 use crate::hub::{HubCw20HookMsg, HubExecuteMsg, query_hub_claimable, query_hub_current_batch, query_hub_histories, query_hub_parameters, query_hub_state};
 use crate::model::{ExecuteMsg, SimulateCollectResponse, SwapOperation};
+use crate::prism::{prism_simulate, PrismExecuteMsg, to_cw_asset};
 use crate::stader::{query_stader_batch, query_stader_claimable, query_stader_config, query_stader_state, StaderCw20HookMsg, StaderExecuteMsg};
 use crate::state::{Burn, burn_store, burns_read, hub_read, HubType, read_config, read_state, state_store};
 
@@ -35,6 +36,12 @@ pub fn burn(
     }
 
     // swap
+    let last_swap = swap_operations.last()
+        .ok_or_else(|| StdError::generic_err("require swap"))?;
+    let token = last_swap.to_asset_info.to_string();
+    let token_raw = deps.api.addr_canonicalize(&token)?;
+    let hub = hub_read(deps.storage, token_raw.as_slice())?
+        .ok_or_else(|| StdError::generic_err("hub not found"))?;
     let mut messages: Vec<CosmosMsg> = vec![];
     let mut asset = Asset {
         amount,
@@ -42,26 +49,41 @@ pub fn burn(
     };
     for swap_operation in swap_operations.iter() {
         if asset.is_native_token() {
-            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: swap_operation.pair_address.clone(),
-                msg: to_binary(&PairExecuteMsg::Swap {
-                    offer_asset: asset.clone(),
-                    max_spread: None,
-                    belief_price: None,
-                    to: None,
-                })?,
-                funds: vec![
-                    Coin { denom: asset.to_string(), amount: asset.amount },
-                ],
-            }));
+            if hub.hub_type == HubType::cluna {
+                messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: swap_operation.pair_address.clone(),
+                    msg: to_binary(&PrismExecuteMsg::Swap {
+                        offer_asset: to_cw_asset(&asset),
+                        max_spread: Some(Decimal::percent(50)),
+                        belief_price: None,
+                        to: None,
+                    })?,
+                    funds: vec![
+                        Coin { denom: asset.info.to_string(), amount: asset.amount },
+                    ],
+                }));
+            } else {
+                messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: swap_operation.pair_address.clone(),
+                    msg: to_binary(&PairExecuteMsg::Swap {
+                        offer_asset: asset.clone(),
+                        max_spread: Some(Decimal::percent(50)),
+                        belief_price: None,
+                        to: None,
+                    })?,
+                    funds: vec![
+                        Coin { denom: asset.info.to_string(), amount: asset.amount },
+                    ],
+                }));
+            }
         } else {
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: asset.to_string(),
+                contract_addr: asset.info.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: swap_operation.pair_address.clone(),
                     amount: asset.amount,
                     msg: to_binary(&PairHookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     })?,
@@ -70,10 +92,16 @@ pub fn burn(
             }))
         }
 
-        let simulate_result = simulate(
-            &deps.querier,
-            deps.api.addr_validate(&swap_operation.pair_address)?,
-            &asset)?;
+        let simulate_result = if hub.hub_type == HubType::cluna {
+            prism_simulate(&deps.querier,
+                           &swap_operation.pair_address,
+                           &asset)?
+        } else {
+            simulate(
+                &deps.querier,
+                deps.api.addr_validate(&swap_operation.pair_address)?,
+                &asset)?
+        };
         asset = Asset {
             amount: simulate_result.return_amount,
             info: swap_operation.to_asset_info.clone(),
@@ -81,12 +109,6 @@ pub fn burn(
     }
 
     // validate
-    let last_swap = swap_operations.last()
-        .ok_or_else(|| StdError::generic_err("require swap"))?;
-    let token = last_swap.to_asset_info.to_string();
-    let token_raw = deps.api.addr_canonicalize(&token)?;
-    let hub = hub_read(deps.storage, token_raw.as_slice())?
-        .ok_or_else(|| StdError::generic_err("batch not found"))?;
     let batch_id = if hub.hub_type == HubType::lunax {
         let stader_config = query_stader_config(
             &deps.querier,
@@ -105,7 +127,7 @@ pub fn burn(
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 contract: hub.hub_address.to_string(),
                 msg: to_binary(&StaderCw20HookMsg::QueueUndelegate {})?,
-                amount,
+                amount: asset.amount,
             })?,
             funds: vec![],
         }));
@@ -142,7 +164,7 @@ pub fn burn(
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 contract: hub.hub_address.to_string(),
                 msg: to_binary(&HubCw20HookMsg::Unbond {})?,
-                amount,
+                amount: asset.amount,
             })?,
             funds: vec![],
         }));
@@ -260,7 +282,7 @@ fn collect_internal(
     let mut total_input_amount = Uint128::zero();
     let mut total_collectable_amount = Uint128::zero();
     let mut stader_batch_map: HashMap<u64, bool> = HashMap::new();
-    let mut hub_batch_map: HashMap<HubType, u64> = HashMap::new();
+    let mut hub_batch_map: HashMap<String, u64> = HashMap::new();
 
     for burn in burns {
         if burn.end_burn > now {
@@ -313,7 +335,11 @@ fn collect_internal(
         } else {
 
             // claimed batch check
-            let hub_type = if burn.hub_type == HubType::stluna { HubType::bluna } else { burn.hub_type };
+            let hub_type = if burn.hub_type == HubType::stluna {
+                HubType::bluna.to_string()
+            } else {
+                burn.hub_type.to_string()
+            };
             let hub_result = hub_batch_map.get(&hub_type);
             if let Some(last_success_batch) = hub_result {
                 if *last_success_batch >= burn.batch_id {
@@ -389,9 +415,9 @@ pub fn collect_fee(
         contract_addr: ust_pair_contract.to_string(),
         msg: to_binary(&PairExecuteMsg::Swap {
             offer_asset,
-            to: None,
-            max_spread: None,
+            max_spread: Some(Decimal::percent(50)),
             belief_price: None,
+            to: None,
         })?,
         funds: vec![
             Coin { denom: "uluna".to_string(), amount: net_commission_amount },

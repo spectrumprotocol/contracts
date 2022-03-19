@@ -186,7 +186,7 @@ pub fn unbond(
     let unbond_count = user_unbonding_store(deps.storage, &staker_addr_raw)
         .range(None, None, Order::Ascending)
         .count();
-    if unbond_count >= config.max_unbond_count {
+    if unbond_count >= config.max_unbond_count as usize {
         return Err(StdError::generic_err("max unbond count reach"));
     }
 

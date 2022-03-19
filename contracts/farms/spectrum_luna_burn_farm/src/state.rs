@@ -20,7 +20,7 @@ pub struct Config {
     pub deposit_fee: Decimal,
     pub anchor_market: CanonicalAddr,
     pub aust_token: CanonicalAddr,
-    pub max_unbond_count: usize,
+    pub max_unbond_count: u32,
     pub burn_period: u64,
     pub ust_pair_contract: CanonicalAddr,
 }
@@ -180,7 +180,7 @@ pub fn user_unbonding_read<'a>(
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, Copy, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum HubType {
     bluna,
     lunax,
