@@ -41,7 +41,7 @@ pub enum ExecuteMsg {
         max_unbond_count: Option<usize>,
         burn_period: Option<u64>,
     },
-    // Unbond lp token
+    // Unbond luna
     unbond {
         amount: Uint128,
     },
@@ -59,6 +59,7 @@ pub enum ExecuteMsg {
     burn {
         amount: Uint128,
         swap_operations: Vec<SwapOperation>,
+        min_profit: Option<Decimal>,
     },
     collect {},
     collect_hook {
@@ -67,7 +68,9 @@ pub enum ExecuteMsg {
         total_collectable_amount: Uint128,
     },
     collect_fee {},
-    send_fee {},
+    send_fee {
+        deposit_fee_ratio: Decimal,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -115,6 +118,7 @@ pub struct RewardInfoResponseItem {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct SimulateCollectResponse {
     pub burnable: Uint128,
+    pub total_bond_amount: Uint128,
     pub unbonded_index: Uint128,
     pub can_collect: bool,
     pub remaining_burns: Vec<Burn>,

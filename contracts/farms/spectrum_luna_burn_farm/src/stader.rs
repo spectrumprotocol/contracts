@@ -19,6 +19,7 @@ pub enum StaderExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum StaderQueryMsg {
+    Config {},
     State {},
     BatchUndelegation {
         batch_id: u64,
@@ -27,6 +28,21 @@ pub enum StaderQueryMsg {
         user_addr: String,
         batch_id: u64,
     },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct QueryConfigResponse {
+    pub config: Config,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Config {
+    pub protocol_withdraw_fee: Decimal,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct QueryStateResponse {
+    pub state: StaderState,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -58,7 +74,14 @@ pub struct GetFundsClaimRecord {
     pub undelegated_tokens: Uint128,
 }
 
-pub fn query_stader_state(querier: &QuerierWrapper, contract_addr: String) -> StdResult<StaderState> {
+pub fn query_stader_config(querier: &QuerierWrapper, contract_addr: String) -> StdResult<QueryConfigResponse> {
+    querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr,
+        msg: to_binary(&StaderQueryMsg::Config {})?,
+    }))
+}
+
+pub fn query_stader_state(querier: &QuerierWrapper, contract_addr: String) -> StdResult<QueryStateResponse> {
     querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr,
         msg: to_binary(&StaderQueryMsg::State {})?,

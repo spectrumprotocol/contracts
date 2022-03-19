@@ -29,27 +29,15 @@ fn bond_internal(
     before_share_change(&state, &mut reward_info);
 
     // increase bond_amount
-    let deposit_fee = if sender_addr_raw == config.controller { Decimal::zero() } else { config.deposit_fee };
-    let earned_deposit_fee = amount * deposit_fee;
-    let bond_amount = amount.checked_sub(earned_deposit_fee)?;
+    let deposit_fee = amount * config.deposit_fee;
+    let bond_amount = amount.checked_sub(deposit_fee)?;
     increase_bond_amount(
         &mut state,
         &mut reward_info,
         bond_amount,
     );
 
-    if !earned_deposit_fee.is_zero() {
-        let mut ctrl_reward_info = rewards_read(deps.storage, &config.controller)?
-            .unwrap_or_else(|| RewardInfo::create(&state));
-        increase_bond_amount(
-            &mut state,
-            &mut ctrl_reward_info,
-            earned_deposit_fee,
-        );
-        rewards_store(deps.storage)
-            .save(config.controller.as_slice(), &ctrl_reward_info)?;
-    }
-
+    state.deposit_fee += deposit_fee;
     let last_deposit_amount = reward_info.deposit_amount;
     reward_info.deposit_amount = last_deposit_amount + bond_amount;
     reward_info.deposit_time = compute_deposit_time(last_deposit_amount, bond_amount, reward_info.deposit_time, env.block.time.seconds())?;
@@ -271,9 +259,7 @@ pub fn update_claimable(
     balance: Uint128,
     state: &mut State,
 ) -> StdResult<()> {
-    let tobe_claimed = balance
-        .checked_sub(state.claimable_amount)?
-        .checked_sub(state.fee)?;
+    let tobe_claimed = state.get_burnable_amount(balance);
     let new_claimable_amount = if tobe_claimed > state.unbonding_amount {
         state.unbonding_amount
     } else {

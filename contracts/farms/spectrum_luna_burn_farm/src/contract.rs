@@ -63,8 +63,10 @@ pub fn instantiate(
         unbonded_index: Uint128::zero(),
         unbonding_index: Uint128::zero(),
         claimable_amount: Uint128::zero(),
-        fee: Uint128::zero(),
-        earning: Uint128::zero(),
+        deposit_fee: Uint128::zero(),
+        perf_fee: Uint128::zero(),
+        deposit_earning: Uint128::zero(),
+        perf_earning: Uint128::zero(),
         burn_counter: 0u64,
     })?;
 
@@ -119,16 +121,16 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         // ExecuteMsg::send_fee {} => send_fee(deps, env, info),
         ExecuteMsg::register_hub { token, hub_address, hub_type } =>
             register_hub(deps, info, token, hub_address, hub_type),
-        ExecuteMsg::burn { amount, swap_operations } =>
-            burn(deps, env, info, amount, swap_operations),
+        ExecuteMsg::burn { amount, swap_operations, min_profit } =>
+            burn(deps, env, info, amount, swap_operations, min_profit),
         ExecuteMsg::collect {} =>
             collect(deps, env),
         ExecuteMsg::collect_hook { prev_balance, total_input_amount, total_collectable_amount } =>
             collect_hook(deps, env, info, prev_balance, total_input_amount, total_collectable_amount),
         ExecuteMsg::collect_fee {} =>
             collect_fee(deps, env, info),
-        ExecuteMsg::send_fee {} =>
-            send_fee(deps, env, info),
+        ExecuteMsg::send_fee { deposit_fee_ratio } =>
+            send_fee(deps, env, info, deposit_fee_ratio),
     }
 }
 

@@ -37,18 +37,27 @@ static KEY_STATE: &[u8] = b"state";
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
 pub struct State {
+    // track SPEC reward
     pub previous_spec_share: Uint128,
     pub spec_share_index: Decimal,
+
+    // track luna
     pub total_bond_amount: Uint128,
     pub total_bond_share: Uint128,
-    pub unbonding_amount: Uint128,
-    pub unbond_counter: u64,
-    pub unbonded_index: Uint128,
-    pub unbonding_index: Uint128,
-    pub claimable_amount: Uint128,
-    pub fee: Uint128,
-    pub earning: Uint128,
-    pub burn_counter: u64,
+
+    // track unbond
+    pub unbonding_amount: Uint128,  // not yet claimable
+    pub claimable_amount: Uint128,  // claimable
+    pub unbond_counter: u64,        // to assign unbond id
+    pub unbonded_index: Uint128,    // index to track claimable
+    pub unbonding_index: Uint128,   // index to track new unbonding position
+
+    // misc
+    pub deposit_fee: Uint128,       // deposit_fee to send to gov
+    pub perf_fee: Uint128,          // fee waiting to send to gov
+    pub deposit_earning: Uint128,   // track deposit fee earning in UST
+    pub perf_earning: Uint128,      // track perf fee earning in UST
+    pub burn_counter: u64,          // to assign burn id
 }
 
 pub fn state_store(storage: &mut dyn Storage) -> Singleton<State> {
@@ -60,6 +69,16 @@ pub fn read_state(storage: &dyn Storage) -> StdResult<State> {
 }
 
 impl State {
+    pub fn get_burnable_amount(&self, balance: Uint128) -> Uint128 {
+        self.get_burnable_amount_internal(balance).unwrap_or_default()
+    }
+
+    fn get_burnable_amount_internal(&self, balance: Uint128) -> StdResult<Uint128> {
+        Ok(balance.checked_sub(self.claimable_amount)?
+            .checked_sub(self.deposit_fee)?
+            .checked_sub(self.perf_fee)?)
+    }
+
     pub fn calc_bond_share(&self, bond_amount: Uint128) -> Uint128 {
         if self.total_bond_share.is_zero() || self.total_bond_amount.is_zero() {
             bond_amount
@@ -81,11 +100,16 @@ static PREFIX_REWARD: &[u8] = b"reward";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfo {
+    // track SPEC reward
     pub spec_share_index: Decimal,
-    pub bond_share: Uint128,
     pub spec_share: Uint128,
+
+    // track luna & deposited
+    pub bond_share: Uint128,
     pub deposit_amount: Uint128,
     pub deposit_time: u64,
+
+    // track unbond
     pub unbonding_amount: Uint128,
 }
 

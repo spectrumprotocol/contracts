@@ -11,7 +11,7 @@ use spectrum_protocol::gov::{ExecuteMsg as GovExecuteMsg};
 use crate::bond::update_claimable;
 use crate::hub::{HubCw20HookMsg, HubExecuteMsg, query_hub_claimable, query_hub_current_batch, query_hub_histories, query_hub_parameters, query_hub_state};
 use crate::model::{ExecuteMsg, SimulateCollectResponse, SwapOperation};
-use crate::stader::{query_stader_batch, query_stader_claimable, query_stader_state, StaderCw20HookMsg, StaderExecuteMsg};
+use crate::stader::{query_stader_batch, query_stader_claimable, query_stader_config, query_stader_state, StaderCw20HookMsg, StaderExecuteMsg};
 use crate::state::{Burn, burn_store, burns_read, hub_read, HubType, read_config, read_state, state_store};
 
 pub fn burn(
@@ -20,6 +20,7 @@ pub fn burn(
     info: MessageInfo,
     amount: Uint128,
     swap_operations: Vec<SwapOperation>,
+    min_profit: Option<Decimal>,
 ) -> StdResult<Response> {
     let config = read_config(deps.storage)?;
 
@@ -29,7 +30,7 @@ pub fn burn(
 
     let mut state = read_state(deps.storage)?;
     let balance = deps.querier.query_balance(env.contract.address, "uluna")?;
-    if amount > balance.amount.checked_sub(state.claimable_amount)?.checked_sub(state.fee)? {
+    if amount > state.get_burnable_amount(balance.amount) {
         return Err(StdError::generic_err("cannot burn more than available minus claimable amount"));
     }
 
@@ -87,12 +88,16 @@ pub fn burn(
     let hub = hub_read(deps.storage, token_raw.as_slice())?
         .ok_or_else(|| StdError::generic_err("batch not found"))?;
     let batch_id = if hub.hub_type == HubType::lunax {
+        let stader_config = query_stader_config(
+            &deps.querier,
+            hub.hub_address.to_string())?;
         let stader_state = query_stader_state(
             &deps.querier,
             hub.hub_address.to_string())?;
-        let target_luna = asset.amount * stader_state.exchange_rate;
-        if target_luna <= amount {
-            return Err(StdError::generic_err("loss"));
+        let target_luna = asset.amount * stader_state.state.exchange_rate * (Decimal::one() - stader_config.config.protocol_withdraw_fee);
+        let expected_profit = amount * min_profit.unwrap_or_default();
+        if target_luna.checked_sub(amount).unwrap_or_default() < expected_profit {
+            return Err(StdError::generic_err("target luna is less than expected"));
         }
 
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -105,7 +110,7 @@ pub fn burn(
             funds: vec![],
         }));
 
-        stader_state.current_undelegation_batch_id
+        stader_state.state.current_undelegation_batch_id
     } else {
         let hub_state = query_hub_state(
             &deps.querier,
@@ -127,8 +132,9 @@ pub fn burn(
         } else {
             asset.amount * exchange_rate
         };
-        if target_luna <= amount {
-            return Err(StdError::generic_err("loss"));
+        let expected_profit = amount * min_profit.unwrap_or_default();
+        if target_luna.checked_sub(amount).unwrap_or_default() < expected_profit {
+            return Err(StdError::generic_err("target luna is less than expected"));
         }
 
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -176,7 +182,7 @@ pub fn collect(
     let mut collected_ids: HashSet<u64> = HashSet::new();
     let (total_input_amount, total_collectable_amount) =
         collect_internal(&deps.querier, &env, &burns, &mut messages, &mut collected_ids)?;
-    if total_collectable_amount.is_zero() {
+    if total_input_amount.is_zero() {
         return Ok(Response::default());
     }
 
@@ -226,10 +232,16 @@ pub fn collect_hook(
     // earning
     let config = read_config(deps.storage)?;
     let mut state = read_state(deps.storage)?;
-    let total_fee = config.controller_fee + config.community_fee + config.platform_fee;
-    let earn = collected_amount.checked_sub(total_input_amount)?;
-    let fee = earn * total_fee;
-    state.fee += fee;
+    if collected_amount >= total_input_amount {
+        let total_fee = config.controller_fee + config.community_fee + config.platform_fee;
+        let earn = collected_amount.checked_sub(total_input_amount)?;
+        let fee = earn * total_fee;
+        state.perf_fee += fee;
+        state.total_bond_amount += earn.checked_sub(fee)?;
+    } else {
+        let loss = total_input_amount.checked_sub(collected_amount)?;
+        state.total_bond_amount = state.total_bond_amount.checked_sub(loss)?;
+    }
     update_claimable(balance.amount, &mut state)?;
     state_store(deps.storage).save(&state)?;
 
@@ -246,7 +258,7 @@ fn collect_internal(
 
     let now = env.block.time.seconds();
     let mut total_input_amount = Uint128::zero();
-    let mut total_collectible_amount = Uint128::zero();
+    let mut total_collectable_amount = Uint128::zero();
     let mut stader_batch_map: HashMap<u64, bool> = HashMap::new();
     let mut hub_batch_map: HashMap<HubType, u64> = HashMap::new();
 
@@ -255,13 +267,13 @@ fn collect_internal(
             continue;
         }
 
-        total_input_amount += burn.input_amount;
         if burn.hub_type == HubType::lunax {
 
             // same batch check
             let same_batch_result = stader_batch_map.get(&burn.batch_id);
             if let Some(success) = same_batch_result {
                 if *success {
+                    total_input_amount += burn.input_amount;
                     collected_ids.insert(burn.id);
                 }
                 continue;
@@ -287,7 +299,8 @@ fn collect_internal(
                 burn.hub_address.to_string(),
                 env.contract.address.to_string(),
                 burn.batch_id)?;
-            total_collectible_amount += record.user_withdrawal_amount;
+            total_input_amount += burn.input_amount;
+            total_collectable_amount += record.user_withdrawal_amount;
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: burn.hub_address.to_string(),
                 msg: to_binary(&StaderExecuteMsg::WithdrawFundsToWallet {
@@ -304,6 +317,7 @@ fn collect_internal(
             let hub_result = hub_batch_map.get(&hub_type);
             if let Some(last_success_batch) = hub_result {
                 if *last_success_batch >= burn.batch_id {
+                    total_input_amount += burn.input_amount;
                     collected_ids.insert(burn.id);
                 }
                 continue;
@@ -324,11 +338,8 @@ fn collect_internal(
             }
 
             let claimable = query_hub_claimable(querier, burn.hub_address.to_string(), env.contract.address.to_string())?;
-            if claimable.withdrawable.is_zero() {
-                continue;
-            }
-
-            total_collectible_amount += claimable.withdrawable;
+            total_input_amount += burn.input_amount;
+            total_collectable_amount += claimable.withdrawable;
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: burn.hub_address.to_string(),
                 msg: to_binary(&HubExecuteMsg::WithdrawUnbonded {})?,
@@ -338,7 +349,7 @@ fn collect_internal(
         }
     }
 
-    Ok((total_input_amount, total_collectible_amount))
+    Ok((total_input_amount, total_collectable_amount))
 }
 
 pub fn collect_fee(
@@ -352,8 +363,11 @@ pub fn collect_fee(
     }
 
     let mut state = read_state(deps.storage)?;
-    let net_commission_amount = state.fee;
-    state.fee = Uint128::zero();
+    let perf_fee = state.perf_fee;
+    let deposit_fee = state.deposit_fee;
+    let net_commission_amount = perf_fee + deposit_fee;
+    state.perf_fee = Uint128::zero();
+    state.deposit_fee = Uint128::zero();
 
     let ust_pair_contract = deps.api.addr_humanize(&config.ust_pair_contract)?;
 
@@ -364,6 +378,13 @@ pub fn collect_fee(
         info: AssetInfo::NativeToken { denom: "uluna".to_string() },
     };
     let simulate = simulate(&deps.querier, ust_pair_contract.clone(), &offer_asset)?;
+    let earning = deduct_tax(&deps.querier, simulate.return_amount, "uusd".to_string())?;
+    let deposit_fee_ratio = Decimal::from_ratio(deposit_fee, net_commission_amount);
+    let earning_for_deposit_fee = earning * deposit_fee_ratio;
+    let earning_for_perf_fee = earning.checked_sub(earning_for_deposit_fee)?;
+    state.perf_earning += earning_for_perf_fee;
+    state.deposit_earning += earning_for_deposit_fee;
+
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: ust_pair_contract.to_string(),
         msg: to_binary(&PairExecuteMsg::Swap {
@@ -376,9 +397,6 @@ pub fn collect_fee(
             Coin { denom: "uluna".to_string(), amount: net_commission_amount },
         ],
     }));
-    let earning = deduct_tax(&deps.querier, simulate.return_amount, "uusd".to_string())?;
-    state.earning += earning;
-
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: deps.api.addr_humanize(&config.anchor_market)?.to_string(),
         msg: to_binary(&MoneyMarketExecuteMsg::DepositStable {})?,
@@ -394,7 +412,9 @@ pub fn collect_fee(
     }));
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: env.contract.address.to_string(),
-        msg: to_binary(&ExecuteMsg::send_fee {})?,
+        msg: to_binary(&ExecuteMsg::send_fee {
+            deposit_fee_ratio,
+        })?,
         funds: vec![],
     }));
 
@@ -408,6 +428,7 @@ pub fn send_fee(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
+    deposit_fee_ratio: Decimal,
 ) -> StdResult<Response> {
 
     // only farm contract can execute this message
@@ -419,24 +440,26 @@ pub fn send_fee(
     let spectrum_gov = deps.api.addr_humanize(&config.spectrum_gov)?;
 
     let aust_balance = query_token_balance(&deps.querier, aust_token.clone(), env.contract.address)?;
+    let balance_for_deposit_fee = aust_balance * deposit_fee_ratio;
+    let balance_for_perf_fee = aust_balance.checked_sub(balance_for_deposit_fee)?;
 
     let mut messages: Vec<CosmosMsg> = vec![];
     let thousand = Uint128::from(1000u64);
     let total_fee = config.community_fee + config.controller_fee + config.platform_fee;
-    let community_amount = aust_balance.multiply_ratio(thousand * config.community_fee, thousand * total_fee);
-    if !community_amount.is_zero() {
+    let community_amount = balance_for_perf_fee.multiply_ratio(thousand * config.community_fee, thousand * total_fee);
+    if !community_amount.is_zero() || !balance_for_deposit_fee.is_zero() {
         let transfer_community_fee = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: aust_token.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: spectrum_gov.to_string(),
-                amount: community_amount,
+                amount: community_amount + balance_for_deposit_fee,
             })?,
             funds: vec![],
         });
         messages.push(transfer_community_fee);
     }
 
-    let platform_amount = aust_balance.multiply_ratio(thousand * config.platform_fee, thousand * total_fee);
+    let platform_amount = balance_for_perf_fee.multiply_ratio(thousand * config.platform_fee, thousand * total_fee);
     if !platform_amount.is_zero() {
         let stake_platform_fee = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: aust_token.to_string(),
@@ -449,7 +472,7 @@ pub fn send_fee(
         messages.push(stake_platform_fee);
     }
 
-    let controller_amount = aust_balance.checked_sub(community_amount + platform_amount)?;
+    let controller_amount = balance_for_perf_fee.checked_sub(community_amount + platform_amount)?;
     if !controller_amount.is_zero() {
         let stake_controller_fee = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: aust_token.to_string(),
@@ -489,16 +512,25 @@ pub fn simulate_collect(deps: Deps, env: Env) -> StdResult<SimulateCollectRespon
     let balance = deps.querier.query_balance(env.contract.address.to_string(), "uluna")?;
     let config = read_config(deps.storage)?;
     let mut state = read_state(deps.storage)?;
-    let total_fee = config.controller_fee + config.community_fee + config.platform_fee;
-    let earn = total_collectable_amount.checked_sub(total_input_amount)?;
-    let fee = earn * total_fee;
-    state.fee += fee;
+
+    if total_collectable_amount >= total_input_amount {
+        let total_fee = config.controller_fee + config.community_fee + config.platform_fee;
+        let earn = total_collectable_amount.checked_sub(total_input_amount)?;
+        let fee = earn * total_fee;
+        state.perf_fee += fee;
+        state.total_bond_amount += earn.checked_sub(fee)?;
+    } else {
+        let loss = total_input_amount.checked_sub(total_collectable_amount)?;
+        state.total_bond_amount = state.total_bond_amount.checked_sub(loss)?;
+    }
+
     let new_balance = balance.amount + total_collectable_amount;
     update_claimable(new_balance, &mut state)?;
 
     Ok(SimulateCollectResponse {
-        can_collect: !total_collectable_amount.is_zero(),
-        burnable: new_balance.checked_sub(state.claimable_amount)?.checked_sub(state.fee)?,
+        can_collect: !total_input_amount.is_zero(),
+        total_bond_amount: state.total_bond_amount,
+        burnable: state.get_burnable_amount(new_balance),
         unbonded_index: state.unbonded_index,
         remaining_burns: burns.into_iter()
             .filter(|it| !collected_ids.contains(&it.id))
