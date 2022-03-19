@@ -23,11 +23,6 @@ pub enum StaderQueryMsg {
     BatchUndelegation {
         batch_id: u64,
     },
-    GetUserUndelegationRecords {
-        user_addr: String,
-        start_after: Option<u64>,
-        limit: Option<u64>,
-    }, // return shares & undelegation list.
     GetUserUndelegationInfo {
         user_addr: String,
         batch_id: u64,
@@ -63,15 +58,28 @@ pub struct GetFundsClaimRecord {
     pub undelegated_tokens: Uint128,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct UndelegationInfo {
-    pub batch_id: u64,
-    pub token_amount: Uint128, // Shares undelegated
-}
-
 pub fn query_stader_state(querier: &QuerierWrapper, contract_addr: String) -> StdResult<StaderState> {
     querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr,
         msg: to_binary(&StaderQueryMsg::State {})?,
+    }))
+}
+
+pub fn query_stader_batch(querier: &QuerierWrapper, contract_addr: String, batch_id: u64) -> StdResult<QueryBatchUndelegationResponse> {
+    querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr,
+        msg: to_binary(&StaderQueryMsg::BatchUndelegation {
+            batch_id
+        })?,
+    }))
+}
+
+pub fn query_stader_claimable(querier: &QuerierWrapper, contract_addr: String, user_addr: String, batch_id: u64) -> StdResult<GetFundsClaimRecord> {
+    querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr,
+        msg: to_binary(&StaderQueryMsg::GetUserUndelegationInfo {
+            user_addr,
+            batch_id
+        })?,
     }))
 }

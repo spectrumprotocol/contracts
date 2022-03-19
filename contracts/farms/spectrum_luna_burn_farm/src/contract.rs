@@ -7,9 +7,9 @@ use crate::{
     state::{read_config, state_store, store_config, Config, State},
 };
 
-use crate::bond::{claim_unbond, query_reward_info, unbond, withdraw};
-use crate::burn::burn;
-use crate::state::{Burn, burns_read, Hub, hub_store, hubs_read, HubType, read_state};
+use crate::bond::{claim_unbond, query_reward_info, query_unbond, unbond, withdraw};
+use crate::burn::{burn, collect, collect_fee, collect_hook, query_burns, send_fee, simulate_collect};
+use crate::state::{Hub, hub_store, hubs_read, HubType, read_state};
 use crate::model::{ConfigInfo, ExecuteMsg, MigrateMsg, QueryMsg};
 
 /// (we require 0-1)
@@ -49,6 +49,7 @@ pub fn instantiate(
             aust_token: deps.api.addr_canonicalize(&msg.aust_token)?,
             max_unbond_count: msg.max_unbond_count,
             burn_period: msg.burn_period,
+            ust_pair_contract: deps.api.addr_canonicalize(&msg.ust_pair_contract)?,
         },
     )?;
 
@@ -62,6 +63,7 @@ pub fn instantiate(
         unbonded_index: Uint128::zero(),
         unbonding_index: Uint128::zero(),
         claimable_amount: Uint128::zero(),
+        fee: Uint128::zero(),
         earning: Uint128::zero(),
         burn_counter: 0u64,
     })?;
@@ -118,7 +120,15 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::register_hub { token, hub_address, hub_type } =>
             register_hub(deps, info, token, hub_address, hub_type),
         ExecuteMsg::burn { amount, swap_operations } =>
-            burn(deps, env, info, amount, swap_operations)
+            burn(deps, env, info, amount, swap_operations),
+        ExecuteMsg::collect {} =>
+            collect(deps, env),
+        ExecuteMsg::collect_hook { prev_balance, total_input_amount, total_collectable_amount } =>
+            collect_hook(deps, env, info, prev_balance, total_input_amount, total_collectable_amount),
+        ExecuteMsg::collect_fee {} =>
+            collect_fee(deps, env, info),
+        ExecuteMsg::send_fee {} =>
+            send_fee(deps, env, info),
     }
 }
 
@@ -213,12 +223,14 @@ pub fn register_hub(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::config {} => to_binary(&query_config(deps)?),
-        QueryMsg::reward_info {
-            staker_addr,
-        } => to_binary(&query_reward_info(deps, env, staker_addr)?),
+        QueryMsg::reward_info { staker_addr, } =>
+            to_binary(&query_reward_info(deps, env, staker_addr)?),
+        QueryMsg::unbond { staker_addr } =>
+            to_binary(&query_unbond(deps, staker_addr)?),
         QueryMsg::state {} => to_binary(&query_state(deps)?),
         QueryMsg::hubs {} => to_binary(&query_hubs(deps)?),
         QueryMsg::burns {} => to_binary(&query_burns(deps)?),
+        QueryMsg::simulate_collect {} => to_binary(&simulate_collect(deps, env)?),
     }
 }
 
@@ -238,6 +250,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         aust_token: deps.api.addr_humanize(&config.aust_token)?.to_string(),
         max_unbond_count: config.max_unbond_count,
         burn_period: config.burn_period,
+        ust_pair_contract: deps.api.addr_humanize(&config.ust_pair_contract)?.to_string(),
     };
 
     Ok(resp)
@@ -255,15 +268,6 @@ fn query_hubs(deps: Deps) -> StdResult<Vec<Hub>> {
         })
         .collect()
 
-}
-
-fn query_burns(deps: Deps) -> StdResult<Vec<Burn>> {
-    burns_read(deps.storage).range(None, None, Order::Ascending)
-        .map(|item| {
-            let (_, v) = item?;
-            Ok(v)
-        })
-        .collect()
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

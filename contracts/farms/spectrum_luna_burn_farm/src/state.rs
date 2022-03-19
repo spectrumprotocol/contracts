@@ -1,3 +1,4 @@
+use std::fmt;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -21,6 +22,7 @@ pub struct Config {
     pub aust_token: CanonicalAddr,
     pub max_unbond_count: usize,
     pub burn_period: u64,
+    pub ust_pair_contract: CanonicalAddr,
 }
 
 pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {
@@ -44,6 +46,7 @@ pub struct State {
     pub unbonded_index: Uint128,
     pub unbonding_index: Uint128,
     pub claimable_amount: Uint128,
+    pub fee: Uint128,
     pub earning: Uint128,
     pub burn_counter: u64,
 }
@@ -153,12 +156,18 @@ pub fn user_unbonding_read<'a>(
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, Copy, JsonSchema)]
 pub enum HubType {
     bluna,
     lunax,
     cluna,
     stluna,
+}
+
+impl fmt::Display for HubType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -191,6 +200,7 @@ pub fn hubs_read(
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Burn {
+    pub id: u64,
     pub batch_id: u64,
     pub input_amount: Uint128,
     pub start_burn: u64,

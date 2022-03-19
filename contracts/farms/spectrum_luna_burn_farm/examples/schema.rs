@@ -2,8 +2,8 @@ use std::env::current_dir;
 use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
-use spectrum_luna_burn_farm::model::{ConfigInfo, ExecuteMsg, QueryMsg, RewardInfoResponse};
-use spectrum_luna_burn_farm::state::State;
+use spectrum_luna_burn_farm::model::{ConfigInfo, ExecuteMsg, QueryMsg, RewardInfoResponse, SimulateCollectResponse};
+use spectrum_luna_burn_farm::state::{Hub, State, Unbonding};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
@@ -16,4 +16,7 @@ fn main() {
     export_schema(&schema_for!(ConfigInfo), &out_dir);
     export_schema(&schema_for!(RewardInfoResponse), &out_dir);
     export_schema(&schema_for!(State), &out_dir);
+    export_schema(&schema_for!(Unbonding), &out_dir);
+    export_schema(&schema_for!(Hub), &out_dir);
+    export_schema(&schema_for!(SimulateCollectResponse), &out_dir);
 }

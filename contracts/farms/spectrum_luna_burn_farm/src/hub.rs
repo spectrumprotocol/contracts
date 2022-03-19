@@ -19,8 +19,13 @@ pub enum HubCw20HookMsg {
 pub enum HubQueryMsg {
     State {},
     CurrentBatch {},
+    Parameters {},
     WithdrawableUnbonded {
         address: String,
+    },
+    AllHistory {
+        start_from: Option<u64>,
+        limit: Option<u32>,
     },
 }
 
@@ -32,6 +37,12 @@ pub struct HubState {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Parameters {
+    pub peg_recovery_fee: Decimal,
+    pub er_threshold: Decimal,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct CurrentBatchResponse {
     pub id: u64,
 }
@@ -39,6 +50,17 @@ pub struct CurrentBatchResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct WithdrawableUnbondedResponse {
     pub withdrawable: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AllHistoryResponse {
+    pub history: Vec<UnbondHistoryResponse>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UnbondHistoryResponse {
+    pub batch_id: u64,
+    pub released: bool,
 }
 
 pub fn query_hub_state(querier: &QuerierWrapper, contract_addr: String) -> StdResult<HubState> {
@@ -52,5 +74,31 @@ pub fn query_hub_current_batch(querier: &QuerierWrapper, contract_addr: String) 
     querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr,
         msg: to_binary(&HubQueryMsg::CurrentBatch {})?,
+    }))
+}
+
+pub fn query_hub_parameters(querier: &QuerierWrapper, contract_addr: String) -> StdResult<Parameters> {
+    querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr,
+        msg: to_binary(&HubQueryMsg::Parameters {})?,
+    }))
+}
+
+pub fn query_hub_histories(querier: &QuerierWrapper, contract_addr: String, batch_id: u64) -> StdResult<AllHistoryResponse> {
+    querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr,
+        msg: to_binary(&HubQueryMsg::AllHistory {
+            start_from: Some(batch_id - 1u64),
+            limit: None,
+        })?,
+    }))
+}
+
+pub fn query_hub_claimable(querier: &QuerierWrapper, contract_addr: String, address: String) -> StdResult<WithdrawableUnbondedResponse> {
+    querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr,
+        msg: to_binary(&HubQueryMsg::WithdrawableUnbonded {
+            address
+        })?,
     }))
 }

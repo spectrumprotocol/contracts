@@ -4,7 +4,7 @@ use cosmwasm_std::{Decimal, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use terraswap::asset::AssetInfo;
-use crate::state::HubType;
+use crate::state::{Burn, HubType};
 
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -22,6 +22,7 @@ pub struct ConfigInfo {
     pub aust_token: String,
     pub max_unbond_count: usize,
     pub burn_period: u64,
+    pub ust_pair_contract: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -59,7 +60,14 @@ pub enum ExecuteMsg {
         amount: Uint128,
         swap_operations: Vec<SwapOperation>,
     },
-    // send_fee {},
+    collect {},
+    collect_hook {
+        prev_balance: Uint128,
+        total_input_amount: Uint128,
+        total_collectable_amount: Uint128,
+    },
+    collect_fee {},
+    send_fee {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -75,9 +83,13 @@ pub enum QueryMsg {
     reward_info {
         staker_addr: String,
     },
+    unbond {
+        staker_addr: String,
+    },
     state {},
     hubs {},
     burns {},
+    simulate_collect {},
 }
 
 // We define a custom struct for each query response
@@ -98,6 +110,14 @@ pub struct RewardInfoResponseItem {
     pub deposit_amount: Uint128,
     pub deposit_time: u64,
     pub unbonding_amount: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct SimulateCollectResponse {
+    pub burnable: Uint128,
+    pub unbonded_index: Uint128,
+    pub can_collect: bool,
+    pub remaining_burns: Vec<Burn>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

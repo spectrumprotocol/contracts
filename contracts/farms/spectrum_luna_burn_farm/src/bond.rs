@@ -1,6 +1,6 @@
-use cosmwasm_std::{attr, to_binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery, Order, QuerierWrapper, Addr, BankMsg, Coin};
+use cosmwasm_std::{attr, to_binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery, Order, BankMsg, Coin};
 
-use crate::state::{read_config, read_state, rewards_read, rewards_store, state_store, Config, RewardInfo, State, Unbonding, user_unbonding_store};
+use crate::state::{read_config, read_state, rewards_read, rewards_store, state_store, Config, RewardInfo, State, Unbonding, user_unbonding_store, user_unbonding_read};
 
 use cw20::Cw20ExecuteMsg;
 
@@ -225,7 +225,8 @@ pub fn claim_unbond(
 ) -> StdResult<Response> {
 
     let mut state = read_state(deps.storage)?;
-    update_claimable(&deps.querier, &env.contract.address, &mut state)?;
+    let balance = deps.querier.query_balance(env.contract.address, "uluna")?;
+    update_claimable(balance.amount, &mut state)?;
 
     let staker_addr_raw = deps.api.addr_canonicalize(&info.sender.to_string())?;
     let mut reward_info = rewards_read(deps.storage, staker_addr_raw.as_slice())?
@@ -266,13 +267,13 @@ pub fn claim_unbond(
         ]))
 }
 
-fn update_claimable(
-    querier: &QuerierWrapper,
-    contract_addr: &Addr,
+pub fn update_claimable(
+    balance: Uint128,
     state: &mut State,
 ) -> StdResult<()> {
-    let balance = querier.query_balance(contract_addr, "uluna")?;
-    let tobe_claimed = balance.amount.checked_sub(state.claimable_amount)?;
+    let tobe_claimed = balance
+        .checked_sub(state.claimable_amount)?
+        .checked_sub(state.fee)?;
     let new_claimable_amount = if tobe_claimed > state.unbonding_amount {
         state.unbonding_amount
     } else {
@@ -458,4 +459,17 @@ fn read_reward_infos(
             }])
         }
     }
+}
+
+pub fn query_unbond(
+    deps: Deps,
+    staker_addr: String,
+) -> StdResult<Vec<Unbonding>> {
+    user_unbonding_read(deps.storage, &deps.api.addr_canonicalize(&staker_addr)?)
+        .range(None, None, Order::Ascending)
+        .map(|item| {
+            let (_, v) = item?;
+            Ok(v)
+        })
+        .collect()
 }
