@@ -19,7 +19,7 @@ pub struct Config {
     pub spectrum_gov: CanonicalAddr,
     pub astro_token: CanonicalAddr,
     pub farm_token: CanonicalAddr,
-    pub reward_token: CanonicalAddr,
+    pub weldo_token: CanonicalAddr,
     pub stluna_token: CanonicalAddr,
     pub astroport_generator: CanonicalAddr,
     pub astroport_router: CanonicalAddr,

@@ -49,7 +49,7 @@ pub fn instantiate(
             spectrum_gov: deps.api.addr_canonicalize(&msg.spectrum_gov)?,
             astro_token: deps.api.addr_canonicalize(&msg.astro_token)?,
             farm_token: deps.api.addr_canonicalize(&msg.farm_token)?,
-            reward_token: deps.api.addr_canonicalize(&msg.reward_token)?,
+            weldo_token: deps.api.addr_canonicalize(&msg.weldo_token)?,
             stluna_token: deps.api.addr_canonicalize(&msg.stluna_token)?,
             astroport_generator: deps.api.addr_canonicalize(&msg.astroport_generator)?,
             astroport_router: deps.api.addr_canonicalize(&msg.astroport_router)?,
@@ -296,7 +296,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
             .to_string(),
         spectrum_token: deps.api.addr_humanize(&config.spectrum_token)?.to_string(),
         farm_token: deps.api.addr_humanize(&config.farm_token)?.to_string(),
-        reward_token: deps.api.addr_humanize(&config.reward_token)?.to_string(),
+        weldo_token: deps.api.addr_humanize(&config.weldo_token)?.to_string(),
         stluna_token: deps.api.addr_humanize(&config.stluna_token)?.to_string(),
         spectrum_gov: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
         gov_proxy: if let Some(gov_proxy) = config.gov_proxy {
@@ -306,7 +306,6 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         },
         platform: deps.api.addr_humanize(&config.platform)?.to_string(),
         controller: deps.api.addr_humanize(&config.controller)?.to_string(),
-        base_denom: config.base_denom,
         community_fee: config.community_fee,
         platform_fee: config.platform_fee,
         controller_fee: config.controller_fee,
@@ -315,8 +314,8 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         xastro_proxy: deps.api.addr_humanize(&config.xastro_proxy)?.to_string(),
         anchor_market: deps.api.addr_humanize(&config.anchor_market)?.to_string(),
         aust_token: deps.api.addr_humanize(&config.aust_token)?.to_string(),
-        // pair_contract: deps.api.addr_humanize(&config.pair_contract)?.to_string(),
-        // astro_ust_pair_contract: deps.api.addr_humanize(&config.astro_ust_pair_contract)?.to_string(),
+        pair_contract: deps.api.addr_humanize(&config.pair_contract)?.to_string(),
+        astro_ust_pair_contract: deps.api.addr_humanize(&config.astro_ust_pair_contract)?.to_string(),
         // reward_pair_contract: deps.api.addr_humanize(&config.reward_pair_contract)?.to_string(),
     };
 
