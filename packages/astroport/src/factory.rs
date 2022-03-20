@@ -4,8 +4,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter, Result};
 
-/// This enum describes available pair types.
-/// ## Available pool types
+/// ## Description
+/// This enum describes available types of pair.
+/// ## Available types
 /// ```
 /// # use astroport::factory::PairType::{Custom, Stable, Xyk};
 /// Xyk {};
@@ -23,7 +24,7 @@ pub enum PairType {
     Custom(String),
 }
 
-// Return a raw encoded string representing the name of each pool type
+// Provide a string version of this to raw encode strings
 impl Display for PairType {
     fn fmt(&self, fmt: &mut Formatter) -> Result {
         match self {
@@ -34,26 +35,25 @@ impl Display for PairType {
     }
 }
 
-/// This structure stores a pair type's configuration.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+/// ## Description
+/// This structure describes a configuration of pair.
 pub struct PairConfig {
-    /// ID of contract which is allowed to create pairs of this type
+    /// pair contract code ID which are allowed to create pair
     pub code_id: u64,
-    /// The pair type (provided in a [`PairType`])
+    /// the type of pair available in [`PairType`]
     pub pair_type: PairType,
-    /// The total fees (in bps) charged by a pair of this type
+    /// a pair total fees bps
     pub total_fee_bps: u16,
-    /// The amount of fees (in bps) collected by the Maker contract from this pair type
+    /// a pair fees bps
     pub maker_fee_bps: u16,
-    /// Whether a pair type is disabled or not. If it is disabled, new pairs cannot be
-    /// created, but existing ones can still read the pair configuration
-    pub is_disabled: bool,
-    /// Setting this to true means that pairs of this type will not be able
-    /// to get an ASTRO generator
-    pub is_generator_disabled: bool,
+    /// We disable pair configs instead of removing them. If it is disabled, new pairs cannot be
+    /// created, but existing ones can still obtain proper settings, such as fee amounts
+    pub is_disabled: Option<bool>,
 }
 
 impl PairConfig {
+    /// ## Description
     /// This method is used to check fee bps.
     /// ## Params
     /// `&self` is the type of the caller object.
@@ -62,23 +62,23 @@ impl PairConfig {
     }
 }
 
-/// This structure stores the basic settings for creating a new factory contract.
+/// ## Description
+/// This structure describes the basic settings for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    /// IDs of contracts that are allowed to instantiate pairs
+    /// pair contract code IDs which are allowed to create pairs
     pub pair_configs: Vec<PairConfig>,
     /// CW20 token contract code identifier
     pub token_code_id: u64,
-    /// Contract address to send governance fees to (the Maker)
+    /// contract address to send fees to
     pub fee_address: Option<String>,
-    /// Address of contract that is used to auto_stake LP tokens once someone provides liquidity in a pool
+    /// contract address that used for auto_stake from pools
     pub generator_address: Option<String>,
-    /// Address of owner that is allowed to change factory contract parameters
+    /// contract address that used for controls settings for factory, pools and tokenomics contracts
     pub owner: String,
-    /// CW1 whitelist contract code id used to store 3rd party rewards for staking Astroport LP tokens
-    pub whitelist_code_id: u64,
 }
 
+/// ## Description
 /// This structure describes the execute messages of the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -87,120 +87,117 @@ pub enum ExecuteMsg {
     UpdateConfig {
         /// CW20 token contract code identifier
         token_code_id: Option<u64>,
-        /// Contract address to send governance fees to (the Maker)
+        /// contract address to send fees to
         fee_address: Option<String>,
-        /// Contract address where Lp tokens can be auto_staked after someone provides liquidity in an incentivized Astroport pool
+        /// contract address that used for auto_stake from pools
         generator_address: Option<String>,
-        /// CW1 whitelist contract code id used to store 3rd party rewards for staking Astroport LP tokens
-        whitelist_code_id: Option<u64>,
     },
-    /// UpdatePairConfig updates the config for a pair type.
+    /// UpdatePairConfig updates configs of pair
     UpdatePairConfig {
-        /// New [`PairConfig`] settings for a pair type
+        /// new [`PairConfig`] settings for pair
         config: PairConfig,
     },
-    /// CreatePair instantiates a new pair contract.
+    /// CreatePair instantiates pair contract
     CreatePair {
-        /// The pair type (exposed in [`PairType`])
+        /// the type of pair available in [`PairType`]
         pair_type: PairType,
-        /// The two assets to create the pool for
+        /// the type of asset infos available in [`AssetInfo`]
         asset_infos: [AssetInfo; 2],
         /// Optional binary serialised parameters for custom pool types
         init_params: Option<Binary>,
     },
-    /// Deregister removes a previously created pair.
+    /// Deregister removes a previously created pair
     Deregister {
-        /// The assets for which we deregister a pool
+        /// the type of asset infos available in [`AssetInfo`]
         asset_infos: [AssetInfo; 2],
     },
-    /// ProposeNewOwner creates a proposal to change contract ownership.
-    /// The validity period for the proposal is set in the `expires_in` variable.
+    /// ProposeNewOwner creates an offer for a new owner. The validity period of the offer is set in the `expires_in` variable.
     ProposeNewOwner {
-        /// Newly proposed contract owner
+        /// contract address that used for controls settings for factory, pools and tokenomics contracts
         owner: String,
-        /// The date after which this proposal expires
+        /// the offer expiration date for the new owner
         expires_in: u64,
     },
-    /// DropOwnershipProposal removes the existing offer to change contract ownership.
+    /// DropOwnershipProposal removes the existing offer for the new owner.
     DropOwnershipProposal {},
-    /// Used to claim contract ownership.
+    /// Used to claim(approve) new owner proposal, thus changing contract's owner
     ClaimOwnership {},
 }
 
-/// This structure describes the available query messages for the factory contract.
+/// ## Description
+/// This structure describes the query messages of the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    /// Config returns contract settings specified in the custom [`ConfigResponse`] structure.
+    /// Config returns controls settings that specified in custom [`ConfigResponse`] structure
     Config {},
-    /// Pair returns information about a specific pair according to the specified assets.
+    /// Pair returns a pair according to the specified parameters in `asset_infos` variable.
     Pair {
-        /// The assets for which we return a pair
+        /// the type of asset infos available in [`AssetInfo`]
         asset_infos: [AssetInfo; 2],
     },
-    /// Pairs returns an array of pairs and their information according to the specified parameters in `start_after` and `limit` variables.
+    /// Pairs returns an array of pairs according to the specified parameters in `start_after` and `limit` variables.
     Pairs {
-        /// The pair item to start reading from. It is an [`Option`] type that accepts two [`AssetInfo`] elements.
+        /// the item to start reading from. It is an [`Option`] type that accepts two [`AssetInfo`] elements.
         start_after: Option<[AssetInfo; 2]>,
-        /// The number of pairs to read and return. It is an [`Option`] type.
+        /// the number of items to be read. It is an [`Option`] type.
         limit: Option<u32>,
     },
-    /// FeeInfo returns fee parameters for a specific pair. The response is returned using a [`FeeInfoResponse`] structure
+    /// FeeInfo returns settings that specified in custom [`FeeInfoResponse`] structure
     FeeInfo {
-        /// The pair type for which we return fee information. Pair type is a [`PairType`] struct
+        ///s the type of pair available in [`PairType`]
         pair_type: PairType,
     },
-    /// Returns a vector that contains blacklisted pair types
-    BlacklistedPairTypes {},
 }
 
-/// A custom struct for each query response that returns general contract settings/configs.
+/// ## Description
+/// A custom struct for each query response that returns controls settings of contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
-    /// Addres of owner that is allowed to change contract parameters
+    /// Contract address that used for controls settings for factory, pools and tokenomics contracts
     pub owner: Addr,
-    /// IDs of contracts which are allowed to create pairs
+    /// Pair contract code IDs which are allowed to create pairs
     pub pair_configs: Vec<PairConfig>,
     /// CW20 token contract code identifier
     pub token_code_id: u64,
-    /// Address of contract to send governance fees to (the Maker)
+    /// Contract address to send fees to
     pub fee_address: Option<Addr>,
-    /// Address of contract used to auto_stake LP tokens for Astroport pairs that are incentivized
+    /// Contract address that used for auto_stake from pools
     pub generator_address: Option<Addr>,
-    /// CW1 whitelist contract code id used to store 3rd party rewards for staking Astroport LP tokens
-    pub whitelist_code_id: u64,
 }
 
-/// This structure stores the parameters used in a migration message.
+/// ## Description
+/// This structure describes a migration message.
+/// We currently take no arguments for migrations.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {
-    pub params: Binary,
-}
+pub struct MigrateMsg {}
 
-/// A custom struct for each query response that returns an array of objects of type [`PairInfo`].
+/// ## Description
+/// A custom struct for each query response that returns an array of objects type [`PairInfo`].
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PairsResponse {
-    /// Arrays of structs containing information about multiple pairs
     pub pairs: Vec<PairInfo>,
 }
 
+/// ## Description
 /// A custom struct for each query response that returns an object of type [`FeeInfoResponse`].
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct FeeInfoResponse {
-    /// Contract address to send governance fees to
+    /// Contract address to send fees to
     pub fee_address: Option<Addr>,
-    /// Total amount of fees (in bps) charged on a swap
+    /// Pair total fees bps
     pub total_fee_bps: u16,
-    /// Amount of fees (in bps) sent to the Maker contract
+    /// Pair fees bps
     pub maker_fee_bps: u16,
 }
 
-/// This is an enum used for setting and removing a contract address.
+/// ## Description
+/// This is an enumeration for setting and unsetting a contract address.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum UpdateAddr {
     /// Sets a new contract address.
     Set(String),
-    /// Removes a contract address.
+    /// Removes contract address.
     Remove {},
 }

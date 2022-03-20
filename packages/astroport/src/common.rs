@@ -4,19 +4,20 @@ use cw_storage_plus::Item;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// This structure describes the parameters used for creating a request for a change of contract ownership.
+/// ## Description
+/// This structure describes the basic settings for creating a request for a change of ownership.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct OwnershipProposal {
-    /// The newly proposed contract owner
+    /// a new ownership.
     pub owner: Addr,
-    /// Time until the proposal to change ownership expires
+    /// time to live a request
     pub ttl: u64,
 }
 
-/// Creates a new request to change contract ownership. Returns an [`Err`] on failure or returns the [`Response`]
-/// with the specified attributes if the operation was successful.
+/// ## Description
+/// Creates a new request to change ownership. Returns an [`Err`] on failure or returns the [`Response`] with the specified attributes if the operation was successful.
 /// ## Executor
-/// Only the current contract owner can execute this.
+/// Only owner can execute it
 /// ## Params
 /// `deps` is the object of type [`DepsMut`].
 ///
@@ -24,13 +25,13 @@ pub struct OwnershipProposal {
 ///
 /// `env` is the object of type [`Env`].
 ///
-/// `new_owner` is the newly proposed owner.
+/// `new_owner` is a new owner.
 ///
-/// `expires_in` is the time during which the ownership change proposal is still valid.
+/// `expires_in` is the validity period of the offer to change the owner.
 ///
 /// `owner` is the current owner.
 ///
-/// `proposal` is an object of type [`OwnershipProposal`].
+/// `proposal` is the object of type [`OwnershipProposal`].
 pub fn propose_new_owner(
     deps: DepsMut,
     info: MessageInfo,
@@ -40,14 +41,14 @@ pub fn propose_new_owner(
     owner: Addr,
     proposal: Item<OwnershipProposal>,
 ) -> StdResult<Response> {
-    // Permission check
+    // permission check
     if info.sender != owner {
         return Err(StdError::generic_err("Unauthorized"));
     }
 
     let new_owner = addr_validate_to_lower(deps.api, new_owner.as_str())?;
 
-    // Check that the new owner is not the same as the current one
+    // check that owner is not the same
     if new_owner == owner {
         return Err(StdError::generic_err("New owner cannot be same"));
     }
@@ -66,16 +67,16 @@ pub fn propose_new_owner(
     ]))
 }
 
-/// Removes a request to change contract ownership. Returns an [`Err`] on failure or returns the [`Response`]
-/// with the specified attributes if the operation was successful.
+/// ## Description
+/// Removes a request to change ownership. Returns an [`Err`] on failure or returns the [`Response`] with the specified attributes if the operation was successful.
 /// ## Executor
-/// Only the current owner can execute this.
+/// Only owner can execute it
 /// ## Params
 /// `deps` is the object of type [`DepsMut`].
 ///
 /// `info` is the object of type [`MessageInfo`].
 ///
-/// `owner` is the current contract owner.
+/// `owner` is the current owner.
 ///
 /// `proposal` is the object of type [`OwnershipProposal`].
 pub fn drop_ownership_proposal(
@@ -84,7 +85,7 @@ pub fn drop_ownership_proposal(
     owner: Addr,
     proposal: Item<OwnershipProposal>,
 ) -> StdResult<Response> {
-    // Permission check
+    // permission check
     if info.sender != owner {
         return Err(StdError::generic_err("Unauthorized"));
     }
@@ -94,10 +95,10 @@ pub fn drop_ownership_proposal(
     Ok(Response::new().add_attributes(vec![attr("action", "drop_ownership_proposal")]))
 }
 
-/// Claims ownership over the contract. Returns an [`Err`] on failure or returns the [`Response`]
-/// with the specified attributes if the operation was successful.
+/// ## Description
+/// Approves owner. Returns an [`Err`] on failure or returns the [`Response`] with the specified attributes if the operation was successful.
 /// ## Executor
-/// Only the newly proposed owner can execute this.
+/// Only owner can execute it
 /// ## Params
 /// `deps` is the object of type [`DepsMut`].
 ///
@@ -105,9 +106,9 @@ pub fn drop_ownership_proposal(
 ///
 /// `env` is the object of type [`Env`].
 ///
-/// `proposal` is an object of type [`OwnershipProposal`].
+/// `proposal` is the object of type [`OwnershipProposal`].
 ///
-/// `cb` is a callback function that takes in two parameters of type [`DepsMut`] and [`Addr`] respectively.
+/// `cb` is a type of callback function that takes two parameters of type [`DepsMut`] and [`Addr`].
 pub fn claim_ownership(
     deps: DepsMut,
     info: MessageInfo,
@@ -119,7 +120,7 @@ pub fn claim_ownership(
         .load(deps.storage)
         .map_err(|_| StdError::generic_err("Ownership proposal not found"))?;
 
-    // Check the sender
+    // Check sender
     if info.sender != p.owner {
         return Err(StdError::generic_err("Unauthorized"));
     }
@@ -130,7 +131,7 @@ pub fn claim_ownership(
 
     proposal.remove(deps.storage);
 
-    // Run callback
+    // run callback
     cb(deps, p.owner.clone())?;
 
     Ok(Response::new().add_attributes(vec![

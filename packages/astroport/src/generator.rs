@@ -1,297 +1,205 @@
-use crate::asset::AssetInfo;
-use crate::factory::PairType;
-use cosmwasm_std::{Addr, Binary, Decimal, Uint128, Uint64};
+use cosmwasm_std::{Addr, Uint128, Uint64};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// This structure describes the parameters used for creating a contract.
+/// ## Description
+/// This structure describes the basic settings for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    /// Address that can change contract settings
+    /// contract address that used for controls settings
     pub owner: String,
-    /// Address of factory contract
-    pub factory: String,
-    /// Address that can set active generators and their alloc points
-    pub generator_controller: Option<String>,
-    /// Address of guardian
-    pub guardian: Option<String>,
     /// ASTRO token contract address
     pub astro_token: String,
-    /// Amount of ASTRO distributed per block among all pairs
+    /// tokens per block
     pub tokens_per_block: Uint128,
-    /// Start block for distributing ASTRO
+    /// start block
     pub start_block: Uint64,
-    /// Dual rewards proxy contracts allowed to interact with the generator
+    /// allowed reward proxies contracts
     pub allowed_reward_proxies: Vec<String>,
-    /// The ASTRO vesting contract that drips ASTRO rewards
+    /// a vesting contract
     pub vesting_contract: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    /// Update the address of the ASTRO vesting contract
+    /// ## Description
+    /// Update current vesting contract
     /// ## Executor
-    /// Only the owner can execute it.
+    /// Only owner can execute it
     UpdateConfig {
-        /// The new vesting contract address
+        /// the vesting contract
         vesting_contract: Option<String>,
-        /// The new generator controller contract address
-        generator_controller: Option<String>,
-        /// The new generator guardian
-        guardian: Option<String>,
     },
-    /// Setup generators with their respective allocation points.
+    /// ## Description
+    /// Add a new liquidity pool token:
     /// ## Executor
-    /// Only the owner or generator controller can execute this.
-    SetupPools {
-        /// The list of pools with allocation point.
-        pools: Vec<(String, Uint64)>,
-    },
-    /// Update the given pool's ASTRO allocation slice
-    /// ## Executor
-    /// Only the owner or generator controller can execute this.
-    UpdatePool {
-        /// The address of the LP token contract address whose allocation we change
-        lp_token: String,
-        /// This flag determines whether the pool gets 3rd party token rewards
-        has_asset_rewards: bool,
-    },
-    /// Update rewards and return it to user.
-    ClaimRewards {
+    /// Only owner can execute it
+    Add {
         /// the LP token contract address
-        lp_tokens: Vec<String>,
+        lp_token: Addr,
+        /// the allocation point of liquidity pool
+        alloc_point: Uint64,
+        /// the reward proxy contract
+        reward_proxy: Option<String>,
     },
-    /// Withdraw LP tokens from the Generator
+    /// ## Description
+    /// Update the given pool's ASTRO allocation point
+    /// ## Executor
+    /// Only owner can execute it
+    Set {
+        /// the LP token contract address
+        lp_token: Addr,
+        /// the allocation point of liquidity pool
+        alloc_point: Uint64,
+    },
+    /// ## Description
+    /// Updates reward variables for all pools
+    MassUpdatePools {},
+    /// ## Description
+    /// Updates reward variables of the given pool to be up-to-date
+    UpdatePool {
+        /// the LP token contract address
+        lp_token: Addr,
+    },
+    /// ## Description
+    /// Withdraw LP tokens from Generator.
     Withdraw {
-        /// The address of the LP token to withdraw
-        lp_token: String,
-        /// The amount to withdraw
+        /// the LP token contract address
+        lp_token: Addr,
+        /// the amount of withdrawal
         amount: Uint128,
     },
-    /// Withdraw LP tokens from the Generator without withdrawing outstanding rewards
+    /// ## Description
+    /// Withdraw LP tokens from Generator without caring about rewards.
     EmergencyWithdraw {
-        /// The address of the LP token to withdraw
-        lp_token: String,
+        /// the LP token contract address
+        lp_token: Addr,
     },
-    /// Allowed reward proxy contracts that can interact with the Generator
+    /// ## Description
+    /// allowed reward proxies contracts
     SetAllowedRewardProxies {
-        /// The full list of allowed proxy contracts
+        /// the list of allowed contracts
         proxies: Vec<String>,
     },
-    /// Sends orphan proxy rewards (which were left behind after emergency withdrawals) to another address
+    /// ## Description
+    /// Sends the orphan proxy rewards which are left by emergency withdrawals
     SendOrphanProxyReward {
-        /// The transfer recipient
+        /// the recipient of withdraw
         recipient: String,
-        /// The address of the LP token contract for which we send orphaned rewards
+        /// the LP token contract address
         lp_token: String,
     },
+    /// ## Description
     /// Receives a message of type [`Cw20ReceiveMsg`]
     Receive(Cw20ReceiveMsg),
-    /// Set a new amount of ASTRO to distribute per block
+    /// ## Description
+    /// a new count of tokens per block
     /// ## Executor
-    /// Only the owner can execute this.
+    /// Only owner can execute it
     SetTokensPerBlock {
-        /// The new amount of ASTRO to distro per block
+        /// the amount
         amount: Uint128,
     },
-    /// Creates a request to change contract ownership
+    /// ## Description
+    /// Creates a request to change ownership
     /// ## Executor
-    /// Only the current owner can execute this.
+    /// Only owner can execute it
     ProposeNewOwner {
-        /// The newly proposed owner
+        /// a new ownership
         owner: String,
-        /// The validity period of the proposal to change the contract owner
+        /// the validity period of the offer to change the owner
         expires_in: u64,
     },
-    /// Removes a request to change contract ownership
+    /// ## Description
+    /// Removes a request to change ownership
     /// ## Executor
-    /// Only the current owner can execute this
+    /// Only owner can execute it
     DropOwnershipProposal {},
-    /// Claims contract ownership
+    /// ## Description
+    /// Approves ownership
     /// ## Executor
-    /// Only the newly proposed owner can execute this
+    /// Only owner can execute it
     ClaimOwnership {},
-    /// Add or remove a proxy contract that can interact with the Generator
-    UpdateAllowedProxies {
-        /// Allowed proxy contract
-        add: Option<Vec<String>>,
-        /// Proxy contracts to remove
-        remove: Option<Vec<String>>,
-    },
-    /// Sets a new proxy contract for a specific generator
-    /// Sets a proxy for the pool
-    /// ## Executor
-    /// Only the current owner or generator controller can execute this
-    MoveToProxy { lp_token: String, proxy: String },
-    /// Add or remove token to blocked list
-    UpdateTokensBlockedlist {
-        /// Tokens to add
-        add: Option<Vec<AssetInfo>>,
-        /// Tokens to remove
-        remove: Option<Vec<AssetInfo>>,
-    },
-    /// Sets the allocation point to zero for the specified pool
-    DeactivatePool { lp_token: String },
-    /// Sets the allocation point to zero for each pool by the pair type
-    DeactivatePools { pair_types: Vec<PairType> },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    /// Returns the length of the array that contains all the active pool generators
-    ActivePoolLength {},
-    /// PoolLength returns the length of the array that contains all the instantiated pool generators
+    /// PoolLength
     PoolLength {},
-    /// Deposit returns the LP token amount deposited in a specific generator
-    Deposit { lp_token: String, user: String },
-    /// PendingToken returns the amount of rewards that can be claimed by an account that deposited a specific LP token in a generator
-    PendingToken { lp_token: String, user: String },
-    /// Config returns the main contract parameters
+    /// Deposit
+    Deposit { lp_token: Addr, user: Addr },
+    /// PendingToken
+    PendingToken { lp_token: Addr, user: Addr },
+    /// Config returns the base setting of the generator
     Config {},
-    /// RewardInfo returns reward information for a specified LP token
-    RewardInfo { lp_token: String },
-    /// OrphanProxyRewards returns orphaned reward information for the specified LP token
-    OrphanProxyRewards { lp_token: String },
-    /// PoolInfo returns information about a pool associated with the specified LP token alongside
-    /// the total pending amount of ASTRO and proxy rewards claimable by generator stakers (for that LP token)
-    PoolInfo { lp_token: String },
-    /// SimulateFutureReward returns the amount of ASTRO that will be distributed until a future block and for a specific generator
-    SimulateFutureReward { lp_token: String, future_block: u64 },
-    /// Returns a list of stakers for a specific generator
-    PoolStakers {
-        lp_token: String,
-        start_after: Option<String>,
-        limit: Option<u32>,
-    },
-    /// Returns the blocked list of tokens
-    BlockedListTokens {},
+    /// RewardInfo returns reward information for the specified token.
+    RewardInfo { lp_token: Addr },
+    /// OrphanProxyRewards returns reward information for the specified token.
+    OrphanProxyRewards { lp_token: Addr },
 }
 
-/// This structure holds the response returned when querying the total length of the array that keeps track of instantiated generators
+/// ## Description
+/// This structure describe response for pool length.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolLengthResponse {
     pub length: usize,
 }
 
-/// This structure holds the response returned when querying the amount of pending rewards that can be withdrawn from a 3rd party
-/// rewards contract
+/// ## Description
+/// This structure describes the response to the pending token.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PendingTokenResponse {
-    /// The amount of pending ASTRO
+    /// a pending token
     pub pending: Uint128,
-    /// The amount of pending 3rd party reward tokens
+    /// a pending token on proxy
     pub pending_on_proxy: Option<Uint128>,
 }
 
-/// This structure describes the main information of pool
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct PoolInfo {
-    /// Accumulated amount of reward per share unit. Used for reward calculations
-    pub last_reward_block: Uint64,
-    pub accumulated_rewards_per_share: Decimal,
-    /// the reward proxy contract
-    pub reward_proxy: Option<Addr>,
-    pub accumulated_proxy_rewards_per_share: Decimal,
-    /// for calculation of new proxy rewards
-    pub proxy_reward_balance_before_update: Uint128,
-    /// the orphan proxy rewards which are left by emergency withdrawals
-    pub orphan_proxy_rewards: Uint128,
-    /// The pool has assets giving additional rewards
-    pub has_asset_rewards: bool,
-}
-
-/// This structure holds the response returned when querying for the token addresses used to reward a specific generator
+/// ## Description
+/// This structure describes the response to the reward information.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RewardInfoResponse {
-    /// The address of the base reward token
+    /// a base reward token
     pub base_reward_token: Addr,
-    /// The address of the 3rd party reward token
+    /// a proxy reward token
     pub proxy_reward_token: Option<Addr>,
 }
 
-/// This structure holds the response returned when querying for a pool's information
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct PoolInfoResponse {
-    /// The slice of ASTRO that this pool's generator gets per block
-    pub alloc_point: Uint64,
-    /// Amount of ASTRO tokens being distributed per block to this LP pool
-    pub astro_tokens_per_block: Uint128,
-    /// The last block when token emissions were snapshotted (distributed)
-    pub last_reward_block: u64,
-    /// Current block number. Useful for computing APRs off-chain
-    pub current_block: u64,
-    /// Total amount of ASTRO rewards already accumulated per LP token staked
-    pub accumulated_rewards_per_share: Decimal,
-    /// Pending amount of total ASTRO rewards which are claimable by stakers right now
-    pub pending_astro_rewards: Uint128,
-    /// The address of the 3rd party reward proxy contract
-    pub reward_proxy: Option<Addr>,
-    /// Pending amount of total proxy rewards which are claimable by stakers right now
-    pub pending_proxy_rewards: Option<Uint128>,
-    /// Total amount of 3rd party token rewards already accumulated per LP token staked
-    pub accumulated_proxy_rewards_per_share: Decimal,
-    /// Reward balance for the dual rewards proxy before updating accrued rewards
-    pub proxy_reward_balance_before_update: Uint128,
-    /// The amount of orphan proxy rewards which are left behind by emergency withdrawals and not yet transferred out
-    pub orphan_proxy_rewards: Uint128,
-    /// Total amount of lp tokens staked in the pool's generator
-    pub lp_supply: Uint128,
-}
-
-/// This structure holds the response returned when querying the contract for general parameters
+/// ## Description
+/// This structure describes the response for base controls.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
-    /// Address that's allowed to change contract parameters
+    /// contract address that used for controls settings
     pub owner: Addr,
-    /// the Factory address
-    pub factory: Addr,
-    /// contract address which can only set active generators and their alloc points
-    pub generator_controller: Option<Addr>,
     /// ASTRO token contract address
     pub astro_token: Addr,
-    /// Total amount of ASTRO distributed per block
+    /// tokens per block
     pub tokens_per_block: Uint128,
-    /// Sum of total allocation points across all active generators
+    /// total allocation point
     pub total_alloc_point: Uint64,
-    /// Start block for ASTRO incentives
+    /// start block
     pub start_block: Uint64,
-    /// List of 3rd party reward proxies allowed to interact with the Generator contract
+    /// allowed reward proxies
     pub allowed_reward_proxies: Vec<Addr>,
-    /// The ASTRO vesting contract address
+    /// a vesting contract
     pub vesting_contract: Addr,
-    /// The list of active pools with allocation points
-    pub active_pools: Vec<(Addr, Uint64)>,
-    /// The blocked list of tokens
-    pub blocked_list_tokens: Vec<AssetInfo>,
-    /// The guardian address
-    pub guardian: Option<Addr>,
 }
 
+/// ## Description
 /// This structure describes a migration message.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {
-    pub params: Binary,
-}
+pub struct MigrateMsg {}
 
-/// This structure describes custom hooks for the CW20.
+/// ## Description
+/// This structure describes the custom hooks for the CW20.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Cw20HookMsg {
-    /// Deposit performs a token deposit on behalf of the message sender.
+    /// Deposit performs the operation of depositing to the sender.
     Deposit {},
-    /// DepositFor performs a token deposit on behalf of another address that's not the message sender.
+    /// DepositFor performs performs the operation of depositing to the recipient.
     DepositFor(Addr),
-}
-
-/// This structure holds the parameters used to return information about a staked in
-/// a specific generator.
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
-pub struct StakerResponse {
-    // The staker's address
-    pub account: String,
-    // The amount that the staker currently has in the generator
-    pub amount: Uint128,
 }
