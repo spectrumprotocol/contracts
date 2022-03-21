@@ -15,10 +15,8 @@ use cw20::Cw20ReceiveMsg;
 
 use crate::bond::{deposit_spec_reward, query_reward_info, unbond, update_bond, withdraw};
 use crate::state::{pool_info_read, pool_info_store, read_state};
-use spectrum_protocol::astroport_sttoken_ust_farm::{
-    ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
-};
 use crate::compound::send_fee;
+use crate::model::{ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo};
 
 /// (we require 0-1)
 fn validate_percentage(value: Decimal, field: &str) -> StdResult<()> {
