@@ -2,7 +2,7 @@ use std::env::current_dir;
 use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
-use spectrum_protocol::astroport_sttoken_ust_farm::{
+use spectrum_astroport_sttoken_ust_farm::model::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, PoolsResponse, QueryMsg, RewardInfoResponse, StateInfo,
 };
 

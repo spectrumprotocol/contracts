@@ -781,7 +781,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "spectrum-astroport-sttoken-reward-farm"
+name = "spectrum-astroport-sttoken-token-farm"
+version = "0.2.0"
+dependencies = [
+ "astroport",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "moneymarket",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
+]
+
+[[package]]
+name = "spectrum-astroport-sttoken-ust-farm"
 version = "0.2.0"
 dependencies = [
  "astroport",

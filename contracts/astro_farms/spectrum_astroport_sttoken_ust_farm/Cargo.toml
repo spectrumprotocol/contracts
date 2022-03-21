@@ -1,5 +1,5 @@
 [package]
-name = "spectrum-astroport-sttoken-reward-farm"
+name = "spectrum-astroport-sttoken-ust-farm"
 version = "0.2.0"
 authors = ["Spectrum team"]
 edition = "2018"
