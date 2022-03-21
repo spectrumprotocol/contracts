@@ -182,13 +182,16 @@ pub fn compound(
                 ask_asset_info: AssetInfo::Token { contract_addr: stluna_token.clone() }
             },
             SwapOperation::AstroSwap {
+                offer_asset_info: AssetInfo::Token { contract_addr: stluna_token.clone() },
+                ask_asset_info: AssetInfo::NativeToken { denom: uluna.clone() }
+            },
+            SwapOperation::AstroSwap {
                 offer_asset_info: AssetInfo::NativeToken { denom: uluna.clone() },
                 ask_asset_info: AssetInfo::NativeToken { denom: uusd.clone() },
             }
         ],
         &config.astroport_router
     )?;
-
 
     let total_weldo_ust_return_amount = deduct_tax(
         &deps.querier,
