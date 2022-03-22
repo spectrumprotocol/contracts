@@ -781,7 +781,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "spectrum-astroport-sttoken-token-farm"
+name = "spectrum-astroport-sttoken-luna-farm"
 version = "0.2.0"
 dependencies = [
  "astroport",
@@ -1040,12 +1040,14 @@ dependencies = [
 name = "spectrum-protocol"
 version = "0.2.0"
 dependencies = [
+ "astroport",
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw20",
  "schemars",
  "serde",
  "terraswap",
+ "uint",
 ]
 
 [[package]]
