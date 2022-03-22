@@ -902,6 +902,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "spectrum-lunaverse-farm"
+version = "0.2.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "moneymarket",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
+ "terraswap",
+]
+
+[[package]]
 name = "spectrum-mirror-farm"
 version = "0.2.0"
 dependencies = [
