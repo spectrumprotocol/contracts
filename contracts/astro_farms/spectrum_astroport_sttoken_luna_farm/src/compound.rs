@@ -1,4 +1,4 @@
-use cosmwasm_std::{attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, DepsMut, Env, MessageInfo, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery, Decimal};
+use cosmwasm_std::{attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, DepsMut, Env, MessageInfo, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery, Decimal, QuerierWrapper, Fraction, Addr};
 
 use crate::{
     bond::deposit_farm_share,
@@ -14,21 +14,23 @@ use astroport::factory::PairType;
 use astroport::generator::{
     Cw20HookMsg as AstroportCw20HookMsg, ExecuteMsg as AstroportExecuteMsg
 };
-use astroport::pair::{
-    Cw20HookMsg as AstroportPairCw20HookMsg, ExecuteMsg as AstroportPairExecuteMsg, PoolResponse,
-    QueryMsg as AstroportPairQueryMsg,
-};
+use astroport::pair::{Cw20HookMsg as AstroportPairCw20HookMsg, Cw20HookMsg, ExecuteMsg as AstroportPairExecuteMsg, PoolResponse, QueryMsg as AstroportPairQueryMsg};
 use astroport::router::{SwapOperation, ExecuteMsg as AstroportRouterExecuteMsg};
 use astroport::querier::{query_token_balance, simulate};
 use moneymarket::market::ExecuteMsg as MoneyMarketExecuteMsg;
 use spectrum_protocol::anchor_farm::ExecuteMsg;
-use spectrum_protocol::farm_helper::{deduct_tax, get_swap_amount, get_swap_amount_astroport};
+use spectrum_protocol::farm_helper::{deduct_tax, get_swap_amount, get_swap_amount_astroport, U256};
 use spectrum_protocol::gov_proxy::Cw20HookMsg as GovProxyCw20HookMsg;
 use spectrum_protocol::gov::{ExecuteMsg as GovExecuteMsg};
 use crate::bond::deposit_farm2_share;
+use uint::construct_uint;
 
-// ASTRO -> UST
-// weLDO -> stLUNA -> LUNA -> UST
+construct_uint! {
+    pub struct U256(4);
+}
+
+// ASTRO -> UST -> LUNA need to process first to see how much LUNA still needed
+// weLDO -> stLUNA -(optimal swap)> LUNA -> UST
 
 pub fn compound(
     deps: DepsMut,
@@ -193,7 +195,7 @@ pub fn compound(
     let weldo_token_swap_rate = simulate(&deps.querier, stluna_weldo_pair_contract.clone(), &weldo_asset)?;
 
     let total_weldo_stluna_return_amount = weldo_token_swap_rate.amount;
-    attributes.push(attr("total_weldo_stluna_return_amount", total_weldo_stluna_return_amount)); //TODO sum with residue stluna from last compound?
+    attributes.push(attr("total_weldo_stluna_return_amount", total_weldo_stluna_return_amount));
 
     let total_stluna_commission_amount = if total_weldo_token_swap_amount != Uint128::zero() {
         total_weldo_stluna_return_amount.multiply_ratio(total_weldo_token_commission, total_weldo_token_swap_amount)
@@ -225,30 +227,11 @@ pub fn compound(
     let total_stluna_reinvest_amount =
         total_weldo_stluna_return_amount.checked_sub(total_stluna_commission_amount)?;
 
-    let pool_stluna_luna: PoolResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: pool_st,
-        msg: to_binary(&PairQueryMsg::Pool {})?,
-    }))?;
-    let stluna_asset =  Asset {
-        info: AssetInfo::Token {
-            contract_addr: stluna_token.clone(),
-        },
-        amount: total_stluna_reinvest_amount,
-    };
 
-    let pool_stluna_luna: PoolResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: stluna_uluna_pair_contract.to_string(),
-        msg: to_binary(&AstroportPairQueryMsg::Pool {})?,
-    }))?;
-
-    let pair_stluna_luna: PairInfo = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: stluna_uluna_pair_contract.to_string(),
-        msg: to_binary(&AstroportPairQueryMsg::Pair {})?,
-    }))?;
-
-
-    let stluna_amount_swap_to_uluna = get_swap_amount_astroport(&pool_stluna_luna, &stluna_asset, Some(pair_stluna_luna.clone().pair_type));
-    let stluna_amount_to_provide_lp = total_stluna_reinvest_amount.checked_sub(stluna_amount_swap_to_uluna)?;
+    // TODO total_stluna_reinvest_amount stluna --best swap--> uluna. Need to get how much uluna can be swapped from ASTRO -> uusd -> uluna first
+    // cases to be handled
+    // ASTRO = 0 or uluna from ASTRO < stluna area THEN swap stluna (from weldo) to uluna
+    // ASTRO -> uluna and uluna area more than stluna THEN swap uluna (from ASTRO) to stluna
 
     let uusd_from_astro_asset = Asset {
         info: AssetInfo::NativeToken {
@@ -258,14 +241,20 @@ pub fn compound(
     };
     let uluna_from_ust_from_astro_swap_rate = simulate(&deps.querier, uluna_uusd_pair_contract.clone(), &uusd_from_astro_asset)?;
 
+    let uluna_from_ust_from_astro = deduct_tax(
+        &deps.querier,
+        uluna_from_ust_from_astro_swap_rate.return_amount,
+        uluna.clone(),
+    )?;
+
     let uluna_asset = Asset {
         info: AssetInfo::NativeToken {
             denom: uluna.clone(),
         },
-        amount: uluna_from_ust_from_astro_swap_rate.return_amount,
+        amount: uluna_from_ust_from_astro,
     };
-    let uluna_amount_swap_to_stluna = get_swap_amount_astroport(&pool_stluna_luna, &uluna_asset, Some(pair_stluna_luna.clone().pair_type));
-    let uluna_amount_from_astro_to_provide_lp = uluna_from_ust_from_astro_swap_rate.return_amount.checked_sub(uluna_amount_swap_to_stluna);
+
+    // TODO uluna_from_ust_from_astro input to best swap rate
 
     let mut messages: Vec<CosmosMsg> = vec![];
 
@@ -280,7 +269,7 @@ pub fn compound(
     messages.push(manual_claim_pending_token);
 
     if !total_weldo_token_swap_amount.is_zero() {
-        // TODO
+        // TODO is this still needed?
         // let ust_amount = deps.querier.query_balance(env.contract.address.clone(), "uusd")?.amount;
         // if ust_amount < total_weldo_stluna_return_amount {
         //
@@ -299,42 +288,37 @@ pub fn compound(
             funds: vec![],
         });
         messages.push(swap_weldo_token_to_stluna);
-        // swap stluna to uluna
-        let swap_stluna_to_uluna: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: weldo_token.to_string(),
+        // TODO swap 8% stluna to uluna to uusd
+        let swap_stluna_to_ust: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: stluna_token.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: stluna_uluna_pair_contract.to_string(),
-                amount: stluna_amount_swap_to_uluna,
-                msg: to_binary(&AstroportPairCw20HookMsg::Swap {
-                    max_spread: Some(Decimal::percent(50)),
-                    belief_price: None,
+                contract: astroport_router.to_string(),
+                amount: total_stluna_commission_amount,
+                msg: to_binary(&AstroportRouterExecuteMsg::ExecuteSwapOperations {
+                    operations: vec![
+                        SwapOperation::AstroSwap {
+                            offer_asset_info: AssetInfo::Token { contract_addr: stluna_token.clone() },
+                            ask_asset_info: AssetInfo::NativeToken { denom: uluna.clone() },
+                        },
+                        SwapOperation::AstroSwap {
+                            offer_asset_info: AssetInfo::NativeToken { denom: uluna.clone() },
+                            ask_asset_info: AssetInfo::NativeToken { denom: uusd.clone() },
+                        },
+                    ],
+                    minimum_receive: None,
                     to: None,
+                    max_spread: Some(Decimal::percent(50))
                 })?,
             })?,
             funds: vec![],
         });
-        messages.push(swap_stluna_to_uluna);
-        // swap uluna to uusd
-        let swap_uluna_to_uusd: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: weldo_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: uluna_uusd_pair_contract.to_string(),
-                amount: uluna_amount_swap_to_stluna,
-                msg: to_binary(&AstroportPairCw20HookMsg::Swap {
-                    max_spread: Some(Decimal::percent(50)),
-                    belief_price: None,
-                    to: None,
-                })?,
-            })?,
-            funds: vec![],
-        });
-        messages.push(swap_uluna_to_uusd);
+        messages.push(swap_stluna_to_ust);
+
     }
 
-    //TODO continue here
-
     if !total_astro_token_swap_amount.is_zero() {
-        let swap_astro_token: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
+        //swap 100% astro to uusd
+        let swap_astro_to_uusd: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: astro_token.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 contract: astro_ust_pair_contract.to_string(),
@@ -347,8 +331,48 @@ pub fn compound(
             })?,
             funds: vec![],
         });
-        messages.push(swap_astro_token);
+        messages.push(swap_astro_to_uusd);
+        //swap 92% uusd to uluna
+        let uusd_from_astro_exclude_commission = Asset {
+            info: AssetInfo::NativeToken {
+                denom: uusd.clone(),
+            },
+            amount: total_ust_reinvest_amount_astro,
+        };
+        let swap_uusd_to_uluna: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: uluna_uusd_pair_contract.to_string(),
+            msg: to_binary(&AstroportPairExecuteMsg::Swap {
+                to: None,
+                max_spread: Some(Decimal::percent(50)),
+                belief_price: None,
+                offer_asset: uusd_from_astro_exclude_commission
+            })?,
+            funds: vec![Coin { denom: uusd.clone(), amount: total_ust_for_swap_farm_token.clone() }]
+        });
+        messages.push(swap_uusd_to_uluna);
     }
+
+
+    let sttoken_asset_info = AssetInfo::Token {
+        contract_addr: stluna_token.clone(),
+    };
+    let uluna_asset_info = AssetInfo::NativeToken {
+        denom: uluna.clone(),
+    };
+    // swap 92% stluna (from weldo) to uluna and uluna (from ASTRO) stluna right amount with optimal swap
+    swap(&deps.querier,
+         total_stluna_reinvest_amount,
+         uluna_from_ust_from_astro,
+         sttoken_asset_info,
+         uluna_asset_info,
+        None,
+        Decimal::percent(50),
+        stluna_uluna_pair_contract,
+         &mut messages
+    );
+
+
+
 
     if let Some(gov_proxy) = config.gov_proxy {
         if !total_weldo_token_stake_amount.is_zero() {
@@ -390,6 +414,7 @@ pub fn compound(
         });
         messages.push(increase_allowance);
 
+        //TODO logic for amount, get return from swap?
         let provide_liquidity = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: pair_contract.to_string(),
             msg: to_binary(&AstroportPairExecuteMsg::ProvideLiquidity {
@@ -621,4 +646,161 @@ pub fn send_fee(
 
     Ok(Response::new()
         .add_messages(messages))
+}
+
+/// Query the Astroport pool, parse response, and return the following 3-tuple:
+/// 1. depth of the primary asset
+/// 2. depth of the secondary asset
+/// 3. total supply of the share token
+fn query_pool(
+    pair_contract: String,
+    querier: &QuerierWrapper,
+    primary_asset_info: &AssetInfo,
+    secondary_asset_info: &AssetInfo,
+) -> StdResult<(Uint128, Uint128, Uint128)> {
+    let response: PoolResponse = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: pair_contract,
+        msg: to_binary(&AstroportPairQueryMsg::Pool {})?,
+    }))?;
+
+    let primary_asset_depth = response
+        .assets
+        .iter()
+        .find(|asset| &asset.info == primary_asset_info)
+        .ok_or_else(|| StdError::generic_err("Cannot find primary asset in pool response"))?
+        .amount;
+
+    let secondary_asset_depth = response
+        .assets
+        .iter()
+        .find(|asset| &asset.info == secondary_asset_info)
+        .ok_or_else(|| StdError::generic_err("Cannot find secondary asset in pool response"))?
+        .amount;
+
+    Ok((primary_asset_depth, secondary_asset_depth, response.total_share))
+}
+
+/// @notice Generate msg for swapping specified asset
+fn swap_msg(pair_contract: String, asset: &Asset, belief_price: Option<Decimal>, max_spread: Option<Decimal>, to: Option<String>) -> StdResult<CosmosMsg> {
+    let wasm_msg = match &asset.info {
+        AssetInfo::Cw20 {
+            contract_addr,
+        } => WasmMsg::Execute {
+            contract_addr: contract_addr.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: pair_contract.to_string(),
+                amount: asset.amount,
+                msg: to_binary(&AstroportPairCw20HookMsg::Swap {
+                    belief_price,
+                    max_spread,
+                    to,
+                })?,
+            })?,
+            funds: vec![],
+        },
+
+        AssetInfo::Native {
+            denom,
+        } => WasmMsg::Execute {
+            contract_addr: pair_contract,
+            msg: to_binary(&AstroportPairExecuteMsg::Swap {
+                offer_asset: asset.clone().into(),
+                belief_price,
+                max_spread,
+                to: None,
+            })?,
+            funds: vec![Coin {
+                denom: denom.clone(),
+                amount: asset.amount,
+            }],
+        },
+    };
+
+    Ok(CosmosMsg::Wasm(wasm_msg))
+}
+
+fn get_swap_amount(
+    amount_a: U256,
+    amount_b: U256,
+    pool_a: U256,
+    pool_b: U256,
+) -> Uint128 {
+    let pool_ax = amount_a + pool_a;
+    let pool_bx = amount_b + pool_b;
+    let area_ax = pool_ax * pool_b;
+    let area_bx = pool_bx * pool_a;
+
+    let a = U256::from(9) * area_ax + U256::from(3988000) * area_bx;
+    let b = U256::from(3) * area_ax + area_ax.integer_sqrt() * a.integer_sqrt();
+    let result = b / U256::from(2000) / pool_bx - pool_a;
+
+    result.as_u128().into()
+}
+
+fn swap(
+    querier: &QuerierWrapper,
+    provide_a_amount: Uint128,
+    provide_b_amount: Uint128,
+    asset_info_a: AssetInfo,
+    asset_info_b: AssetInfo,
+    belief_price: Option<Decimal>,
+    max_spread: Decimal,
+    pair_contract: Addr,
+    messages: &mut Vec<CosmosMsg>,
+) -> StdResult<(Uint128, Uint128)> {
+    let (pool_a_amount, pool_b_amount, _) =
+        query_pool(pair_contract.to_string(), querier, &asset_info_a, &asset_info_b)?;
+    let provide_a_amount = U256::from(provide_a_amount.u128());
+    let provide_b_amount = U256::from(provide_b_amount.u128());
+    let pool_a_amount = U256::from(pool_a_amount.u128());
+    let pool_b_amount = U256::from(pool_b_amount.u128());
+    let provide_a_area = provide_a_amount * pool_b_amount;
+    let provide_b_area = provide_b_amount * pool_a_amount;
+    let mut swap_amount_a = Uint128::zero();
+    let mut swap_amount_b = Uint128::zero();
+
+    #[allow(clippy::comparison_chain)]
+    if provide_a_area > provide_b_area {
+        swap_amount_a =
+            get_swap_amount(provide_a_amount, provide_b_amount, pool_a_amount, pool_b_amount);
+        if !swap_amount_a.is_zero() {
+            let swap_asset = Asset::new(&asset_info_a, swap_amount_a)
+                .with_tax_info(querier)?
+                .deduct_tax()?;
+            let return_amount =
+                simulate(querier, pair_contract, &swap_asset.asset)
+                .map_or(Uint128::zero(), |it| it.return_amount);
+            if !return_amount.is_zero() {
+                messages.push(swap_msg(
+                    pair_contract.to_string(),
+                    &swap_asset.asset,
+                    belief_price,
+                    Some(max_spread),
+                    None,
+                )?);
+            }
+        }
+    } else if provide_a_area < provide_b_area {
+        swap_amount_b =
+            get_swap_amount(provide_b_amount, provide_a_amount, pool_b_amount, pool_a_amount);
+        if !swap_amount_b.is_zero() {
+            let swap_asset = Asset::new(asset_info_b, swap_amount_b)
+                .with_tax_info(querier)?
+                .deduct_tax()?;
+            let return_amount =
+                simulate(querier, pair_contract,&swap_asset.asset)
+                .map_or(Uint128::zero(), |it| it.return_amount);
+            if !return_amount.is_zero() {
+                messages.push(swap_msg(
+                    pair_contract.to_string(),
+                    &swap_asset.asset,
+                    belief_price.unwrap_or_else(None).inv(),
+                    Some(max_spread),
+                    None,
+                )?);
+            }
+        }
+    };
+
+    Ok((swap_amount_a, swap_amount_b))
 }

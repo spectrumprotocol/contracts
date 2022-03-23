@@ -42,6 +42,7 @@ schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 astroport = { path = "../../../packages/astroport", default-features = false }
 moneymarket = { version = "0.3.1", path = "../../../packages/anchor_moneymarket" }
+uint = "0.9.1"
 
 [dev-dependencies]
 cosmwasm-schema = "0.16.0"
