@@ -27,9 +27,6 @@ construct_uint! {
     pub struct U256(4);
 }
 
-// ASTRO -> UST -> LUNA need to process first to see how much LUNA still needed
-// weLDO -> stLUNA -(optimal swap)> LUNA -> UST
-
 pub fn compound(
     deps: DepsMut,
     env: Env,
@@ -42,7 +39,6 @@ pub fn compound(
         return Err(StdError::generic_err("unauthorized"));
     }
 
-    // let farm_token = deps.api.addr_humanize(&config.farm_token)?;
     let stluna_token = deps.api.addr_humanize(&config.stluna_token)?;
     let weldo_token =  deps.api.addr_humanize(&config.weldo_token)?;
     let astro_token = deps.api.addr_humanize(&config.astro_token)?;
@@ -321,7 +317,7 @@ pub fn compound(
             funds: vec![],
         });
         messages.push(swap_astro_to_uusd);
-        //swap 92% uusd to uluna
+        //swap uusd exclude commission to uluna
         let uusd_from_astro_exclude_commission = Asset {
             info: AssetInfo::NativeToken {
                 denom: uusd.clone(),
@@ -347,7 +343,6 @@ pub fn compound(
     let uluna_asset_info = AssetInfo::NativeToken {
         denom: uluna.clone(),
     };
-    // swap 92% stluna (from weldo) to uluna and uluna (from ASTRO) stluna right amount with optimal swap
     let (stluna_amount_to_be_swapped, uluna_amount_to_be_swapped, stluna_return_from_optimal_swap, uluna_return_from_optimal_swap) = optimal_swap(&deps.querier,
         total_stluna_reinvest_amount,
         uluna_from_ust_from_astro,
@@ -486,19 +481,6 @@ pub fn compound(
     Ok(Response::new()
         .add_messages(messages)
         .add_attributes(attributes))
-}
-
-fn compute_provide(
-    pool: &PoolResponse,
-    asset: &Asset,
-) -> Uint128 {
-    let (asset_a_amount, asset_b_amount) = if pool.assets[0].info == asset.info {
-        (pool.assets[0].amount, pool.assets[1].amount)
-    } else {
-        (pool.assets[1].amount, pool.assets[0].amount)
-    };
-
-    asset.amount.multiply_ratio(asset_b_amount, asset_a_amount)
 }
 
 pub fn compute_provide_after_swap(
