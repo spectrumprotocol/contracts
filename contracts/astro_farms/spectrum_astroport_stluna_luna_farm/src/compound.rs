@@ -420,7 +420,7 @@ pub fn compound(
                     },
                     Asset {
                         info: AssetInfo::NativeToken {
-                            denom: uusd.clone(),
+                            denom: uluna.clone(),
                         },
                         amount: provide_uluna,
                     },
