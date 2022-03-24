@@ -40,6 +40,7 @@ pub struct HubState {
 pub struct Parameters {
     pub peg_recovery_fee: Decimal,
     pub er_threshold: Decimal,
+    pub unbonding_period: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -60,7 +61,7 @@ pub struct AllHistoryResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UnbondHistoryResponse {
     pub batch_id: u64,
-    pub released: bool,
+    pub time: u64,
 }
 
 pub fn query_hub_state(querier: &QuerierWrapper, contract_addr: String) -> StdResult<HubState> {

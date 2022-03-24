@@ -125,8 +125,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             burn(deps, env, info, amount, swap_operations, min_profit),
         ExecuteMsg::collect {} =>
             collect(deps, env),
-        ExecuteMsg::collect_hook { prev_balance, total_input_amount, total_collectable_amount } =>
-            collect_hook(deps, env, info, prev_balance, total_input_amount, total_collectable_amount),
+        ExecuteMsg::collect_hook { prev_balance, total_input_amount } =>
+            collect_hook(deps, env, info, prev_balance, total_input_amount),
         ExecuteMsg::collect_fee {} =>
             collect_fee(deps, env, info),
         ExecuteMsg::send_fee { deposit_fee_ratio } =>

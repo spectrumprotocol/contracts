@@ -65,7 +65,6 @@ pub enum ExecuteMsg {
     collect_hook {
         prev_balance: Uint128,
         total_input_amount: Uint128,
-        total_collectable_amount: Uint128,
     },
     collect_fee {},
     send_fee {

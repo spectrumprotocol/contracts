@@ -227,6 +227,7 @@ pub struct Burn {
     pub id: u64,
     pub batch_id: u64,
     pub input_amount: Uint128,
+    #[serde(default)] pub target_amount: Uint128,
     pub start_burn: u64,
     pub end_burn: u64,
     pub hub_type: HubType,
