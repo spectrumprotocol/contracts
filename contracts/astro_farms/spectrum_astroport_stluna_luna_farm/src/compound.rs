@@ -3,7 +3,7 @@ use cosmwasm_std::{attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, D
 use crate::{
     bond::deposit_farm_share,
     querier::{query_astroport_pending_token, query_astroport_pool_balance, astroport_router_simulate_swap},
-    state::{read_config, state_store},
+    state::{read_config, state_store}, model::ExecuteMsg,
 };
 
 use cw20::Cw20ExecuteMsg;
@@ -238,7 +238,7 @@ pub fn compound(
         amount: total_ust_reinvest_amount_astro,
     };
 
-    let residue_uluna_in_contract = deps.querier.query_balance(env.contract.address, uluna.clone())?.amount;
+    let residue_uluna_in_contract = deps.querier.query_balance(env.contract.address.clone(), uluna.clone())?.amount;
     attributes.push(attr("residue_uluna_in_contract", residue_uluna_in_contract));
 
     let uluna_from_ust_from_astro_swap_rate = simulate(&deps.querier, uluna_uusd_pair_contract.clone(), &uusd_from_astro_asset)?;
@@ -370,7 +370,7 @@ pub fn compound(
 
     if let Some(gov_proxy) = config.gov_proxy {
         if !total_weldo_token_stake_amount.is_zero() {
-            let stake_farm_token = CosmosMsg::Wasm(WasmMsg::Execute {
+            let stake_weldo_token = CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: weldo_token.to_string(),
                 funds: vec![],
                 msg: to_binary(&Cw20ExecuteMsg::Send {
@@ -379,7 +379,7 @@ pub fn compound(
                     msg: to_binary(&GovProxyCw20HookMsg::Stake {})?,
                 })?,
             });
-            messages.push(stake_farm_token);
+            messages.push(stake_weldo_token);
         }
     }
 
@@ -674,7 +674,7 @@ fn query_pool(
 /// @notice Generate msg for swapping specified asset
 fn swap_msg(pair_contract: String, asset: &Asset, belief_price: Option<Decimal>, max_spread: Option<Decimal>, to: Option<String>) -> StdResult<CosmosMsg> {
     let wasm_msg = match &asset.info {
-        AssetInfo::Cw20 {
+        AssetInfo::Token {
             contract_addr,
         } => WasmMsg::Execute {
             contract_addr: contract_addr.to_string(),
@@ -757,16 +757,18 @@ fn optimal_swap(
         swap_amount_a =
             get_swap_amount(provide_a_amount, provide_b_amount, pool_a_amount, pool_b_amount);
         if !swap_amount_a.is_zero() {
-            let swap_asset = Asset::new(&asset_info_a, swap_amount_a)
-                .with_tax_info(querier)?
-                .deduct_tax()?;
+            let swap_asset = Asset {
+                info: asset_info_a,
+                amount: swap_amount_a
+            };
+            // in case of uluna, tax was deducted before calling this fn
             return_amount_b =
-                simulate(querier, pair_contract, &swap_asset.asset)
+                simulate(querier, pair_contract.clone(), &swap_asset)
                 .map_or(Uint128::zero(), |it| it.return_amount);
             if !return_amount_b.is_zero() {
                 messages.push(swap_msg(
                     pair_contract.to_string(),
-                    &swap_asset.asset,
+                    &swap_asset,
                     belief_price,
                     Some(max_spread),
                     None,
@@ -777,17 +779,24 @@ fn optimal_swap(
         swap_amount_b =
             get_swap_amount(provide_b_amount, provide_a_amount, pool_b_amount, pool_a_amount);
         if !swap_amount_b.is_zero() {
-            let swap_asset = Asset::new(asset_info_b, swap_amount_b)
-                .with_tax_info(querier)?
-                .deduct_tax()?;
+            let swap_asset = Asset {
+                info: asset_info_b,
+                amount: swap_amount_b
+            };
+            // in case of uluna, tax was deducted before calling this fn
             return_amount_a =
-                simulate(querier, pair_contract,&swap_asset.asset)
+                simulate(querier, pair_contract.clone(),&swap_asset)
                 .map_or(Uint128::zero(), |it| it.return_amount);
+            let inverted_belief_price = if !belief_price.is_none(){
+                belief_price.unwrap().inv()
+            } else {
+                None
+            };
             if !return_amount_a.is_zero() {
                 messages.push(swap_msg(
                     pair_contract.to_string(),
-                    &swap_asset.asset,
-                    belief_price.unwrap_or_else(None).inv(),
+                    &swap_asset,
+                    inverted_belief_price,
                     Some(max_spread),
                     None,
                 )?);
