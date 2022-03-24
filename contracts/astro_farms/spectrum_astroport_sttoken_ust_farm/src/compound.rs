@@ -3,7 +3,7 @@ use cosmwasm_std::{attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, D
 use crate::{
     bond::deposit_farm_share,
     querier::{query_astroport_pending_token, query_astroport_pool_balance, astroport_router_simulate_swap},
-    state::{read_config, state_store},
+    state::{read_config, state_store}, model::ExecuteMsg,
 };
 
 use cw20::Cw20ExecuteMsg;
@@ -20,7 +20,6 @@ use astroport::pair::{
 use astroport::router::{SwapOperation, ExecuteMsg as AstroportRouterExecuteMsg};
 use astroport::querier::{query_token_balance, simulate};
 use moneymarket::market::ExecuteMsg as MoneyMarketExecuteMsg;
-use spectrum_protocol::anchor_farm::ExecuteMsg;
 use spectrum_protocol::farm_helper::deduct_tax;
 use spectrum_protocol::gov_proxy::Cw20HookMsg as GovProxyCw20HookMsg;
 use spectrum_protocol::gov::{ExecuteMsg as GovExecuteMsg};
@@ -310,8 +309,8 @@ pub fn compound(
 
     if let Some(gov_proxy) = config.gov_proxy {
         if !total_weldo_token_stake_amount.is_zero() {
-            let stake_farm_token = CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: farm_token.to_string(),
+            let stake_weldo_token = CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: weldo_token.to_string(),
                 funds: vec![],
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: deps.api.addr_humanize(&gov_proxy)?.to_string(),
@@ -319,7 +318,7 @@ pub fn compound(
                     msg: to_binary(&GovProxyCw20HookMsg::Stake {})?,
                 })?,
             });
-            messages.push(stake_farm_token);
+            messages.push(stake_weldo_token);
         }
     }
 
