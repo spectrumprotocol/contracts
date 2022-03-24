@@ -18,7 +18,6 @@ pub struct Config {
     pub spectrum_token: CanonicalAddr,
     pub spectrum_gov: CanonicalAddr,
     pub astro_token: CanonicalAddr,
-    pub farm_token: CanonicalAddr,
     pub weldo_token: CanonicalAddr,
     pub stluna_token: CanonicalAddr,
     pub astroport_generator: CanonicalAddr,
@@ -27,7 +26,6 @@ pub struct Config {
     pub gov_proxy: Option<CanonicalAddr>,
     pub controller: CanonicalAddr,
     pub platform: CanonicalAddr,
-    // pub base_denom: String,
     pub community_fee: Decimal,
     pub platform_fee: Decimal,
     pub controller_fee: Decimal,
@@ -39,7 +37,6 @@ pub struct Config {
     pub stluna_weldo_pair_contract: CanonicalAddr,
     pub stluna_uluna_pair_contract: CanonicalAddr,
     pub uluna_uusd_pair_contract: CanonicalAddr
-
 }
 
 pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {

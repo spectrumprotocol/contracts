@@ -26,4 +26,8 @@ pub mod astroport_token_luna_farm;
 pub mod astroport_token_ust_farm;
 pub mod astroport_token_token_farm;
 pub mod terra_name_service_farm;
-pub mod glow_farm;pub mod nasset_farm;
+pub mod glow_farm;
+pub mod nasset_farm;
+
+// Adapters
+pub mod adapters;

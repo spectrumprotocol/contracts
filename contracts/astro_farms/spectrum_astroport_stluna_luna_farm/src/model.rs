@@ -13,7 +13,6 @@ pub struct ConfigInfo {
     pub astro_token: String,
     pub spectrum_token: String,
     pub spectrum_gov: String,
-    pub farm_token: String,
     pub weldo_token: String,
     pub stluna_token: String,
     pub gov_proxy: Option<String>,
@@ -28,8 +27,8 @@ pub struct ConfigInfo {
     pub pair_contract: String,
     pub astro_ust_pair_contract: String,
     pub stluna_weldo_pair_contract: String,
-    pub stluna_uluna_pair_contract: String
-    pub uluna_uusd_pair_contract: String
+    pub stluna_uluna_pair_contract: String,
+    pub uluna_uusd_pair_contract: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

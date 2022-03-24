@@ -781,7 +781,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "spectrum-astroport-sttoken-luna-farm"
+name = "spectrum-astroport-stluna-luna-farm"
 version = "0.2.0"
 dependencies = [
  "astroport",
@@ -1047,6 +1047,7 @@ dependencies = [
  "cw20",
  "schemars",
  "serde",
+ "terra-cosmwasm",
  "terraswap",
  "uint",
 ]
