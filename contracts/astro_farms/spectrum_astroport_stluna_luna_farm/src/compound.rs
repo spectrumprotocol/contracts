@@ -220,7 +220,7 @@ pub fn compound(
     )?;
     attributes.push(attr("ust_commission_from_stluna_from_weldo_amount", ust_commission_from_stluna_from_weldo_amount));
 
-    let residue_stluna_in_contract = query_token_balance(&deps.querier, stluna_uluna_pair_contract.clone(), env.contract.address.clone())?;
+    let residue_stluna_in_contract = query_token_balance(&deps.querier, stluna_token.clone(), env.contract.address.clone())?;
     attributes.push(attr("residue_stluna_in_contract", residue_stluna_in_contract));
 
     let total_stluna_reinvest_amount =
