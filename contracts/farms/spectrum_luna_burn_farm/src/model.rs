@@ -42,6 +42,7 @@ pub enum ExecuteMsg {
         deposit_fee: Option<Decimal>,
         max_unbond_count: Option<u32>,
         burn_period: Option<u64>,
+        credits: Option<Vec<StakeCredit>>,
     },
     // Unbond luna
     unbond {

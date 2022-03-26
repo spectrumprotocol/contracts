@@ -9,7 +9,7 @@ use crate::{
 
 use crate::bond::{claim_unbond, query_reward_info, query_unbond, unbond, withdraw};
 use crate::burn::{burn, collect, collect_fee, collect_hook, query_burns, send_fee, simulate_collect};
-use crate::state::{Hub, hub_store, hubs_read, HubType, read_state};
+use crate::state::{Hub, hub_store, hubs_read, HubType, read_state, StakeCredit};
 use crate::model::{ConfigInfo, ExecuteMsg, QueryMsg};
 
 /// (we require 0-1)
@@ -100,6 +100,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             deposit_fee,
             max_unbond_count,
             burn_period,
+            credits,
         } => update_config(
             deps,
             info,
@@ -111,6 +112,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             deposit_fee,
             max_unbond_count,
             burn_period,
+            credits,
         ),
         ExecuteMsg::unbond {
             amount,
@@ -148,6 +150,7 @@ pub fn update_config(
     deposit_fee: Option<Decimal>,
     max_unbond_count: Option<u32>,
     burn_period: Option<u64>,
+    credits: Option<Vec<StakeCredit>>,
 ) -> StdResult<Response> {
     let mut config: Config = read_config(deps.storage)?;
 
@@ -192,6 +195,10 @@ pub fn update_config(
 
     if let Some(burn_period) = burn_period {
         config.burn_period = burn_period;
+    }
+
+    if let Some(credits) = credits {
+        config.credits = credits;
     }
 
     store_config(deps.storage, &config)?;
