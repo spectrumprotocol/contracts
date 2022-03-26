@@ -3,12 +3,15 @@ use cosmwasm_std::{attr, to_binary, CanonicalAddr, CosmosMsg, Decimal, Deps, Dep
 use crate::state::{read_config, read_state, rewards_read, rewards_store, state_store, Config, RewardInfo, State, Unbonding, user_unbonding_store, user_unbonding_read};
 
 use cw20::Cw20ExecuteMsg;
+use terraswap::asset::AssetInfo;
 
 use spectrum_protocol::farm_helper::compute_deposit_time;
 use spectrum_protocol::gov::{
     BalanceResponse as SpecBalanceResponse, ExecuteMsg as SpecExecuteMsg, QueryMsg as SpecQueryMsg,
 };
+use crate::gov::query_credit;
 use crate::model::{RewardInfoResponse, RewardInfoResponseItem};
+use crate::oracle::query_price;
 
 #[allow(clippy::too_many_arguments)]
 fn bond_internal(
@@ -27,6 +30,32 @@ fn bond_internal(
     let mut reward_info = rewards_read(deps.storage, sender_addr_raw.as_slice())?
         .unwrap_or_else(|| RewardInfo::create(&state));
     before_share_change(&state, &mut reward_info);
+
+    // check credit
+    if !config.credits.is_empty() {
+        let credit = query_credit(
+            &deps.querier,
+            deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),
+            deps.api.addr_humanize(&sender_addr_raw)?.to_string(),
+            &config.credits)?;
+        let luna_price = query_price(
+            &deps.querier,
+            deps.api.addr_humanize(&config.oracle)?.to_string(),
+            &AssetInfo::NativeToken { denom: "uluna".to_string() },
+            true,
+        )?;
+        let spec_price = query_price(
+            &deps.querier,
+            deps.api.addr_humanize(&config.oracle)?.to_string(),
+            &AssetInfo::Token {
+                contract_addr: deps.api.addr_humanize(&config.spectrum_token)?.to_string(),
+            },
+            true)?;
+        let total_deposit = state.calc_bond_amount(reward_info.bond_share) + amount;
+        if total_deposit * luna_price > credit * spec_price {
+            return Err(StdError::generic_err("Not enough credit, please stake at Spectrum gov to get credit"));
+        }
+    }
 
     // increase bond_amount
     let deposit_fee = amount * config.deposit_fee;
@@ -58,6 +87,7 @@ pub fn bond(
 
     let sender_addr_raw = deps.api.addr_canonicalize(&sender_addr)?;
     let config = read_config(deps.storage)?;
+
     bond_internal(
         deps,
         env,

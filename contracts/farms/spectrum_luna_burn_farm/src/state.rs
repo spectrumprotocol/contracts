@@ -23,6 +23,14 @@ pub struct Config {
     pub max_unbond_count: u32,
     pub burn_period: u64,
     pub ust_pair_contract: CanonicalAddr,
+    pub oracle: CanonicalAddr,
+    pub credits: Vec<StakeCredit>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct StakeCredit {
+    pub days: u64,
+    pub credit: Decimal,
 }
 
 pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {

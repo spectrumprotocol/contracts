@@ -10,7 +10,7 @@ use crate::{
 use crate::bond::{claim_unbond, query_reward_info, query_unbond, unbond, withdraw};
 use crate::burn::{burn, collect, collect_fee, collect_hook, query_burns, send_fee, simulate_collect};
 use crate::state::{Hub, hub_store, hubs_read, HubType, read_state};
-use crate::model::{ConfigInfo, ExecuteMsg, MigrateMsg, QueryMsg};
+use crate::model::{ConfigInfo, ExecuteMsg, QueryMsg};
 
 /// (we require 0-1)
 fn validate_percentage(value: Decimal, field: &str) -> StdResult<()> {
@@ -50,6 +50,8 @@ pub fn instantiate(
             max_unbond_count: msg.max_unbond_count,
             burn_period: msg.burn_period,
             ust_pair_contract: deps.api.addr_canonicalize(&msg.ust_pair_contract)?,
+            oracle: deps.api.addr_canonicalize(&msg.oracle)?,
+            credits: msg.credits,
         },
     )?;
 
@@ -253,6 +255,8 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         max_unbond_count: config.max_unbond_count,
         burn_period: config.burn_period,
         ust_pair_contract: deps.api.addr_humanize(&config.ust_pair_contract)?.to_string(),
+        oracle: deps.api.addr_humanize(&config.oracle)?.to_string(),
+        credits: config.credits,
     };
 
     Ok(resp)
@@ -273,6 +277,28 @@ fn query_hubs(deps: Deps) -> StdResult<Vec<Hub>> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: ConfigInfo) -> StdResult<Response> {
+    store_config(
+        deps.storage,
+        &Config {
+            owner: deps.api.addr_canonicalize(&msg.owner)?,
+            spectrum_token: deps.api.addr_canonicalize(&msg.spectrum_token)?,
+            spectrum_gov: deps.api.addr_canonicalize(&msg.spectrum_gov)?,
+            platform: deps.api.addr_canonicalize(&msg.platform)?,
+            controller: deps.api.addr_canonicalize(&msg.controller)?,
+            community_fee: msg.community_fee,
+            platform_fee: msg.platform_fee,
+            controller_fee: msg.controller_fee,
+            deposit_fee: msg.deposit_fee,
+            anchor_market: deps.api.addr_canonicalize(&msg.anchor_market)?,
+            aust_token: deps.api.addr_canonicalize(&msg.aust_token)?,
+            max_unbond_count: msg.max_unbond_count,
+            burn_period: msg.burn_period,
+            ust_pair_contract: deps.api.addr_canonicalize(&msg.ust_pair_contract)?,
+            oracle: deps.api.addr_canonicalize(&msg.oracle)?,
+            credits: msg.credits,
+        },
+    )?;
+
     Ok(Response::default())
 }

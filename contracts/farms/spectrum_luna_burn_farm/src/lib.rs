@@ -6,3 +6,5 @@ pub mod hub;
 pub mod stader;
 pub mod burn;
 pub mod prism;
+pub mod gov;
+pub mod oracle;

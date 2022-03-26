@@ -4,7 +4,7 @@ use cosmwasm_std::{Decimal, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use terraswap::asset::AssetInfo;
-use crate::state::{Burn, HubType};
+use crate::state::{Burn, HubType, StakeCredit};
 
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -23,6 +23,8 @@ pub struct ConfigInfo {
     pub max_unbond_count: u32,
     pub burn_period: u64,
     pub ust_pair_contract: String,
+    pub oracle: String,
+    pub credits: Vec<StakeCredit>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
