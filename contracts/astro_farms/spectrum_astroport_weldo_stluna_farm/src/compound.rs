@@ -53,7 +53,6 @@ pub fn compound(
     let astro_ust_pair_contract = deps.api.addr_humanize(&config.astro_ust_pair_contract)?;
     let pair_contract = deps.api.addr_humanize(&config.pair_contract)?;
     let astroport_router = deps.api.addr_humanize(&config.astroport_router)?;
-    let stluna_weldo_pair_contract = deps.api.addr_humanize(&config.stluna_weldo_pair_contract)?;
     let stluna_uluna_pair_contract = deps.api.addr_humanize(&config.stluna_uluna_pair_contract)?;
     let uluna_uusd_pair_contract = deps.api.addr_humanize(&config.uluna_uusd_pair_contract)?;
 
@@ -341,7 +340,7 @@ pub fn compound(
         sttoken_asset_info,
         None,
         Decimal::percent(50),
-        stluna_weldo_pair_contract,
+        pair_contract.clone(),
         &mut messages
     )?;
     attributes.push(attr("weldo_amount_to_be_swapped", weldo_amount_to_be_swapped));
