@@ -67,7 +67,6 @@ pub fn instantiate(
             pair_contract: deps.api.addr_canonicalize(&msg.pair_contract)?,
             astro_ust_pair_contract: deps.api.addr_canonicalize(&msg.astro_ust_pair_contract)?,
             stluna_weldo_pair_contract: deps.api.addr_canonicalize(&msg.stluna_weldo_pair_contract)?,
-            stluna_uluna_pair_contract: deps.api.addr_canonicalize(&msg.stluna_uluna_pair_contract)?,
             uluna_uusd_pair_contract: deps.api.addr_canonicalize(&msg.uluna_uusd_pair_contract)?,
         },
     )?;
@@ -316,7 +315,6 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         pair_contract: deps.api.addr_humanize(&config.pair_contract)?.to_string(),
         astro_ust_pair_contract: deps.api.addr_humanize(&config.astro_ust_pair_contract)?.to_string(),
         stluna_weldo_pair_contract: deps.api.addr_humanize(&config.stluna_weldo_pair_contract)?.to_string(),
-        stluna_uluna_pair_contract: deps.api.addr_humanize(&config.stluna_uluna_pair_contract)?.to_string(),
         uluna_uusd_pair_contract: deps.api.addr_humanize(&config.uluna_uusd_pair_contract)?.to_string(),
     };
 
