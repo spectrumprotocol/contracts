@@ -1,4 +1,5 @@
 #![allow(non_camel_case_types)]
+use astroport::router::SimulateSwapOperationsResponse;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -139,6 +140,19 @@ impl Querier for WasmMockQuerier {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+enum SwapOperation {
+    NativeSwap {
+        offer_denom: String,
+        ask_denom: String,
+    },
+    AstroSwap {
+        offer_asset_info: AssetInfo,
+        ask_asset_info: AssetInfo,
+    },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 enum MockQueryMsg {
     balance {
         address: String,
@@ -160,7 +174,11 @@ enum MockQueryMsg {
     Simulation {
         offer_asset: Asset,
     },
-    Pool {}
+    Pool {},
+    SimulateSwapOperations {
+        offer_amount: Uint128,
+        operations: Vec<SwapOperation>,
+    }
 }
 
 impl WasmMockQuerier {
@@ -276,6 +294,13 @@ impl WasmMockQuerier {
                             }
                         )))
                     }
+                    MockQueryMsg::SimulateSwapOperations { offer_amount, operations } => {
+                        SystemResult::Ok(ContractResult::from(to_binary(
+                            &SimulateSwapOperationsResponse{
+                                amount: offer_amount, //TODO
+                            }
+                        )))
+                    },
                 }
             }
             _ => self.base.handle_query(request),

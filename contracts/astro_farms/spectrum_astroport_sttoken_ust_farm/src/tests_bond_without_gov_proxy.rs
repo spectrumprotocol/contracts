@@ -7,7 +7,7 @@ use cosmwasm_std::{from_binary, to_binary, CosmosMsg, OwnedDeps, Uint128, WasmMs
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use spectrum_protocol::astroport_sttoken_ust_farm::{
+use crate::model::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
 use spectrum_protocol::gov::ExecuteMsg as GovExecuteMsg;
@@ -20,6 +20,9 @@ use std::fmt::Debug;
 const SPEC_GOV: &str = "SPEC_GOV";
 const SPEC_TOKEN: &str = "spec_token";
 const FARM_TOKEN: &str = "farm_token";
+const WELDO_TOKEN: &str = "weldo_token";
+const STLUNA_TOKEN: &str = "stluna_token";
+const ASTROPORT_ROUTER: &str = "astroport_router";
 const ASTROPORT_GENERATOR: &str = "astroport_generator";
 const TEST_CREATOR: &str = "creator";
 const USER1: &str = "user1";
@@ -84,10 +87,10 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         spectrum_token: SPEC_TOKEN.to_string(),
         gov_proxy: None,
         farm_token: FARM_TOKEN.to_string(),
+        weldo_token: WELDO_TOKEN.to_string(),
         astroport_generator: ASTROPORT_GENERATOR.to_string(),
         platform: TEST_CREATOR.to_string(),
         controller: TEST_CREATOR.to_string(),
-        base_denom: "uusd".to_string(),
         community_fee: Decimal::zero(),
         platform_fee: Decimal::zero(),
         controller_fee: Decimal::zero(),
@@ -97,7 +100,9 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         pair_contract: PAIR_CONTRACT.to_string(),
         xastro_proxy: XASTRO_PROXY.to_string(),
         astro_token: ASTRO_TOKEN.to_string(),
-        astro_ust_pair_contract: ASTRO_UST_PAIR_CONTRACT.to_string()
+        astro_ust_pair_contract: ASTRO_UST_PAIR_CONTRACT.to_string(),
+        astroport_router: ASTROPORT_ROUTER.to_string(),
+        stluna_token: STLUNA_TOKEN.to_string()
     };
 
     // success init
