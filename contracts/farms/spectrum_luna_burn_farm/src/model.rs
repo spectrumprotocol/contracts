@@ -121,6 +121,7 @@ pub struct RewardInfoResponseItem {
 pub struct SimulateCollectResponse {
     pub burnable: Uint128,
     pub total_bond_amount: Uint128,
+    pub prev_unbonded_index: Uint128,
     pub unbonded_index: Uint128,
     pub can_collect: bool,
     pub remaining_burns: Vec<Burn>,

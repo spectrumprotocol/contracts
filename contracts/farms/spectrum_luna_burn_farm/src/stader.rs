@@ -32,11 +32,11 @@ pub enum StaderQueryMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct QueryConfigResponse {
-    pub config: Config,
+    pub config: StaderConfig,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Config {
+pub struct StaderConfig {
     pub protocol_withdraw_fee: Decimal,
 }
 

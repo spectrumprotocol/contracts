@@ -31,7 +31,8 @@ pub fn burn(
 
     let mut state = read_state(deps.storage)?;
     let balance = deps.querier.query_balance(env.contract.address, "uluna")?;
-    if amount > state.get_burnable_amount(balance.amount) {
+    let burnable = update_claimable(balance.amount, &mut state)?;
+    if amount > burnable {
         return Err(StdError::generic_err("cannot burn more than available minus claimable amount"));
     }
 
@@ -219,7 +220,6 @@ pub fn collect(
     }
 
     let balance = deps.querier.query_balance(env.contract.address.to_string(), "uluna")?;
-
     Ok(Response::new()
         .add_messages(messages)
         .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -337,12 +337,7 @@ fn collect_internal(
         } else {
 
             // claimed batch check
-            let hub_type = if burn.hub_type == HubType::stluna {
-                HubType::bluna.to_string()
-            } else {
-                burn.hub_type.to_string()
-            };
-            let hub_result = hub_batch_map.get(&hub_type);
+            let hub_result = hub_batch_map.get(&burn.hub_address.to_string());
             if let Some(last_success_batch) = hub_result {
                 if *last_success_batch >= burn.batch_id {
                     total_input_amount += burn.input_amount;
@@ -365,7 +360,7 @@ fn collect_internal(
                 None => 0u64,
                 Some(last_released) => last_released.batch_id
             };
-            hub_batch_map.insert(hub_type, last_success_batch);
+            hub_batch_map.insert(burn.hub_address.to_string(), last_success_batch);
             if last_success_batch < burn.batch_id {
                 continue;
             }

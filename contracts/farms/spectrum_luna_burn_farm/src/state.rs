@@ -43,7 +43,7 @@ pub fn read_config(storage: &dyn Storage) -> StdResult<Config> {
 
 static KEY_STATE: &[u8] = b"state";
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, JsonSchema)]
 pub struct State {
     // track SPEC reward
     pub previous_spec_share: Uint128,
@@ -150,7 +150,7 @@ impl RewardInfo {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, JsonSchema)]
 pub struct Unbonding {
     pub id: u64,
     pub time: u64,

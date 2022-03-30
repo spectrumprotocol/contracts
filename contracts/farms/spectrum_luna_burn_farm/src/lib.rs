@@ -8,3 +8,9 @@ pub mod burn;
 pub mod prism;
 pub mod gov;
 pub mod oracle;
+
+#[cfg(test)]
+mod test;
+
+#[cfg(test)]
+mod mock_querier;

@@ -288,7 +288,7 @@ pub fn claim_unbond(
 pub fn update_claimable(
     balance: Uint128,
     state: &mut State,
-) -> StdResult<()> {
+) -> StdResult<Uint128> {
     let tobe_claimed = state.get_burnable_amount(balance);
     let new_claimable_amount = if tobe_claimed > state.unbonding_amount {
         state.unbonding_amount
@@ -299,7 +299,7 @@ pub fn update_claimable(
     state.claimable_amount += new_claimable_amount;
     state.unbonded_index += new_claimable_amount;
 
-    Ok(())
+    Ok(tobe_claimed)
 }
 
 pub fn withdraw(
