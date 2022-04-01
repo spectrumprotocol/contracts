@@ -30,7 +30,7 @@ const NASSET_TOKEN_REWARD_TOKEN_LP: &str = "nasset_token_reward_lp";
 const REWARD_UST_LP: &str = "reward_ust_lp";
 const TEST_CREATOR: &str = "creator";
 const TEST_CONTROLLER: &str = "controller";
-const nAsset_TOKEN_2: &str = "fail_token";
+const N_ASSET_TOKEN_2: &str = "fail_token";
 const USER1: &str = "user1";
 const USER2: &str = "user2";
 const NASSET_REWARDS: &str = "NASSET_REWARDS";
@@ -245,7 +245,7 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
 
     // test register fail
     let msg = ExecuteMsg::register_asset {
-        asset_token: nAsset_TOKEN_2.to_string(),
+        asset_token: N_ASSET_TOKEN_2.to_string(),
         weight: 2u32,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg);
