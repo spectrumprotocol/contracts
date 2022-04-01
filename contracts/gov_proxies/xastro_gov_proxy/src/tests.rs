@@ -259,7 +259,7 @@ fn test_unstake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 contract_addr: XASTRO_TOKEN.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: FARM_GOV.to_string(),
-                    amount: Uint128::from(1819u128),
+                    amount: Uint128::from(910u128),
                     msg: to_binary(&AstroportCw20HookMsg::Leave {}).unwrap(),
                 })
                 .unwrap(),
@@ -346,7 +346,7 @@ fn test_unstake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 contract_addr: XASTRO_TOKEN.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: FARM_GOV.to_string(),
-                    amount: Uint128::from(11075u128),
+                    amount: Uint128::from(5538u128),
                     msg: to_binary(&AstroportCw20HookMsg::Leave {}).unwrap(),
                 })
                 .unwrap(),
@@ -404,7 +404,7 @@ fn test_unstake(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 contract_addr: XASTRO_TOKEN.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: FARM_GOV.to_string(),
-                    amount: Uint128::from(1651u128),
+                    amount: Uint128::from(826u128),
                     msg: to_binary(&AstroportCw20HookMsg::Leave {}).unwrap(),
                 })
                 .unwrap(),
