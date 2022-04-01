@@ -1,5 +1,6 @@
 use cosmwasm_std::{CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, to_binary, Uint128, WasmMsg};
 use cw20::{Cw20ExecuteMsg};
+use astroport::querier::query_token_balance;
 use spectrum_protocol::gov_proxy::StakerResponse;
 use astroport::staking::{Cw20HookMsg as XAstroCw20HookMsg};
 use crate::querier::query_xastro_gov;
@@ -110,13 +111,20 @@ pub fn unstake(
     let xastro_token = deps.api.addr_humanize(&config.xastro_token)?;
     let xastro_gov = deps.api.addr_humanize(&config.farm_gov)?;
 
+    let astro_balance = query_token_balance(&deps.querier, astro_token.clone(), env.contract.address)?;
+    let needed_astro = amount.checked_sub(astro_balance).unwrap_or_default();
+    let mut required_xastro = needed_astro.multiply_ratio(gov_response.total_share, gov_response.total_balance);
+    if required_xastro.multiply_ratio(gov_response.total_balance, gov_response.total_share) < needed_astro {
+        required_xastro += Uint128::from(1u128);
+    }
+
     Ok(Response::new().add_messages(vec![
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: xastro_token.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 contract: xastro_gov.to_string(),
                 msg: to_binary(&XAstroCw20HookMsg::Leave {})?,
-                amount: withdraw_share,
+                amount: required_xastro,
             })?,
             funds: vec![],
         }),

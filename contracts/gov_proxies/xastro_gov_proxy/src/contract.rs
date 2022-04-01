@@ -1,6 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{from_binary, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, CosmosMsg, WasmMsg};
+use cosmwasm_std::{from_binary, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, CosmosMsg, WasmMsg, Empty};
 
 use crate::{
     state::{read_config, store_config, Config, state_store, State, read_state},
@@ -17,7 +17,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use astroport::querier::query_token_balance;
 use astroport::staking::{Cw20HookMsg as XAstroCw20HookMsg};
-use crate::querier::query_xastro_gov;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigInfo {
@@ -99,32 +98,13 @@ fn query_state(deps: Deps) -> StdResult<State> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, env: Env, msg: ConfigInfo) -> StdResult<Response> {
-    let mut config = read_config(deps.storage)?;
-    let xastro_token = deps.api.addr_humanize(&config.xastro_token)?;
+pub fn migrate(deps: DepsMut, env: Env, _msg: Empty) -> StdResult<Response> {
+    let config = read_config(deps.storage)?;
+    let farm_token = deps.api.addr_humanize(&config.farm_token)?;
     let xastro_gov = deps.api.addr_humanize(&config.farm_gov)?;
 
     let mut messages: Vec<CosmosMsg> = vec![];
-    let xastro_balance = query_token_balance(&deps.querier, xastro_token.clone(), env.contract.address.clone())?;
-    let astro_balance = query_xastro_gov(deps.as_ref(), &config, &env.contract.address)?;
-
-    // leave from old staking
-    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: xastro_token.to_string(),
-        msg: to_binary(&Cw20ExecuteMsg::Send {
-            contract: xastro_gov.to_string(),
-            msg: to_binary(&XAstroCw20HookMsg::Leave {})?,
-            amount: xastro_balance,
-        })?,
-        funds: vec![],
-    }));
-
-    // update config
-    config.farm_gov = deps.api.addr_canonicalize(&msg.farm_gov)?;
-    config.xastro_token = deps.api.addr_canonicalize(&msg.xastro_token)?;
-
-    let farm_token = deps.api.addr_humanize(&config.farm_token)?;
-    let xastro_gov = deps.api.addr_humanize(&config.farm_gov)?;
+    let astro_balance = query_token_balance(&deps.querier, farm_token.clone(), env.contract.address)?;
 
     // enter new staking
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -133,11 +113,9 @@ pub fn migrate(deps: DepsMut, env: Env, msg: ConfigInfo) -> StdResult<Response> 
         msg: to_binary(&Cw20ExecuteMsg::Send {
             contract: xastro_gov.to_string(),
             msg: to_binary(&XAstroCw20HookMsg::Enter {})?,
-            amount: astro_balance.balance,
+            amount: astro_balance,
         })?,
     }));
-
-    store_config(deps.storage, &config)?;
 
     Ok(Response::new()
         .add_messages(messages))

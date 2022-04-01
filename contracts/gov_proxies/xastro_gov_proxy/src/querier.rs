@@ -1,7 +1,17 @@
-use cosmwasm_std::{Deps, StdResult, Addr};
+use cosmwasm_std::{Deps, StdResult, Addr, Uint128};
 use astroport::querier::{query_supply, query_token_balance};
-use spectrum_protocol::gov_proxy::StakerResponse;
 use crate::state::Config;
+
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct StakerResponse {
+    pub balance: Uint128,
+    pub share: Uint128,
+    pub total_share: Uint128,
+    pub total_balance: Uint128,
+}
 
 pub fn query_xastro_gov(
     deps: Deps,
@@ -19,5 +29,8 @@ pub fn query_xastro_gov(
     let balance = share.multiply_ratio(total_balance, total_share);
     Ok(StakerResponse {
         balance,
+        total_share,
+        total_balance,
+        share,
     })
 }
