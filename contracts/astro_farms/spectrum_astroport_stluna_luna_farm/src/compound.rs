@@ -116,11 +116,11 @@ pub fn compound(
         let weldo_token_amount = reward.checked_sub(commission)?;
         // add commission to total swap amount
         total_weldo_token_commission += commission;
-        total_weldo_token_swap_amount += reward;
 
         let auto_bond_amount = lp_balance.checked_sub(pool_info.total_stake_bond_amount)?;
         let compound_amount = weldo_token_amount.multiply_ratio(auto_bond_amount, lp_balance);
         let stake_amount = weldo_token_amount.checked_sub(compound_amount)?;
+        total_weldo_token_swap_amount += (commission + compound_amount);
 
         attributes.push(attr("commission", commission));
         attributes.push(attr("compound_amount", compound_amount));
