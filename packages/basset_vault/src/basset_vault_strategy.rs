@@ -1,3 +1,5 @@
+#![allow(clippy::large_enum_variant)]
+
 use cosmwasm_std::{to_binary, Addr, Deps, QueryRequest, StdResult, WasmQuery};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

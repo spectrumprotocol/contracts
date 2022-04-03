@@ -34,8 +34,6 @@ pub struct Config {
     pub aust_token: CanonicalAddr,
     pub pair_contract: CanonicalAddr,
     pub astro_ust_pair_contract: CanonicalAddr,
-    pub stluna_uluna_pair_contract: CanonicalAddr,
-    pub uluna_uusd_pair_contract: CanonicalAddr
 }
 
 pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {

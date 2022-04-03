@@ -1,3 +1,5 @@
+#![allow(non_camel_case_types)]
+
 use cosmwasm_std::{Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
@@ -26,8 +28,6 @@ pub struct ConfigInfo {
     pub aust_token: String,
     pub pair_contract: String,
     pub astro_ust_pair_contract: String,
-    pub stluna_uluna_pair_contract: String,
-    pub uluna_uusd_pair_contract: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -1,3 +1,5 @@
+#![allow(clippy::from_over_into)]
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

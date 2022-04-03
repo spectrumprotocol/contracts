@@ -794,7 +794,6 @@ dependencies = [
  "serde",
  "spectrum-protocol",
  "terra-cosmwasm",
- "uint",
 ]
 
 [[package]]
@@ -1058,15 +1057,12 @@ dependencies = [
 name = "spectrum-protocol"
 version = "0.2.0"
 dependencies = [
- "astroport",
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw20",
  "schemars",
  "serde",
- "terra-cosmwasm",
  "terraswap",
- "uint",
 ]
 
 [[package]]

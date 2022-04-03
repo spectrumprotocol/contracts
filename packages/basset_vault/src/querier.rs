@@ -1,3 +1,5 @@
+#![allow(clippy::needless_return)]
+
 use cosmwasm_bignumber::{Decimal256, Uint256};
 use cosmwasm_std::{
     to_binary, Addr, BalanceResponse, BankQuery, Binary, Deps, QuerierWrapper, QueryRequest,

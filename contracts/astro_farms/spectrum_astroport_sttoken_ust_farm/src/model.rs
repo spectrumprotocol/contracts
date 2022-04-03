@@ -1,3 +1,5 @@
+#![allow(non_camel_case_types)]
+
 use cosmwasm_std::{Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;

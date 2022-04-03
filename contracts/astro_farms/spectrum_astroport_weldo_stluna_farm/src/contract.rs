@@ -66,8 +66,6 @@ pub fn instantiate(
             aust_token: deps.api.addr_canonicalize(&msg.aust_token)?,
             pair_contract: deps.api.addr_canonicalize(&msg.pair_contract)?,
             astro_ust_pair_contract: deps.api.addr_canonicalize(&msg.astro_ust_pair_contract)?,
-            stluna_uluna_pair_contract: deps.api.addr_canonicalize(&msg.stluna_uluna_pair_contract)?,
-            uluna_uusd_pair_contract: deps.api.addr_canonicalize(&msg.uluna_uusd_pair_contract)?,
         },
     )?;
 
@@ -314,8 +312,6 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         aust_token: deps.api.addr_humanize(&config.aust_token)?.to_string(),
         pair_contract: deps.api.addr_humanize(&config.pair_contract)?.to_string(),
         astro_ust_pair_contract: deps.api.addr_humanize(&config.astro_ust_pair_contract)?.to_string(),
-        stluna_uluna_pair_contract: deps.api.addr_humanize(&config.stluna_uluna_pair_contract)?.to_string(),
-        uluna_uusd_pair_contract: deps.api.addr_humanize(&config.uluna_uusd_pair_contract)?.to_string(),
     };
 
     Ok(resp)
