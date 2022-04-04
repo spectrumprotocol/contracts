@@ -1,4 +1,4 @@
-use cosmwasm_std::{attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg, Decimal, QuerierWrapper, Addr};
+use cosmwasm_std::{attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg, Decimal};
 
 use crate::{
     bond::deposit_farm_share,
@@ -322,24 +322,27 @@ pub fn compound(
         messages.push(swap_uusd_to_uluna);
     }
 
-    let sttoken_asset_info = AssetInfo::Token {
-        contract_addr: stluna_token.clone(),
-    };
-    let uluna_asset_info = AssetInfo::NativeToken {
-        denom: uluna.clone(),
-    };
-    let (stluna_amount_to_be_swapped, uluna_amount_to_be_swapped, stluna_return_from_optimal_swap, uluna_return_from_optimal_swap) = optimal_swap(
-        &deps.querier,
-        total_stluna_reinvest_amount,
-        total_luna_reinvest_amount,
-        sttoken_asset_info,
-        uluna_asset_info,
-        pair_contract.clone(),
-        &mut messages
-    )?;
+    // let sttoken_asset_info = AssetInfo::Token {
+    //     contract_addr: stluna_token.clone(),
+    // };
+    // let uluna_asset_info = AssetInfo::NativeToken {
+    //     denom: uluna.clone(),
+    // };
+    // let (stluna_amount_to_be_swapped, uluna_amount_to_be_swapped, stluna_return_from_optimal_swap, uluna_return_from_optimal_swap) = optimal_swap(
+    //     &deps.querier,
+    //     total_stluna_reinvest_amount,
+    //     total_luna_reinvest_amount,
+    //     sttoken_asset_info,
+    //     uluna_asset_info,
+    //     pair_contract.clone(),
+    //     &mut messages
+    // )?;
+    //
+    // let provide_stluna = total_stluna_reinvest_amount.checked_sub(stluna_amount_to_be_swapped)? + stluna_return_from_optimal_swap;
+    // let provide_uluna = total_luna_reinvest_amount.checked_sub(uluna_amount_to_be_swapped)? + uluna_return_from_optimal_swap;
 
-    let provide_stluna = total_stluna_reinvest_amount.checked_sub(stluna_amount_to_be_swapped)? + stluna_return_from_optimal_swap;
-    let provide_uluna = total_luna_reinvest_amount.checked_sub(uluna_amount_to_be_swapped)? + uluna_return_from_optimal_swap;
+    let provide_stluna = total_stluna_reinvest_amount;
+    let provide_uluna = total_luna_reinvest_amount;
 
     if let Some(gov_proxy) = config.gov_proxy {
         if !total_weldo_token_stake_amount.is_zero() {
@@ -369,17 +372,19 @@ pub fn compound(
         messages.push(stake_astro_token);
     }
 
-    if !provide_stluna.is_zero() && !provide_uluna.is_zero() {
-        let increase_allowance = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: stluna_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-                spender: pair_contract.to_string(),
-                amount: provide_stluna,
-                expires: None,
-            })?,
-            funds: vec![],
-        });
-        messages.push(increase_allowance);
+    if !provide_stluna.is_zero() || !provide_uluna.is_zero() {
+        if !provide_stluna.is_zero() {
+            let increase_allowance = CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: stluna_token.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+                    spender: pair_contract.to_string(),
+                    amount: provide_stluna,
+                    expires: None,
+                })?,
+                funds: vec![],
+            });
+            messages.push(increase_allowance);
+        }
 
         let provide_liquidity = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: pair_contract.to_string(),
@@ -402,10 +407,14 @@ pub fn compound(
                 receiver: None,
                 auto_stake: Some(true),
             })?,
-            funds: vec![Coin {
-                denom: uluna,
-                amount: provide_uluna,
-            }],
+            funds: if provide_uluna.is_zero() {
+                vec![]
+            } else {
+                vec![Coin {
+                    denom: uluna,
+                    amount: provide_uluna,
+                }]
+            },
         });
         messages.push(provide_liquidity);
 
@@ -576,95 +585,95 @@ pub fn send_fee(
         .add_messages(messages))
 }
 
-/// @notice Generate msg for swapping specified asset
-fn swap_msg(pair_contract: String, asset: &Asset, belief_price: Option<Decimal>, max_spread: Option<Decimal>, to: Option<String>) -> StdResult<CosmosMsg> {
-    let wasm_msg = match &asset.info {
-        AssetInfo::Token {
-            contract_addr,
-        } => WasmMsg::Execute {
-            contract_addr: contract_addr.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: pair_contract,
-                amount: asset.amount,
-                msg: to_binary(&AstroportPairCw20HookMsg::Swap {
-                    belief_price,
-                    max_spread,
-                    to,
-                })?,
-            })?,
-            funds: vec![],
-        },
+// /// @notice Generate msg for swapping specified asset
+// fn swap_msg(pair_contract: String, asset: &Asset, belief_price: Option<Decimal>, max_spread: Option<Decimal>, to: Option<String>) -> StdResult<CosmosMsg> {
+//     let wasm_msg = match &asset.info {
+//         AssetInfo::Token {
+//             contract_addr,
+//         } => WasmMsg::Execute {
+//             contract_addr: contract_addr.to_string(),
+//             msg: to_binary(&Cw20ExecuteMsg::Send {
+//                 contract: pair_contract,
+//                 amount: asset.amount,
+//                 msg: to_binary(&AstroportPairCw20HookMsg::Swap {
+//                     belief_price,
+//                     max_spread,
+//                     to,
+//                 })?,
+//             })?,
+//             funds: vec![],
+//         },
+//
+//         AssetInfo::NativeToken {
+//             denom,
+//         } => WasmMsg::Execute {
+//             contract_addr: pair_contract,
+//             msg: to_binary(&AstroportPairExecuteMsg::Swap {
+//                 offer_asset: asset.clone(),
+//                 belief_price,
+//                 max_spread,
+//                 to: None,
+//             })?,
+//             funds: vec![Coin {
+//                 denom: denom.clone(),
+//                 amount: asset.amount,
+//             }],
+//         },
+//     };
+//
+//     Ok(CosmosMsg::Wasm(wasm_msg))
+// }
 
-        AssetInfo::NativeToken {
-            denom,
-        } => WasmMsg::Execute {
-            contract_addr: pair_contract,
-            msg: to_binary(&AstroportPairExecuteMsg::Swap {
-                offer_asset: asset.clone(),
-                belief_price,
-                max_spread,
-                to: None,
-            })?,
-            funds: vec![Coin {
-                denom: denom.clone(),
-                amount: asset.amount,
-            }],
-        },
-    };
-
-    Ok(CosmosMsg::Wasm(wasm_msg))
-}
-
-fn optimal_swap(
-    querier: &QuerierWrapper,
-    provide_a_amount: Uint128,
-    provide_b_amount: Uint128,
-    asset_info_a: AssetInfo,
-    asset_info_b: AssetInfo,
-    pair_contract: Addr,
-    messages: &mut Vec<CosmosMsg>,
-) -> StdResult<(Uint128, Uint128, Uint128, Uint128)> {
-    if !provide_a_amount.is_zero() && !provide_b_amount.is_zero() {
-        return Ok((Uint128::zero(), Uint128::zero(), Uint128::zero(), Uint128::zero()));
-    }
-
-    if !provide_a_amount.is_zero() {
-        let swap_amount = provide_a_amount.multiply_ratio(10000u128, 19995u128);
-        let offer_asset = Asset {
-            info: asset_info_a,
-            amount: swap_amount
-        };
-        messages.push(swap_msg(
-            pair_contract.to_string(),
-            &offer_asset,
-            None,
-            Some(Decimal::percent(50)),
-            None,
-        )?);
-        let simulate = simulate(
-            querier,
-            pair_contract,
-            &offer_asset,
-        )?;
-        Ok((swap_amount, Uint128::zero(), Uint128::zero(), simulate.return_amount))
-    } else {
-        let swap_amount = provide_b_amount.multiply_ratio(10000u128, 19995u128);
-        let offer_asset = Asset {
-            info: asset_info_b,
-            amount: swap_amount
-        };
-        messages.push(swap_msg(
-            pair_contract.to_string(),
-            &offer_asset,
-            None,
-            Some(Decimal::percent(50)),
-            None,
-        )?);
-        let simulate = simulate(
-            querier,
-            pair_contract,
-            &offer_asset,
-        )?;
-        Ok((Uint128::zero(), swap_amount, simulate.return_amount, Uint128::zero()))
-    }
-}
+// fn optimal_swap(
+//     querier: &QuerierWrapper,
+//     provide_a_amount: Uint128,
+//     provide_b_amount: Uint128,
+//     asset_info_a: AssetInfo,
+//     asset_info_b: AssetInfo,
+//     pair_contract: Addr,
+//     messages: &mut Vec<CosmosMsg>,
+// ) -> StdResult<(Uint128, Uint128, Uint128, Uint128)> {
+//     if !provide_a_amount.is_zero() && !provide_b_amount.is_zero() {
+//         return Ok((Uint128::zero(), Uint128::zero(), Uint128::zero(), Uint128::zero()));
+//     }
+//
+//     if !provide_a_amount.is_zero() {
+//         let swap_amount = provide_a_amount.multiply_ratio(10000u128, 19995u128);
+//         let offer_asset = Asset {
+//             info: asset_info_a,
+//             amount: swap_amount
+//         };
+//         messages.push(swap_msg(
+//             pair_contract.to_string(),
+//             &offer_asset,
+//             None,
+//             Some(Decimal::percent(50)),
+//             None,
+//         )?);
+//         let simulate = simulate(
+//             querier,
+//             pair_contract,
+//             &offer_asset,
+//         )?;
+//         Ok((swap_amount, Uint128::zero(), Uint128::zero(), simulate.return_amount))
+//     } else {
+//         let swap_amount = provide_b_amount.multiply_ratio(10000u128, 19995u128);
+//         let offer_asset = Asset {
+//             info: asset_info_b,
+//             amount: swap_amount
+//         };
+//         messages.push(swap_msg(
+//             pair_contract.to_string(),
+//             &offer_asset,
+//             None,
+//             Some(Decimal::percent(50)),
+//             None,
+//         )?);
+//         let simulate = simulate(
+//             querier,
+//             pair_contract,
+//             &offer_asset,
+//         )?;
+//         Ok((Uint128::zero(), swap_amount, simulate.return_amount, Uint128::zero()))
+//     }
+// }
