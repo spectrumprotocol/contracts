@@ -18,7 +18,7 @@ use terra_name_service::gov::{
 use terra_name_service::staking::{
     Cw20HookMsg as TerraNameServiceCw20HookMsg, ExecuteMsg as TerraNameServiceStakingExecuteMsg,
 };
-use spectrum_protocol::terra_name_service_farm::{RewardInfoResponse, RewardInfoResponseItem};
+use crate::model::{RewardInfoResponse, RewardInfoResponseItem};
 use spectrum_protocol::farm_helper::compute_deposit_time;
 use spectrum_protocol::gov::{
     BalanceResponse as SpecBalanceResponse, ExecuteMsg as SpecExecuteMsg, QueryMsg as SpecQueryMsg,

@@ -46,7 +46,7 @@ pub fn instantiate(
             spectrum_token: deps.api.addr_canonicalize(&msg.spectrum_token)?,
             spectrum_gov: deps.api.addr_canonicalize(&msg.spectrum_gov)?,
             astro_token: deps.api.addr_canonicalize(&msg.astro_token)?,
-            farm_token: deps.api.addr_canonicalize(&msg.farm_token)?,
+            stasset_token: deps.api.addr_canonicalize(&msg.stasset_token)?,
             weldo_token: deps.api.addr_canonicalize(&msg.weldo_token)?,
             stluna_token: deps.api.addr_canonicalize(&msg.stluna_token)?,
             astroport_generator: deps.api.addr_canonicalize(&msg.astroport_generator)?,
@@ -293,7 +293,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
             .addr_humanize(&config.astroport_router)?
             .to_string(),
         spectrum_token: deps.api.addr_humanize(&config.spectrum_token)?.to_string(),
-        farm_token: deps.api.addr_humanize(&config.farm_token)?.to_string(),
+        stasset_token: deps.api.addr_humanize(&config.stasset_token)?.to_string(),
         weldo_token: deps.api.addr_humanize(&config.weldo_token)?.to_string(),
         stluna_token: deps.api.addr_humanize(&config.stluna_token)?.to_string(),
         spectrum_gov: deps.api.addr_humanize(&config.spectrum_gov)?.to_string(),

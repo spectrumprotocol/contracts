@@ -25,7 +25,7 @@ use moneymarket::market::{ExecuteMsg as MoneyMarketExecuteMsg};
 use basset_vault::{nasset_token_rewards::{ExecuteMsg as nAssetTokenRewardsExecuteMsg, AnyoneMsg as NAssetTokenRewardsAnyoneMsg}};
 use basset_vault::{basset_vault::{ExecuteMsg as bAssetVaultExecuteMsg, AnyoneMsg as bAssetVaultAnyoneMsg}};
 
-use spectrum_protocol::nasset_farm::ExecuteMsg;
+use crate::model::ExecuteMsg;
 
 pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
     let config = read_config(deps.storage)?;

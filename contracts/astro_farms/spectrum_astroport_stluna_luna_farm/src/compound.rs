@@ -120,7 +120,7 @@ pub fn compound(
         let auto_bond_amount = lp_balance.checked_sub(pool_info.total_stake_bond_amount)?;
         let compound_amount = weldo_token_amount.multiply_ratio(auto_bond_amount, lp_balance);
         let stake_amount = weldo_token_amount.checked_sub(compound_amount)?;
-        total_weldo_token_swap_amount += (commission + compound_amount);
+        total_weldo_token_swap_amount += commission + compound_amount;
 
         attributes.push(attr("commission", commission));
         attributes.push(attr("compound_amount", compound_amount));
@@ -178,51 +178,56 @@ pub fn compound(
     };
     let weldo_token_swap_rate = simulate(&deps.querier, stluna_weldo_pair_contract.clone(), &weldo_asset)?;
 
-    let total_weldo_to_stluna_return_amount = weldo_token_swap_rate.return_amount;
-    attributes.push(attr("total_weldo_to_stluna_return_amount", total_weldo_to_stluna_return_amount));
+    let total_stluna_return_amount = weldo_token_swap_rate.return_amount;
+    attributes.push(attr("total_stluna_return_amount", total_stluna_return_amount));
 
-    let total_stluna_from_weldo_commission_amount = if total_weldo_token_swap_amount != Uint128::zero() {
-        total_weldo_to_stluna_return_amount.multiply_ratio(total_weldo_token_commission, total_weldo_token_swap_amount)
+    let total_stluna_commission_amount = if total_weldo_token_swap_amount != Uint128::zero() {
+        total_stluna_return_amount.multiply_ratio(total_weldo_token_commission, total_weldo_token_swap_amount)
     } else {
         Uint128::zero()
     };
-    attributes.push(attr("total_stluna_from_weldo_commission_amount", total_stluna_from_weldo_commission_amount));
+    attributes.push(attr("total_stluna_commission_amount", total_stluna_commission_amount));
 
-    let stluna_ust_swap_rate = astroport_router_simulate_swap(deps.as_ref(),
-        total_stluna_from_weldo_commission_amount,
-        vec![
-            SwapOperation::AstroSwap {
-                offer_asset_info: AssetInfo::Token { contract_addr: stluna_token.clone() },
-                ask_asset_info: AssetInfo::NativeToken { denom: uluna.clone() }
-            },
-            SwapOperation::AstroSwap {
-                offer_asset_info: AssetInfo::NativeToken { denom: uluna.clone() },
-                ask_asset_info: AssetInfo::NativeToken { denom: uusd.clone() },
-            }
-        ],
-        &config.astroport_router
-    )?;
+    let total_ust_commission_amount = if !total_stluna_commission_amount.is_zero() {
+        let stluna_ust_swap_rate = astroport_router_simulate_swap(
+            deps.as_ref(),
+            total_stluna_commission_amount,
+            vec![
+                SwapOperation::AstroSwap {
+                    offer_asset_info: AssetInfo::Token { contract_addr: stluna_token.clone() },
+                    ask_asset_info: AssetInfo::NativeToken { denom: uluna.clone() }
+                },
+                SwapOperation::AstroSwap {
+                    offer_asset_info: AssetInfo::NativeToken { denom: uluna.clone() },
+                    ask_asset_info: AssetInfo::NativeToken { denom: uusd.clone() },
+                }
+            ],
+            &config.astroport_router
+        )?;
 
-    let ust_commission_from_stluna_from_weldo_amount = deduct_tax(
-        &deps.querier,
-        stluna_ust_swap_rate.amount,
-        uusd.clone(),
-    )?;
-    attributes.push(attr("ust_commission_from_stluna_from_weldo_amount", ust_commission_from_stluna_from_weldo_amount));
+        deduct_tax(
+            &deps.querier,
+            stluna_ust_swap_rate.amount,
+            uusd.clone(),
+        )?
+    } else {
+        Uint128::zero()
+    };
+    attributes.push(attr("total_ust_commission_amount", total_ust_commission_amount));
 
-    let total_stluna_reinvest_amount = total_weldo_to_stluna_return_amount.checked_sub(total_stluna_from_weldo_commission_amount)?;
+    let total_stluna_reinvest_amount = total_stluna_return_amount.checked_sub(total_stluna_commission_amount)?;
     attributes.push(attr("total_stluna_reinvest_amount", total_stluna_reinvest_amount));
 
-    let uusd_from_astro_asset = Asset {
+    let ust_reinvest_asset_astro = Asset {
         info: AssetInfo::NativeToken {
             denom: uusd.clone(),
         },
         amount: deduct_tax(&deps.querier, total_ust_reinvest_amount_astro, uusd.clone())?,
     };
 
-    let uluna_from_ust_from_astro_swap_rate = simulate(&deps.querier, uluna_uusd_pair_contract.clone(), &uusd_from_astro_asset)?;
-    let uluna_from_ust_from_astro = uluna_from_ust_from_astro_swap_rate.return_amount;
-    attributes.push(attr("uluna_from_ust_from_astro", uluna_from_ust_from_astro));
+    let ust_to_luna_swap_rate = simulate(&deps.querier, uluna_uusd_pair_contract.clone(), &ust_reinvest_asset_astro)?;
+    let total_luna_reinvest_amount = ust_to_luna_swap_rate.return_amount;
+    attributes.push(attr("total_luna_reinvest_amount", total_luna_reinvest_amount));
 
     let mut messages: Vec<CosmosMsg> = vec![];
 
@@ -252,12 +257,12 @@ pub fn compound(
         });
         messages.push(swap_weldo_token_to_stluna);
 
-        if !total_stluna_from_weldo_commission_amount.is_zero() {
+        if !total_stluna_commission_amount.is_zero() {
             let swap_stluna_to_ust: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: stluna_token.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: astroport_router.to_string(),
-                    amount: total_stluna_from_weldo_commission_amount,
+                    amount: total_stluna_commission_amount,
                     msg: to_binary(&AstroportRouterExecuteMsg::ExecuteSwapOperations {
                         operations: vec![
                             SwapOperation::AstroSwap {
@@ -326,21 +331,15 @@ pub fn compound(
     let (stluna_amount_to_be_swapped, uluna_amount_to_be_swapped, stluna_return_from_optimal_swap, uluna_return_from_optimal_swap) = optimal_swap(
         &deps.querier,
         total_stluna_reinvest_amount,
-        uluna_from_ust_from_astro,
+        total_luna_reinvest_amount,
         sttoken_asset_info,
         uluna_asset_info,
         pair_contract.clone(),
         &mut messages
     )?;
-    attributes.push(attr("stluna_amount_to_be_swapped", stluna_amount_to_be_swapped));
-    attributes.push(attr("uluna_amount_to_be_swapped", uluna_amount_to_be_swapped));
-    attributes.push(attr("stluna_return_from_optimal_swap", stluna_return_from_optimal_swap));
-    attributes.push(attr("uluna_return_from_optimal_swap", uluna_return_from_optimal_swap));
 
     let provide_stluna = total_stluna_reinvest_amount.checked_sub(stluna_amount_to_be_swapped)? + stluna_return_from_optimal_swap;
-    let provide_uluna = uluna_from_ust_from_astro.checked_sub(uluna_amount_to_be_swapped)? + uluna_return_from_optimal_swap;
-    attributes.push(attr("provide_stluna", provide_stluna));
-    attributes.push(attr("provide_uluna", provide_uluna));
+    let provide_uluna = total_luna_reinvest_amount.checked_sub(uluna_amount_to_be_swapped)? + uluna_return_from_optimal_swap;
 
     if let Some(gov_proxy) = config.gov_proxy {
         if !total_weldo_token_stake_amount.is_zero() {
@@ -420,7 +419,7 @@ pub fn compound(
         // messages.push(stake);
     }
 
-    let total_ust_commission_amount = ust_commission_from_stluna_from_weldo_amount + total_ust_commission_amount_astro;
+    let total_ust_commission_amount = total_ust_commission_amount + total_ust_commission_amount_astro;
     if !total_ust_commission_amount.is_zero() {
         let net_commission_amount = deduct_tax(
             &deps.querier,

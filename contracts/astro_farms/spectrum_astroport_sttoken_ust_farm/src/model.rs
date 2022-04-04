@@ -15,7 +15,7 @@ pub struct ConfigInfo {
     pub astro_token: String,
     pub spectrum_token: String,
     pub spectrum_gov: String,
-    pub farm_token: String,
+    pub stasset_token: String,
     pub weldo_token: String,
     pub stluna_token: String,
     pub gov_proxy: Option<String>,

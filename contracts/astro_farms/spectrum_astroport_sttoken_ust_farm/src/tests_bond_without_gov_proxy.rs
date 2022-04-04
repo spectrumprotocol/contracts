@@ -260,7 +260,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let config = read_config(deps_ref.storage).unwrap();
     let mut state = read_state(deps_ref.storage).unwrap();
     let mut pool_info = pool_info_read(deps_ref.storage)
-        .load(config.farm_token.as_slice())
+        .load(config.weldo_token.as_slice())
         .unwrap();
     deposit_farm_share(
         deps_ref,
@@ -280,7 +280,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     ).unwrap();
     state_store(deps.as_mut().storage).save(&state).unwrap();
     pool_info_store(deps.as_mut().storage)
-        .save(config.farm_token.as_slice(), &pool_info)
+        .save(config.weldo_token.as_slice(), &pool_info)
         .unwrap();
     deps.querier.with_token_balances(&[
         (
@@ -457,7 +457,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let deps_ref = deps.as_ref();
     let mut state = read_state(deps_ref.storage).unwrap();
     let mut pool_info = pool_info_read(deps_ref.storage)
-        .load(config.farm_token.as_slice())
+        .load(config.weldo_token.as_slice())
         .unwrap();
     deposit_farm_share(
         deps_ref,
@@ -479,7 +479,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     .unwrap();
     state_store(deps.as_mut().storage).save(&state).unwrap();
     pool_info_store(deps.as_mut().storage)
-        .save(config.farm_token.as_slice(), &pool_info)
+        .save(config.weldo_token.as_slice(), &pool_info)
         .unwrap();
     deps.querier.with_token_balances(&[
         (

@@ -1,3 +1,5 @@
+#![allow(non_camel_case_types)]
+
 use cosmwasm_std::{Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
@@ -9,9 +11,9 @@ pub struct ConfigInfo {
     pub owner: String,
     pub spectrum_token: String,
     pub spectrum_gov: String,
-    pub terra_name_service_token: String,
-    pub terra_name_service_staking: String,
-    pub terra_name_service_gov: String,
+    pub glow_token: String,
+    pub glow_staking: String,
+    pub glow_gov: String,
     pub platform: String,
     pub controller: String,
     pub base_denom: String,

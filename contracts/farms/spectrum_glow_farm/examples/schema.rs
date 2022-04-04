@@ -2,7 +2,7 @@ use std::env::current_dir;
 use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
-use spectrum_protocol::glow_farm::{
+use spectrum_glow_farm::model::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, PoolsResponse, QueryMsg, RewardInfoResponse, StateInfo,
 };
 

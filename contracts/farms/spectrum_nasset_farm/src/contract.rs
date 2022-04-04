@@ -14,7 +14,7 @@ use cw20::Cw20ReceiveMsg;
 
 use crate::bond::{deposit_spec_reward, query_reward_info, unbond, update_bond, withdraw};
 use crate::state::{pool_info_read, pool_info_store, read_state};
-use spectrum_protocol::nasset_farm::{
+use crate::model::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
 use crate::compound::{compound, send_fee};

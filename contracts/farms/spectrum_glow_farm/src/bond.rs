@@ -18,7 +18,7 @@ use glow::gov::{
 use glow::staking::{
     Cw20HookMsg as GlowCw20HookMsg, ExecuteMsg as GlowStakingExecuteMsg,
 };
-use spectrum_protocol::glow_farm::{RewardInfoResponse, RewardInfoResponseItem};
+use crate::model::{RewardInfoResponse, RewardInfoResponseItem};
 use spectrum_protocol::farm_helper::compute_deposit_time;
 use spectrum_protocol::gov::{
     BalanceResponse as SpecBalanceResponse, ExecuteMsg as SpecExecuteMsg, QueryMsg as SpecQueryMsg,

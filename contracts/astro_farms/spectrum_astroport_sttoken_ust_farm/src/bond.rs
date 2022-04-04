@@ -669,7 +669,7 @@ pub fn withdraw(
                 funds: vec![],
             }));
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: deps.api.addr_humanize(&config.farm_token)?.to_string(),
+                contract_addr: deps.api.addr_humanize(&config.weldo_token)?.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: info.sender.to_string(),
                     amount: farm2_amount,

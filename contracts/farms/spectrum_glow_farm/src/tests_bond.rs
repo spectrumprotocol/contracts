@@ -9,7 +9,7 @@ use cosmwasm_std::{from_binary, to_binary, CosmosMsg, OwnedDeps, Uint128, WasmMs
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use spectrum_protocol::glow_farm::{
+use crate::model::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
 use spectrum_protocol::gov::ExecuteMsg as GovExecuteMsg;
@@ -613,7 +613,7 @@ fn test_deposit_fee(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
         ),
     ]);
 
-    
+
     // query balance for user3
     let msg = QueryMsg::reward_info {
         staker_addr: USER3.to_string(),

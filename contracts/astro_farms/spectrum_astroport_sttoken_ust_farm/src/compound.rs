@@ -41,7 +41,7 @@ pub fn compound(
         return Err(StdError::generic_err("unauthorized"));
     }
 
-    let farm_token = deps.api.addr_humanize(&config.farm_token)?;
+    let stasset_token = deps.api.addr_humanize(&config.stasset_token)?;
     let stluna_token = deps.api.addr_humanize(&config.stluna_token)?;
     let weldo_token = deps.api.addr_humanize(&config.weldo_token)?;
     let astro_token = deps.api.addr_humanize(&config.astro_token)?;
@@ -53,7 +53,7 @@ pub fn compound(
     let uluna = "uluna".to_string();
     let uusd = "uusd".to_string();
 
-    let mut pool_info = pool_info_read(deps.storage).load(config.farm_token.as_slice())?;
+    let mut pool_info = pool_info_read(deps.storage).load(config.stasset_token.as_slice())?;
 
     // This get pending (ASTRO), and pending proxy rewards
     let pending_token_response = query_astroport_pending_token(
@@ -132,11 +132,11 @@ pub fn compound(
         let weldo_token_amount = reward.checked_sub(commission)?;
         // add commission to total swap amount
         total_weldo_token_commission += commission;
-        total_weldo_token_swap_amount += reward;
 
         let auto_bond_amount = lp_balance.checked_sub(pool_info.total_stake_bond_amount)?;
         let compound_amount = weldo_token_amount.multiply_ratio(auto_bond_amount, lp_balance);
         let stake_amount = weldo_token_amount.checked_sub(compound_amount)?;
+        total_weldo_token_swap_amount += commission + compound_amount;
 
         attributes.push(attr("commission", commission));
         attributes.push(attr("compound_amount", compound_amount));
@@ -155,7 +155,7 @@ pub fn compound(
     }
 
     state_store(deps.storage).save(&state)?;
-    pool_info_store(deps.storage).save(config.farm_token.as_slice(), &pool_info)?;
+    pool_info_store(deps.storage).save(config.stasset_token.as_slice(), &pool_info)?;
 
     // swap all
     total_astro_token_swap_amount += compound_amount_astro;
@@ -316,6 +316,9 @@ pub fn compound(
             funds: vec![],
         });
         messages.push(swap_weldo_token);
+    }
+
+    if !total_ust_reinvest_amount.is_zero() {
         let swap_ust: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: pair_contract.to_string(),
             msg: to_binary(&AstroportPairExecuteMsg::Swap {
@@ -331,7 +334,6 @@ pub fn compound(
         });
         messages.push(swap_ust);
     }
-
 
     if let Some(gov_proxy) = config.gov_proxy {
         if !total_weldo_token_stake_amount.is_zero() {
@@ -363,7 +365,7 @@ pub fn compound(
 
     if !net_liquidity_after_tax.is_zero() {
         let increase_allowance = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: farm_token.to_string(),
+            contract_addr: stasset_token.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
                 spender: pair_contract.to_string(),
                 amount: swap_rate.return_amount,
@@ -379,7 +381,7 @@ pub fn compound(
                 assets: [
                     Asset {
                         info: AssetInfo::Token {
-                            contract_addr: farm_token,
+                            contract_addr: stasset_token,
                         },
                         amount: swap_rate.return_amount,
                     },

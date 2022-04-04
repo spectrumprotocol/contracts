@@ -1,3 +1,5 @@
+#![allow(non_camel_case_types)]
+
 use cosmwasm_std::{Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
@@ -7,14 +9,15 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigInfo {
     pub owner: String,
+    pub nasset_token: String,
+    pub reward_token: String,
+    pub gov_proxy: Option<String>,
     pub spectrum_token: String,
     pub spectrum_gov: String,
-    pub glow_token: String,
-    pub glow_staking: String,
-    pub glow_gov: String,
+    pub nasset_rewards: String,
+    pub nasset_vault: String,
     pub platform: String,
     pub controller: String,
-    pub base_denom: String,
     pub community_fee: Decimal,
     pub platform_fee: Decimal,
     pub controller_fee: Decimal,
@@ -22,11 +25,12 @@ pub struct ConfigInfo {
     pub anchor_market: String,
     pub aust_token: String,
     pub pair_contract: String,
+    pub ust_pair_contract: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum ExecuteMsg {
-    receive(Cw20ReceiveMsg), // Bond lp token
+    receive(Cw20ReceiveMsg), // Bond token
     // Update config
     update_config {
         owner: Option<String>,
@@ -43,7 +47,6 @@ pub enum ExecuteMsg {
     },
     register_asset {
         asset_token: String,
-        staking_token: String,
         weight: u32,
     },
     // Withdraw rewards
@@ -53,23 +56,19 @@ pub enum ExecuteMsg {
         spec_amount: Option<Uint128>,
         farm_amount: Option<Uint128>,
     },
-    stake {
-        asset_token: String,
-    },
     compound {},
+    send_fee {},
     update_bond {
         asset_token: String,
         amount_to_stake: Uint128,
         amount_to_auto: Uint128,
     },
-    send_fee {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum Cw20HookMsg {
     bond {
         staker_addr: Option<String>,
-        asset_token: String,
         compound_rate: Option<Decimal>,
     },
 }
@@ -93,13 +92,12 @@ pub struct PoolsResponse {
 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolItem {
-    pub asset_token: String,
-    pub staking_token: String,
+    pub asset_token: String, // equivalent to DP Token, name asset_token for frontend easy coding
     pub total_auto_bond_share: Uint128, // share auto bond
     pub total_stake_bond_share: Uint128,
     pub total_stake_bond_amount: Uint128, // amount stake
     pub weight: u32,
-    pub farm_share: Uint128, // MIR share
+    pub farm_share: Uint128, // MINE share
     pub state_spec_share_index: Decimal,
     pub farm_share_index: Decimal,       // per stake bond share
     pub stake_spec_share_index: Decimal, // per stake bond share
@@ -142,4 +140,5 @@ pub struct StateInfo {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+}
