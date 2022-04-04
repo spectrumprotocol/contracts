@@ -19,9 +19,9 @@ use std::fmt::Debug;
 
 const SPEC_GOV: &str = "SPEC_GOV";
 const SPEC_TOKEN: &str = "spec_token";
-const FARM_TOKEN: &str = "farm_token";
 const WELDO_TOKEN: &str = "weldo_token";
 const STLUNA_TOKEN: &str = "stluna_token";
+const STASSET_TOKEN: &str = "stasset_token";
 const ASTROPORT_ROUTER: &str = "astroport_router";
 const ASTROPORT_GENERATOR: &str = "astroport_generator";
 const TEST_CREATOR: &str = "creator";
@@ -86,7 +86,6 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         spectrum_gov: SPEC_GOV.to_string(),
         spectrum_token: SPEC_TOKEN.to_string(),
         gov_proxy: None,
-        farm_token: FARM_TOKEN.to_string(),
         weldo_token: WELDO_TOKEN.to_string(),
         astroport_generator: ASTROPORT_GENERATOR.to_string(),
         platform: TEST_CREATOR.to_string(),
@@ -102,7 +101,8 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         astro_token: ASTRO_TOKEN.to_string(),
         astro_ust_pair_contract: ASTRO_UST_PAIR_CONTRACT.to_string(),
         astroport_router: ASTROPORT_ROUTER.to_string(),
-        stluna_token: STLUNA_TOKEN.to_string()
+        stluna_token: STLUNA_TOKEN.to_string(),
+        stasset_token: STASSET_TOKEN.to_string()
     };
 
     // success init
@@ -160,7 +160,7 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
     let msg = ExecuteMsg::register_asset {
-        asset_token: FARM_TOKEN.to_string(),
+        asset_token: STASSET_TOKEN.to_string(),
         staking_token: ANC_LP.to_string(),
         weight: 1u32,
     };
@@ -179,7 +179,7 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
         res,
         PoolsResponse {
             pools: vec![PoolItem {
-                asset_token: FARM_TOKEN.to_string(),
+                asset_token: STASSET_TOKEN.to_string(),
                 staking_token: ANC_LP.to_string(),
                 weight: 1u32,
                 farm_share: Uint128::zero(),
@@ -220,7 +220,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         amount: Uint128::from(10000u128),
         msg: to_binary(&Cw20HookMsg::bond {
             staker_addr: None,
-            asset_token: FARM_TOKEN.to_string(),
+            asset_token: STASSET_TOKEN.to_string(),
             compound_rate: Some(Decimal::percent(60)),
         })
         .unwrap(),
@@ -238,7 +238,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         amount: Uint128::from(10000u128),
         msg: to_binary(&Cw20HookMsg::bond {
             staker_addr: None,
-            asset_token: FARM_TOKEN.to_string(),
+            asset_token: STASSET_TOKEN.to_string(),
             compound_rate: Some(Decimal::percent(100)),
         }).unwrap(),
     });
@@ -248,7 +248,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
 
     // update bond is blocked due to gov_proxy is not set
     let update_bond = ExecuteMsg::update_bond {
-        asset_token: FARM_TOKEN.to_string(),
+        asset_token: STASSET_TOKEN.to_string(),
         amount_to_stake: Uint128::from(4000u128),
         amount_to_auto: Uint128::from(6000u128),
     };
@@ -260,7 +260,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let config = read_config(deps_ref.storage).unwrap();
     let mut state = read_state(deps_ref.storage).unwrap();
     let mut pool_info = pool_info_read(deps_ref.storage)
-        .load(config.weldo_token.as_slice())
+        .load(config.stasset_token.as_slice())
         .unwrap();
     deposit_farm_share(
         deps_ref,
@@ -302,7 +302,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: FARM_TOKEN.to_string(),
+            asset_token: STASSET_TOKEN.to_string(),
             pending_farm_reward: Uint128::zero(),
             pending_farm2_reward: Uint128::zero(),
             pending_spec_reward: Uint128::from(2700u128),
@@ -326,7 +326,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // unbond 3000 ANC-LP
     let info = mock_info(USER1, &[]);
     let msg = ExecuteMsg::unbond {
-        asset_token: FARM_TOKEN.to_string(),
+        asset_token: STASSET_TOKEN.to_string(),
         amount: Uint128::from(3000u128),
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
@@ -418,7 +418,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: FARM_TOKEN.to_string(),
+            asset_token: STASSET_TOKEN.to_string(),
             pending_farm_reward: Uint128::from(0u128),
             pending_farm2_reward: Uint128::from(0u128),
             pending_spec_reward: Uint128::from(0u128),
@@ -446,7 +446,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         amount: Uint128::from(5000u128),
         msg: to_binary(&Cw20HookMsg::bond {
             staker_addr: None,
-            asset_token: FARM_TOKEN.to_string(),
+            asset_token: STASSET_TOKEN.to_string(),
             compound_rate: Some(Decimal::one()),
         })
         .unwrap(),
@@ -511,7 +511,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: FARM_TOKEN.to_string(),
+            asset_token: STASSET_TOKEN.to_string(),
             pending_farm_reward: Uint128::from(0u128),
             pending_farm2_reward: Uint128::from(0u128),
             pending_spec_reward: Uint128::from(583u128),
@@ -540,7 +540,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: FARM_TOKEN.to_string(),
+            asset_token: STASSET_TOKEN.to_string(),
             pending_farm_reward: Uint128::zero(),
             pending_farm2_reward: Uint128::zero(),
             pending_spec_reward: Uint128::from(416u128),
