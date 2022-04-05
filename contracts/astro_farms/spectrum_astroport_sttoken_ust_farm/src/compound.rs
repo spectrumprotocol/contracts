@@ -298,7 +298,15 @@ pub fn compound(
                                 contract_addr: weldo_token.clone(),
                             },
                             ask_asset_info: AssetInfo::Token {
+                                contract_addr: stluna_token.clone(),
+                            },
+                        },
+                        SwapOperation::AstroSwap {
+                            offer_asset_info: AssetInfo::Token {
                                 contract_addr: stluna_token,
+                            },
+                            ask_asset_info: AssetInfo::NativeToken {
+                                denom: uluna.clone(),
                             },
                         },
                         SwapOperation::AstroSwap {
