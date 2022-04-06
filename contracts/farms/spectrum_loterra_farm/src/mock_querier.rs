@@ -1,27 +1,21 @@
 #![allow(non_camel_case_types)]
-use astroport::router::SimulateSwapOperationsResponse;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     from_binary, from_slice, to_binary, Coin, ContractResult, Decimal, OwnedDeps, Querier,
-    QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery, Addr,
+    QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
 };
-use spectrum_protocol::gov_proxy::StakerResponse;
 use std::collections::HashMap;
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
-use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::pair::{PoolResponse, SimulationResponse};
+use terraswap::asset::{Asset, AssetInfo, PairInfo};
+use terraswap::pair::{PoolResponse, SimulationResponse};
 
-use astroport::generator::{
-    PendingTokenResponse,
-};
+use loterra::staking::{AccruedRewardsResponse as LoterraAccruedRewardsResponse, HolderResponse as LoterraHolderResponse};
 use spectrum_protocol::gov::BalanceResponse as SpecBalanceResponse;
 
-const ASTROPORT_GENERATOR: &str = "astroport_generator";
-const ASTRO_TOKEN: &str = "astro_token";
-const FARM_TOKEN: &str = "farm_token";
+const LOTA_STAKING: &str = "lota_staking";
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
@@ -43,7 +37,7 @@ pub struct WasmMockQuerier {
     base: MockQuerier<TerraQueryWrapper>,
     token_querier: TokenQuerier,
     tax_querier: TaxQuerier,
-    astroport_factory_querier: AstroportFactoryQuerier,
+    terraswap_factory_querier: TerraswapFactoryQuerier,
 }
 
 #[derive(Clone, Default)]
@@ -102,13 +96,13 @@ pub(crate) fn caps_to_map(caps: &[(&String, &Uint128)]) -> HashMap<String, Uint1
 }
 
 #[derive(Clone, Default)]
-pub struct AstroportFactoryQuerier {
+pub struct TerraswapFactoryQuerier {
     pairs: HashMap<String, PairInfo>,
 }
 
-impl AstroportFactoryQuerier {
+impl TerraswapFactoryQuerier {
     pub fn new(pairs: &[(&String, &PairInfo)]) -> Self {
-        AstroportFactoryQuerier {
+        TerraswapFactoryQuerier {
             pairs: pairs_to_map(pairs),
         }
     }
@@ -140,32 +134,14 @@ impl Querier for WasmMockQuerier {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-enum SwapOperation {
-    NativeSwap {
-        offer_denom: String,
-        ask_denom: String,
-    },
-    AstroSwap {
-        offer_asset_info: AssetInfo,
-        ask_asset_info: AssetInfo,
-    },
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
 enum MockQueryMsg {
     balance {
         address: String,
     },
-    Deposit {
-        lp_token: Addr,
-        user: Addr
+    Holder {
+        address: String,
     },
-    PendingToken {
-        lp_token: Addr,
-        user: Addr
-    },
-    Staker {
+    AccruedRewards {
         address: String,
     },
     Pair {
@@ -175,10 +151,6 @@ enum MockQueryMsg {
         offer_asset: Asset,
     },
     Pool {},
-    SimulateSwapOperations {
-        offer_amount: Uint128,
-        operations: Vec<SwapOperation>,
-    }
 }
 
 impl WasmMockQuerier {
@@ -221,30 +193,30 @@ impl WasmMockQuerier {
                             pools: vec![],
                         })))
                     }
-                    MockQueryMsg::PendingToken { lp_token: _, user: _ } => {
-                        let pending = self.read_token_balance(contract_addr, ASTRO_TOKEN.to_string());
-                        let pending_on_proxy = Some(self.read_token_balance(contract_addr, FARM_TOKEN.to_string()));
-                        SystemResult::Ok(ContractResult::from(to_binary(&PendingTokenResponse {
-                            pending,
-                            pending_on_proxy,
-                        })))
-                    }
-                    MockQueryMsg::Staker { address } => {
-                        let balance = self.read_token_balance(contract_addr, address);
-                        SystemResult::Ok(ContractResult::from(to_binary(&StakerResponse {
-                            balance
-                        })))
-                    }
-                    MockQueryMsg::Deposit { lp_token: _, user } => {
-                        let contract_addr = &ASTROPORT_GENERATOR.to_string();
-                        let balance = self.read_token_balance(contract_addr, user.to_string());
+                    MockQueryMsg::Holder { address } => {
+                        let contract_addr = &LOTA_STAKING.to_string();
+                        let balance = self.read_token_balance(contract_addr, address.clone());
                         SystemResult::Ok(ContractResult::from(to_binary(
-                            &Uint128::from(balance)
+                            &LoterraHolderResponse {
+                                address,
+                                balance,
+                                index: Decimal::zero(),
+                                pending_rewards: Decimal::zero()
+                            },
+                        )))
+                    }
+                    MockQueryMsg::AccruedRewards { address } => {
+                        let contract_addr = &LOTA_STAKING.to_string();
+                        let balance = self.read_token_balance(contract_addr, address.clone());
+                        SystemResult::Ok(ContractResult::from(to_binary(
+                            &LoterraAccruedRewardsResponse {
+                                rewards: balance,
+                            },
                         )))
                     }
                     MockQueryMsg::Pair { asset_infos } => {
                         let key = asset_infos[0].to_string() + asset_infos[1].to_string().as_str();
-                        match self.astroport_factory_querier.pairs.get(&key) {
+                        match self.terraswap_factory_querier.pairs.get(&key) {
                             Some(v) => SystemResult::Ok(ContractResult::from(to_binary(&v))),
                             None => SystemResult::Err(SystemError::InvalidRequest {
                                 error: "No pair info exists".to_string(),
@@ -267,17 +239,10 @@ impl WasmMockQuerier {
                         }
                     }
                     MockQueryMsg::Pool {} => {
-                        // println!("{}", self.astroport_factory_querier.pairs.map(|it| it.0));
-                        let pair_info = self.astroport_factory_querier.pairs.iter()
+                        let pair_info = self.terraswap_factory_querier.pairs.iter()
                             .map(|it| it.1)
                             .find(|pair| &pair.contract_addr == contract_addr)
                             .unwrap();
-                        // let pair_info = self.astroport_factory_querier.pairs.iter()
-                        //     .map(|it| it.1)
-                        //     .find(|pair| &pair.contract_addr.to_string().len() > &0)
-                        //     .unwrap();
-                        // println!("{}", contract_addr);
-                        // println!("{}", pair_info.contract_addr);
                         SystemResult::Ok(ContractResult::from(to_binary(
                             &PoolResponse {
                                 assets: [
@@ -294,13 +259,6 @@ impl WasmMockQuerier {
                             }
                         )))
                     }
-                    MockQueryMsg::SimulateSwapOperations { offer_amount, operations } => {
-                        SystemResult::Ok(ContractResult::from(to_binary(
-                            &SimulateSwapOperationsResponse{
-                                amount: offer_amount, //TODO
-                            }
-                        )))
-                    },
                 }
             }
             _ => self.base.handle_query(request),
@@ -314,7 +272,7 @@ impl WasmMockQuerier {
             base,
             token_querier: TokenQuerier::default(),
             tax_querier: TaxQuerier::default(),
-            astroport_factory_querier: AstroportFactoryQuerier::default(),
+            terraswap_factory_querier: TerraswapFactoryQuerier::default(),
         }
     }
 
@@ -346,7 +304,7 @@ impl WasmMockQuerier {
     }
 
     // configure the terraswap pair
-    pub fn with_astroport_pairs(&mut self, pairs: &[(&String, &PairInfo)]) {
-        self.astroport_factory_querier = AstroportFactoryQuerier::new(pairs);
+    pub fn with_terraswap_pairs(&mut self, pairs: &[(&String, &PairInfo)]) {
+        self.terraswap_factory_querier = TerraswapFactoryQuerier::new(pairs);
     }
 }

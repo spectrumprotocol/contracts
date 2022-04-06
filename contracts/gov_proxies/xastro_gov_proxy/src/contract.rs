@@ -1,20 +1,22 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{from_binary, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128};
+use cosmwasm_std::{from_binary, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, CosmosMsg, WasmMsg, Empty};
 
 use crate::{
     state::{read_config, store_config, Config, state_store, State, read_state},
     proxy::{query_staker_info_gov}
 };
 
-use cw20::{Cw20ReceiveMsg};
+use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
-use spectrum_protocol::gov_proxy::{Cw20HookMsg, ExecuteMsg, MigrateMsg, QueryMsg};
+use spectrum_protocol::gov_proxy::{Cw20HookMsg, ExecuteMsg, QueryMsg};
 use crate::proxy::{
     stake, unstake
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use astroport::querier::query_token_balance;
+use astroport::staking::{Cw20HookMsg as XAstroCw20HookMsg};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigInfo {
@@ -96,6 +98,25 @@ fn query_state(deps: Deps) -> StdResult<State> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    Ok(Response::default())
+pub fn migrate(deps: DepsMut, env: Env, _msg: Empty) -> StdResult<Response> {
+    let config = read_config(deps.storage)?;
+    let farm_token = deps.api.addr_humanize(&config.farm_token)?;
+    let xastro_gov = deps.api.addr_humanize(&config.farm_gov)?;
+
+    let mut messages: Vec<CosmosMsg> = vec![];
+    let astro_balance = query_token_balance(&deps.querier, farm_token.clone(), env.contract.address)?;
+
+    // enter new staking
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: farm_token.to_string(),
+        funds: vec![],
+        msg: to_binary(&Cw20ExecuteMsg::Send {
+            contract: xastro_gov.to_string(),
+            msg: to_binary(&XAstroCw20HookMsg::Enter {})?,
+            amount: astro_balance,
+        })?,
+    }));
+
+    Ok(Response::new()
+        .add_messages(messages))
 }
