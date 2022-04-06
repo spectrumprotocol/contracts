@@ -58,8 +58,8 @@ fn validate_slippage(slippage_tolerance: Decimal) -> StdResult<()> {
 }
 
 // validate contract with allowlist
-fn validate_contract(contract: CanonicalAddr, allowlist: &HashSet<CanonicalAddr>) -> StdResult<()> {
-    if !allowlist.contains(&contract) {
+fn validate_contract(contract: CanonicalAddr, config: &Config) -> StdResult<()> {
+    if !config.allowlist.contains(&contract) && !config.allow_all {
         Err(StdError::generic_err("not allowed"))
     } else {
         Ok(())
@@ -83,6 +83,7 @@ pub fn instantiate(
         owner: deps.api.addr_canonicalize(&msg.owner)?,
         terraswap_factory: deps.api.addr_canonicalize(&msg.terraswap_factory)?,
         allowlist: HashSet::from_iter(allowlist),
+        allow_all: msg.allow_all,
     })?;
     Ok(Response::default())
 }
@@ -150,7 +151,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::update_config {
             insert_allowlist,
             remove_allowlist,
-        } => update_config(deps, info, insert_allowlist, remove_allowlist),
+            allow_all,
+        } => update_config(deps, info, insert_allowlist, remove_allowlist, allow_all),
         ExecuteMsg::zap_to_unbond_hook {
             staker_addr,
             prev_target_asset,
@@ -222,7 +224,7 @@ fn bond(
     let terraswap_factory = deps.api.addr_humanize(&config.terraswap_factory)?;
     let contract_raw = deps.api.addr_canonicalize(contract.as_str())?;
 
-    validate_contract(contract_raw, &config.allowlist)?;
+    validate_contract(contract_raw, &config)?;
 
     let mut funds: Vec<Coin> = vec![];
     let mut provide_assets: Vec<Asset> = vec![];
@@ -511,7 +513,7 @@ fn zap_to_bond(
     let config = read_config(deps.storage)?;
     let contract_raw = deps.api.addr_canonicalize(contract.as_str())?;
 
-    validate_contract(contract_raw, &config.allowlist)?;
+    validate_contract(contract_raw, &config)?;
 
     let (messages, _) = compute_zap_to_bond(
         deps.as_ref(),
@@ -701,6 +703,7 @@ fn update_config(
     info: MessageInfo,
     insert_allowlist: Option<Vec<String>>,
     remove_allowlist: Option<Vec<String>>,
+    allow_all: Option<bool>,
 ) -> StdResult<Response> {
     let mut config = read_config(deps.storage)?;
 
@@ -718,6 +721,10 @@ fn update_config(
         for contract in remove_allowlist.iter() {
             config.allowlist.remove(&deps.api.addr_canonicalize(contract)?);
         }
+    }
+
+    if let Some(allow_all) = allow_all {
+        config.allow_all = allow_all;
     }
 
     config_store(deps.storage).save(&config)?;
@@ -951,6 +958,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
             .into_iter()
             .map(|w| deps.api.addr_humanize(&w).map(|addr| addr.to_string()))
             .collect::<StdResult<Vec<String>>>()?,
+        allow_all: config.allow_all,
     };
 
     Ok(resp)
