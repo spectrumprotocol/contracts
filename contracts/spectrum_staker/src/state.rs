@@ -13,6 +13,7 @@ pub struct Config {
     pub owner: CanonicalAddr,
     pub terraswap_factory: CanonicalAddr,
     pub allowlist: HashSet<CanonicalAddr>,
+    #[serde(default)] pub allow_all: bool,
 }
 
 pub fn config_store(storage: &mut dyn Storage) -> Singleton<Config> {

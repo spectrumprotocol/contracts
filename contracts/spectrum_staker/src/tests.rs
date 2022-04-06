@@ -148,6 +148,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         owner: TEST_CREATOR.to_string(),
         terraswap_factory: TERRA_SWAP.to_string(),
         allowlist: vec![FARM3.to_string()],
+        allow_all: false
     };
 
     // success instantiate
@@ -164,6 +165,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let msg = ExecuteMsg::update_config {
         insert_allowlist: Some(vec![FARM1.to_string()]),
         remove_allowlist: Some(vec![FARM3.to_string()]),
+        allow_all: None,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
     assert_eq!(res, Err(StdError::generic_err("unauthorized")));
@@ -182,6 +184,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             owner: TEST_CREATOR.to_string(),
             terraswap_factory: TERRA_SWAP.to_string(),
             allowlist: vec![FARM1.to_string()],
+            allow_all: false
         }
     );
 
@@ -190,6 +193,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let msg = ExecuteMsg::update_config {
         insert_allowlist: Some(vec![FARM1.to_string(), FARM2.to_string()]),
         remove_allowlist: Some(vec![FARM4.to_string()]),
+        allow_all: None,
     };
 
     // success

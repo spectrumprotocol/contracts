@@ -10,6 +10,7 @@ pub struct ConfigInfo {
     pub owner: String,
     pub terraswap_factory: String,
     pub allowlist: Vec<String>,
+    pub allow_all: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -47,6 +48,7 @@ pub enum ExecuteMsg {
     update_config {
         insert_allowlist: Option<Vec<String>>,
         remove_allowlist: Option<Vec<String>>,
+        allow_all: Option<bool>,
     },
     zap_to_unbond_hook {
         staker_addr: String,
