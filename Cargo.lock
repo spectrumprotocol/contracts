@@ -465,6 +465,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a7f823d141fe0a24df1e23b4af4e3c7ba9e5966ec514ea068c93024aa7deb765"
 
 [[package]]
+name = "loterra"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-std",
+ "cw20",
+ "schemars",
+ "serde",
+]
+
+[[package]]
 name = "mirror-protocol"
 version = "2.1.1"
 dependencies = [
@@ -924,6 +934,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "spectrum-loterra-farm"
+version = "0.2.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "loterra",
+ "moneymarket",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
+ "terraswap",
+]
+
+[[package]]
 name = "spectrum-mirror-farm"
 version = "0.2.0"
 dependencies = [
@@ -1098,6 +1125,15 @@ dependencies = [
  "spectrum-protocol",
  "terra-cosmwasm",
  "terraswap",
+]
+
+[[package]]
+name = "spectrum-querier"
+version = "0.2.0"
+dependencies = [
+ "cosmwasm-std",
+ "schemars",
+ "serde",
 ]
 
 [[package]]
