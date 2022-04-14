@@ -544,7 +544,6 @@ fn test_zap_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         belief_price_b: None,
         max_spread: Decimal::percent(51u64),
         asset_token: None,
-        skip_stable_swap: None,
         swap_hints: None,
     };
     // let bin = Binary::from_base64("eyJ6YXBfdG9fYm9uZCI6eyJjb250cmFjdCI6ImZhcm0xIiwicHJvdmlkZV9hc3NldCI6eyJpbmZvIjp7Im5hdGl2ZV90b2tlbiI6eyJkZW5vbSI6InV1c2QifX0sImFtb3VudCI6IjEwMDAwMDAwMCJ9LCJwYWlyX2Fzc2V0Ijp7InRva2VuIjp7ImNvbnRyYWN0X2FkZHIiOiJ0b2tlbiJ9fSwicGFpcl9hc3NldF9iIjpudWxsLCJiZWxpZWZfcHJpY2UiOiIxIiwiYmVsaWVmX3ByaWNlX2IiOm51bGwsIm1heF9zcHJlYWQiOiIwLjUxIiwiY29tcG91bmRfcmF0ZSI6IjAuNTUiLCJhc3NldF90b2tlbiI6bnVsbH19").unwrap();
@@ -574,7 +573,6 @@ fn test_zap_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         belief_price_b: None,
         max_spread: Decimal::percent(1u64),
         asset_token: None,
-        skip_stable_swap: None,
         swap_hints: None,
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
@@ -601,7 +599,6 @@ fn test_zap_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         belief_price_b: None,
         max_spread: Decimal::percent(1u64),
         asset_token: None,
-        skip_stable_swap: None,
         swap_hints: None,
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
@@ -624,7 +621,6 @@ fn test_zap_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         belief_price_b: None,
         max_spread: Decimal::percent(1u64),
         asset_token: None,
-        skip_stable_swap: None,
         swap_hints: None,
     };
 
@@ -700,7 +696,6 @@ fn test_zap_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         belief_price_b: None,
         max_spread: Decimal::percent(1u64),
         asset_token: None,
-        skip_stable_swap: None,
         swap_hints: None,
     };
 
@@ -737,7 +732,6 @@ fn test_zap_bond2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         belief_price_b: Some(Decimal::from_ratio(6u128, 5u128)),
         max_spread: Decimal::percent(1u64),
         asset_token: None,
-        skip_stable_swap: None,
         swap_hints: None,
     };
 
@@ -827,7 +821,6 @@ fn test_zap_bond2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         belief_price_b: Some(Decimal::from_ratio(6u128, 5u128)),
         max_spread: Decimal::percent(1u64),
         asset_token: None,
-        skip_stable_swap: None,
         swap_hints: Some(vec![
             SwapOperation {
                 pair_contract: PAIR_U.to_string(),
@@ -1659,7 +1652,6 @@ fn test_native_assets(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
         belief_price_b: Some(Decimal::from_ratio(1u128, 1u128)),
         max_spread: Decimal::percent(1u64),
         asset_token: None,
-        skip_stable_swap: None,
         swap_hints: None,
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
@@ -1685,32 +1677,17 @@ fn test_native_assets(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                 ],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: PAIR.to_string(),
-                msg: to_binary(&TerraswapExecuteMsg::Swap {
-                    offer_asset: Asset {
-                        info: AssetInfo::NativeToken { denom: "uluna".to_string() },
-                        amount: Uint128::from(49862465u128),
-                    },
-                    belief_price: Some(Decimal::one()),
-                    max_spread: Some(Decimal::percent(1)),
-                    to: None,
-                }).unwrap(),
-                funds: vec![
-                    Coin { denom: "uluna".to_string(), amount: Uint128::from(49862465u128) }
-                ],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: MOCK_CONTRACT_ADDR.to_string(),
                 msg: to_binary(&ExecuteMsg::bond {
                     contract: FARM1.to_string(),
                     assets: [
                         Asset {
                             info: AssetInfo::Token { contract_addr: TOKEN.to_string() },
-                            amount: Uint128::from(49712878u128),
+                            amount: Uint128::zero(),
                         },
                         Asset {
                             info: AssetInfo::NativeToken { denom: "uluna".to_string() },
-                            amount: Uint128::from(49837535u128),
+                            amount: Uint128::from(99700000u128),
                         },
                     ],
                     slippage_tolerance: Decimal::percent(1),
@@ -1743,7 +1720,6 @@ fn test_native_assets(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
         belief_price_b: Some(Decimal::from_ratio(1u128, 1u128)),
         max_spread: Decimal::percent(1u64),
         asset_token: None,
-        skip_stable_swap: Some(true),
         swap_hints: None,
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();

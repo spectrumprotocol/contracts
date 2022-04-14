@@ -139,7 +139,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             max_spread,
             compound_rate,
             asset_token,
-            skip_stable_swap,
             swap_hints,
         } => zap_to_bond(
             deps,
@@ -154,7 +153,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             max_spread,
             compound_rate,
             asset_token,
-            skip_stable_swap,
             swap_hints,
         ),
         ExecuteMsg::update_config {
@@ -449,14 +447,9 @@ fn get_swap_amount(
     pool: &PoolResponse,
     asset: &Asset,
     pair_type: Option<PairType>,
-    skip_stable_swap: bool,
 ) -> Uint128 {
     if let Some(PairType::Stable {}) = pair_type {
-        if skip_stable_swap {
-            Uint128::zero()
-        } else {
-            asset.amount.multiply_ratio(10000u128, 19995u128)
-        }
+        Uint128::zero()
     } else if pool.assets[0].info == asset.info {
         compute_swap_amount(asset.amount, Uint128::zero(), pool.assets[0].amount, pool.assets[1].amount)
     } else {
@@ -532,7 +525,6 @@ fn zap_to_bond(
     max_spread: Decimal,
     compound_rate: Option<Decimal>,
     asset_token: Option<String>,
-    skip_stable_swap: Option<bool>,
     swap_hints: Option<Vec<SwapOperation>>,
 ) -> StdResult<Response> {
     validate_slippage(max_spread)?;
@@ -563,7 +555,6 @@ fn zap_to_bond(
         asset_token,
         Some(info.sender.to_string()),
         false,
-        skip_stable_swap.unwrap_or_default(),
         swap_hints,
         &mut messages,
     )?;
@@ -635,7 +626,6 @@ fn compute_zap_to_bond(
     asset_token: Option<String>,
     staker_addr: Option<String>,
     simulation_mode: bool,
-    skip_stable_swap: bool,
     swap_hints: Option<Vec<SwapOperation>>,
     messages: &mut Vec<CosmosMsg>,
 ) -> StdResult<Option<SimulateZapToBondResponse>> {
@@ -691,7 +681,6 @@ fn compute_zap_to_bond(
             Some(asset_token),
             staker_addr,
             simulation_mode,
-            skip_stable_swap,
             None,
             messages,
         )?;
@@ -720,7 +709,7 @@ fn compute_zap_to_bond(
             contract_addr: terraswap_pair_a.contract_addr.to_string(),
             msg: to_binary(&PairQueryMsg::Pool {})?,
         }))?;
-        let swap_amount = get_swap_amount(&pool, &provide_asset, terraswap_pair_a.pair_type.clone(), skip_stable_swap);
+        let swap_amount = get_swap_amount(&pool, &provide_asset, terraswap_pair_a.pair_type.clone());
         let bond_asset = Asset {
             info: provide_asset.info.clone(),
             amount: provide_asset.amount.checked_sub(swap_amount)?,
@@ -1120,7 +1109,6 @@ fn simulate_zap_to_bond(
         None,
         None,
         true,
-        false,
         swap_hints,
         &mut messages,
     )?;

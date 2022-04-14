@@ -188,12 +188,6 @@
             "provide_asset": {
               "$ref": "#/definitions/Asset"
             },
-            "skip_stable_swap": {
-              "type": [
-                "boolean",
-                "null"
-              ]
-            },
             "swap_hints": {
               "type": [
                 "array",

@@ -43,7 +43,6 @@ pub enum ExecuteMsg {
         max_spread: Decimal,
         compound_rate: Option<Decimal>,
         asset_token: Option<String>,
-        skip_stable_swap: Option<bool>,
         swap_hints: Option<Vec<SwapOperation>>,
     },
     update_config {
