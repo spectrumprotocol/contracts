@@ -10,15 +10,20 @@ use crate::state::{
 
 use cw20::Cw20ExecuteMsg;
 
-use crate::querier::query_nexus_pool_balance;
-use nexus_token::governance::{AnyoneMsg, ExecuteMsg as NexusGovExecuteMsg, QueryMsg as NexusGovQueryMsg, StakerResponse as NexusStakerResponse};
-use nexus_token::staking::{Cw20HookMsg as NexusCw20HookMsg, ExecuteMsg as NexusStakingExecuteMsg};
+use crate::querier::query_anchor_pool_balance;
+use anchor_token::gov::{
+    ExecuteMsg as AnchorGovExecuteMsg, QueryMsg as AnchorGovQueryMsg,
+    StakerResponse as AnchorStakerResponse,
+};
+use anchor_token::staking::{
+    Cw20HookMsg as AnchorCw20HookMsg, ExecuteMsg as AnchorStakingExecuteMsg,
+};
+use spectrum_protocol::anchor_farm::{RewardInfoResponse, RewardInfoResponseItem};
 use spectrum_protocol::farm_helper::compute_deposit_time;
 use spectrum_protocol::gov::{
     BalanceResponse as SpecBalanceResponse, ExecuteMsg as SpecExecuteMsg, QueryMsg as SpecQueryMsg,
 };
 use spectrum_protocol::math::UDec128;
-use spectrum_protocol::nexus_farm::{RewardInfoResponse, RewardInfoResponseItem};
 
 #[allow(clippy::too_many_arguments)]
 fn bond_internal(
@@ -126,11 +131,10 @@ pub fn bond(
     let amount_to_auto = amount * compound_rate;
     let amount_to_stake = amount.checked_sub(amount_to_auto)?;
 
-    let lp_balance = query_nexus_pool_balance(
+    let lp_balance = query_anchor_pool_balance(
         deps.as_ref(),
-        &config.nexus_staking,
+        &config.anchor_staking,
         &env.contract.address,
-        env.block.time.seconds()
     )?;
 
     bond_internal(
@@ -147,7 +151,7 @@ pub fn bond(
 
     stake_token(
         deps.api,
-        config.nexus_staking,
+        config.anchor_staking,
         pool_info.staking_token,
         asset_token_raw,
         amount,
@@ -162,10 +166,10 @@ pub fn deposit_farm_share(
     config: &Config,
     amount: Uint128,
 ) -> StdResult<()> {
-    let staked: NexusStakerResponse =
+    let staked: AnchorStakerResponse =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: deps.api.addr_humanize(&config.nexus_gov)?.to_string(),
-            msg: to_binary(&NexusGovQueryMsg::Staker {
+            contract_addr: deps.api.addr_humanize(&config.anchor_gov)?.to_string(),
+            msg: to_binary(&AnchorGovQueryMsg::Staker {
                 address: env.contract.address.to_string(),
             })?,
         }))?;
@@ -297,16 +301,16 @@ fn increase_bond_amount(
     new_auto_bond_amount + new_stake_bond_amount
 }
 
-// stake LP token to Nexus Staking
+// stake LP token to Anchor Staking
 fn stake_token(
     api: &dyn Api,
-    nexus_staking: CanonicalAddr,
+    anchor_staking: CanonicalAddr,
     staking_token: CanonicalAddr,
     asset_token: CanonicalAddr,
     amount: Uint128,
 ) -> StdResult<Response> {
     let asset_token = api.addr_humanize(&asset_token)?;
-    let nexus_staking = api.addr_humanize(&nexus_staking)?;
+    let anchor_staking = api.addr_humanize(&anchor_staking)?;
     let staking_token = api.addr_humanize(&staking_token)?;
 
     Ok(Response::new()
@@ -314,9 +318,9 @@ fn stake_token(
             contract_addr: staking_token.to_string(),
             funds: vec![],
             msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: nexus_staking.to_string(),
+                contract: anchor_staking.to_string(),
                 amount,
-                msg: to_binary(&NexusCw20HookMsg::Bond {})?,
+                msg: to_binary(&AnchorCw20HookMsg::Bond {})?,
             })?,
         })])
         .add_attributes(vec![
@@ -423,11 +427,10 @@ pub fn unbond(
 
     let config = read_config(deps.storage)?;
 
-    let lp_balance = query_nexus_pool_balance(
+    let lp_balance = query_anchor_pool_balance(
         deps.as_ref(),
-        &config.nexus_staking,
+        &config.anchor_staking,
         &env.contract.address,
-        env.block.time.seconds()
     )?;
 
     let pool_info = unbond_internal(
@@ -444,9 +447,9 @@ pub fn unbond(
     Ok(Response::new()
         .add_messages(vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: deps.api.addr_humanize(&config.nexus_staking)?.to_string(),
+                contract_addr: deps.api.addr_humanize(&config.anchor_staking)?.to_string(),
                 funds: vec![],
-                msg: to_binary(&NexusStakingExecuteMsg::Unbond { amount })?,
+                msg: to_binary(&AnchorStakingExecuteMsg::Unbond { amount })?,
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: deps
@@ -483,11 +486,10 @@ pub fn update_bond(
     let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
 
     let amount = amount_to_auto + amount_to_stake;
-    let lp_balance = query_nexus_pool_balance(
+    let lp_balance = query_anchor_pool_balance(
         deps.as_ref(),
-        &config.nexus_staking,
+        &config.anchor_staking,
         &env.contract.address,
-        env.block.time.seconds()
     )?;
 
     unbond_internal(
@@ -577,16 +579,14 @@ pub fn withdraw(
 
     if !farm_amount.is_zero() {
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: deps.api.addr_humanize(&config.nexus_gov)?.to_string(),
-            msg: to_binary(&NexusGovExecuteMsg::Anyone {
-                anyone_msg: AnyoneMsg::WithdrawVotingTokens {
-                    amount: Some(farm_amount),
-                },
+            contract_addr: deps.api.addr_humanize(&config.anchor_gov)?.to_string(),
+            msg: to_binary(&AnchorGovExecuteMsg::WithdrawVotingTokens {
+                amount: Some(farm_amount),
             })?,
             funds: vec![],
         }));
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: deps.api.addr_humanize(&config.nexus_token)?.to_string(),
+            contract_addr: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: info.sender.to_string(),
                 amount: farm_amount,
@@ -617,38 +617,36 @@ fn withdraw_reward(
     let rewards_bucket = rewards_read(deps.storage, staker_addr);
 
     // single reward withdraw; or all rewards
-    let reward_pairs: Vec<(CanonicalAddr, RewardInfo)>;
-    if let Some(asset_token) = asset_token {
+    let reward_pairs = if let Some(asset_token) = asset_token {
         let key = asset_token.as_slice();
         let reward_info = rewards_bucket.may_load(key)?;
-        reward_pairs = if let Some(reward_info) = reward_info {
+        if let Some(reward_info) = reward_info {
             vec![(asset_token.clone(), reward_info)]
         } else {
             vec![]
-        };
+        }
     } else {
-        reward_pairs = rewards_bucket
+        rewards_bucket
             .range(None, None, Order::Ascending)
             .map(|item| {
                 let (k, v) = item?;
                 Ok((CanonicalAddr::from(k), v))
             })
-            .collect::<StdResult<Vec<(CanonicalAddr, RewardInfo)>>>()?;
-    }
+            .collect::<StdResult<Vec<(CanonicalAddr, RewardInfo)>>>()?
+    };
 
-    let farm_staked: NexusStakerResponse =
+    let farm_staked: AnchorStakerResponse =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: deps.api.addr_humanize(&config.nexus_gov)?.to_string(),
-            msg: to_binary(&NexusGovQueryMsg::Staker {
+            contract_addr: deps.api.addr_humanize(&config.anchor_gov)?.to_string(),
+            msg: to_binary(&AnchorGovQueryMsg::Staker {
                 address: env.contract.address.to_string(),
             })?,
         }))?;
 
-    let lp_balance = query_nexus_pool_balance(
+    let lp_balance = query_anchor_pool_balance(
         deps.as_ref(),
-        &config.nexus_staking,
+        &config.anchor_staking,
         &env.contract.address,
-        env.block.time.seconds()
     )?;
 
     let mut spec_amount = Uint128::zero();
@@ -804,16 +802,16 @@ fn read_reward_infos(
         })
         .collect::<StdResult<Vec<(CanonicalAddr, RewardInfo)>>>()?;
 
-    let farm_staked: NexusStakerResponse =
+    let farm_staked: AnchorStakerResponse =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: deps.api.addr_humanize(&config.nexus_gov)?.to_string(),
-            msg: to_binary(&NexusGovQueryMsg::Staker {
+            contract_addr: deps.api.addr_humanize(&config.anchor_gov)?.to_string(),
+            msg: to_binary(&AnchorGovQueryMsg::Staker {
                 address: env.contract.address.to_string(),
             })?,
         }))?;
 
     let lp_balance =
-        query_nexus_pool_balance(deps, &config.nexus_staking, &env.contract.address, env.block.time.seconds())?;
+        query_anchor_pool_balance(deps, &config.anchor_staking, &env.contract.address)?;
 
     let bucket = pool_info_read(deps.storage);
     let reward_infos: Vec<RewardInfoResponseItem> = reward_pair

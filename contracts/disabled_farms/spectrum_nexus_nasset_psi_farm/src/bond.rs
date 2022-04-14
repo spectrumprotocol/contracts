@@ -10,14 +10,15 @@ use crate::state::{
 
 use cw20::Cw20ExecuteMsg;
 
-use crate::querier::query_pylon_pool_balance;
-use pylon_token::staking::{Cw20HookMsg as PylonCw20HookMsg, ExecuteMsg as PylonStakingExecuteMsg};
+use crate::querier::query_nexus_pool_balance;
+use nexus_token::governance::{AnyoneMsg, ExecuteMsg as NexusGovExecuteMsg, QueryMsg as NexusGovQueryMsg, StakerResponse as NexusStakerResponse};
+use nexus_token::staking::{Cw20HookMsg as NexusCw20HookMsg, ExecuteMsg as NexusStakingExecuteMsg};
 use spectrum_protocol::farm_helper::compute_deposit_time;
 use spectrum_protocol::gov::{
     BalanceResponse as SpecBalanceResponse, ExecuteMsg as SpecExecuteMsg, QueryMsg as SpecQueryMsg,
 };
 use spectrum_protocol::math::UDec128;
-use spectrum_protocol::pylon_farm::{RewardInfoResponse, RewardInfoResponseItem};
+use spectrum_protocol::nexus_nasset_psi_farm::{RewardInfoResponse, RewardInfoResponseItem};
 
 #[allow(clippy::too_many_arguments)]
 fn bond_internal(
@@ -125,10 +126,11 @@ pub fn bond(
     let amount_to_auto = amount * compound_rate;
     let amount_to_stake = amount.checked_sub(amount_to_auto)?;
 
-    let lp_balance = query_pylon_pool_balance(
+    let lp_balance = query_nexus_pool_balance(
         deps.as_ref(),
-        &config.pylon_staking,
+        &config.nasset_staking,
         &env.contract.address,
+        env.block.time.seconds()
     )?;
 
     bond_internal(
@@ -145,7 +147,7 @@ pub fn bond(
 
     stake_token(
         deps.api,
-        config.pylon_staking,
+        config.nasset_staking,
         pool_info.staking_token,
         asset_token_raw,
         amount,
@@ -153,13 +155,24 @@ pub fn bond(
 }
 
 pub fn deposit_farm_share(
+    deps: Deps,
+    env: &Env,
     state: &mut State,
     pool_info: &mut PoolInfo,
+    config: &Config,
     amount: Uint128,
 ) -> StdResult<()> {
+    let staked: NexusStakerResponse =
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: deps.api.addr_humanize(&config.nexus_gov)?.to_string(),
+            msg: to_binary(&NexusGovQueryMsg::Staker {
+                address: env.contract.address.to_string(),
+            })?,
+        }))?;
+
     let mut new_total_share = Uint128::zero();
     if !pool_info.total_stake_bond_share.is_zero() {
-        let new_share = state.calc_farm_share(amount, state.total_farm_amount);
+        let new_share = state.calc_farm_share(amount, staked.balance);
         let share_per_bond = Decimal::from_ratio(new_share, pool_info.total_stake_bond_share);
         pool_info.farm_share_index = pool_info.farm_share_index + share_per_bond;
         pool_info.farm_share += new_share;
@@ -167,7 +180,6 @@ pub fn deposit_farm_share(
     }
 
     state.total_farm_share += new_total_share;
-    state.total_farm_amount += amount;
 
     Ok(())
 }
@@ -285,16 +297,16 @@ fn increase_bond_amount(
     new_auto_bond_amount + new_stake_bond_amount
 }
 
-// stake LP token to Pylon Staking
+// stake LP token to Nexus Staking
 fn stake_token(
     api: &dyn Api,
-    pylon_staking: CanonicalAddr,
+    nasset_staking: CanonicalAddr,
     staking_token: CanonicalAddr,
     asset_token: CanonicalAddr,
     amount: Uint128,
 ) -> StdResult<Response> {
     let asset_token = api.addr_humanize(&asset_token)?;
-    let pylon_staking = api.addr_humanize(&pylon_staking)?;
+    let nasset_staking = api.addr_humanize(&nasset_staking)?;
     let staking_token = api.addr_humanize(&staking_token)?;
 
     Ok(Response::new()
@@ -302,9 +314,9 @@ fn stake_token(
             contract_addr: staking_token.to_string(),
             funds: vec![],
             msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: pylon_staking.to_string(),
+                contract: nasset_staking.to_string(),
                 amount,
-                msg: to_binary(&PylonCw20HookMsg::Bond {})?,
+                msg: to_binary(&NexusCw20HookMsg::Bond {})?,
             })?,
         })])
         .add_attributes(vec![
@@ -411,10 +423,11 @@ pub fn unbond(
 
     let config = read_config(deps.storage)?;
 
-    let lp_balance = query_pylon_pool_balance(
+    let lp_balance = query_nexus_pool_balance(
         deps.as_ref(),
-        &config.pylon_staking,
+        &config.nasset_staking,
         &env.contract.address,
+        env.block.time.seconds()
     )?;
 
     let pool_info = unbond_internal(
@@ -431,9 +444,9 @@ pub fn unbond(
     Ok(Response::new()
         .add_messages(vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: deps.api.addr_humanize(&config.pylon_staking)?.to_string(),
+                contract_addr: deps.api.addr_humanize(&config.nasset_staking)?.to_string(),
                 funds: vec![],
-                msg: to_binary(&PylonStakingExecuteMsg::Unbond { amount })?,
+                msg: to_binary(&NexusStakingExecuteMsg::Unbond { amount })?,
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: deps
@@ -470,10 +483,11 @@ pub fn update_bond(
     let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
 
     let amount = amount_to_auto + amount_to_stake;
-    let lp_balance = query_pylon_pool_balance(
+    let lp_balance = query_nexus_pool_balance(
         deps.as_ref(),
-        &config.pylon_staking,
+        &config.nasset_staking,
         &env.contract.address,
+        env.block.time.seconds()
     )?;
 
     unbond_internal(
@@ -538,7 +552,6 @@ pub fn withdraw(
 
     state.previous_spec_share = state.previous_spec_share.checked_sub(spec_share)?;
     state.total_farm_share = state.total_farm_share.checked_sub(farm_share)?;
-    state.total_farm_amount = state.total_farm_amount.checked_sub(farm_amount)?;
 
     state_store(deps.storage).save(&state)?;
 
@@ -564,7 +577,16 @@ pub fn withdraw(
 
     if !farm_amount.is_zero() {
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: deps.api.addr_humanize(&config.pylon_token)?.to_string(),
+            contract_addr: deps.api.addr_humanize(&config.nexus_gov)?.to_string(),
+            msg: to_binary(&NexusGovExecuteMsg::Anyone {
+                anyone_msg: AnyoneMsg::WithdrawVotingTokens {
+                    amount: Some(farm_amount),
+                },
+            })?,
+            funds: vec![],
+        }));
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: deps.api.addr_humanize(&config.nexus_token)?.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: info.sender.to_string(),
                 amount: farm_amount,
@@ -595,29 +617,37 @@ fn withdraw_reward(
     let rewards_bucket = rewards_read(deps.storage, staker_addr);
 
     // single reward withdraw; or all rewards
-    let reward_pairs: Vec<(CanonicalAddr, RewardInfo)>;
-    if let Some(asset_token) = asset_token {
+    let reward_pairs = if let Some(asset_token) = asset_token {
         let key = asset_token.as_slice();
         let reward_info = rewards_bucket.may_load(key)?;
-        reward_pairs = if let Some(reward_info) = reward_info {
+        if let Some(reward_info) = reward_info {
             vec![(asset_token.clone(), reward_info)]
         } else {
             vec![]
-        };
+        }
     } else {
-        reward_pairs = rewards_bucket
+        rewards_bucket
             .range(None, None, Order::Ascending)
             .map(|item| {
                 let (k, v) = item?;
                 Ok((CanonicalAddr::from(k), v))
             })
-            .collect::<StdResult<Vec<(CanonicalAddr, RewardInfo)>>>()?;
-    }
+            .collect::<StdResult<Vec<(CanonicalAddr, RewardInfo)>>>()?
+    };
 
-    let lp_balance = query_pylon_pool_balance(
+    let farm_staked: NexusStakerResponse =
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: deps.api.addr_humanize(&config.nexus_gov)?.to_string(),
+            msg: to_binary(&NexusGovQueryMsg::Staker {
+                address: env.contract.address.to_string(),
+            })?,
+        }))?;
+
+    let lp_balance = query_nexus_pool_balance(
         deps.as_ref(),
-        &config.pylon_staking,
+        &config.nasset_staking,
         &env.contract.address,
+        env.block.time.seconds()
     )?;
 
     let mut spec_amount = Uint128::zero();
@@ -635,10 +665,10 @@ fn withdraw_reward(
 
         // update withdraw
         let (asset_farm_share, asset_farm_amount) = if let Some(request_amount) = request_farm_amount {
-            let avail_amount = calc_farm_balance(reward_info.farm_share, state.total_farm_amount, state.total_farm_share);
+            let avail_amount = calc_farm_balance(reward_info.farm_share, farm_staked.balance, state.total_farm_share);
             let asset_farm_amount = if request_amount > avail_amount { avail_amount } else { request_amount };
-            let mut asset_farm_share = calc_farm_share(asset_farm_amount, state.total_farm_amount, state.total_farm_share);
-            if calc_farm_balance(asset_farm_share, state.total_farm_amount, state.total_farm_share) < asset_farm_amount {
+            let mut asset_farm_share = calc_farm_share(asset_farm_amount, farm_staked.balance, state.total_farm_share);
+            if calc_farm_balance(asset_farm_share, farm_staked.balance, state.total_farm_share) < asset_farm_amount {
                 asset_farm_share += Uint128::new(1u128);
             }
             request_farm_amount = Some(request_amount.checked_sub(asset_farm_amount)?);
@@ -646,7 +676,7 @@ fn withdraw_reward(
         } else {
             (reward_info.farm_share, calc_farm_balance(
                 reward_info.farm_share,
-                state.total_farm_amount,
+                farm_staked.balance,
                 state.total_farm_share,
             ))
         };
@@ -773,8 +803,16 @@ fn read_reward_infos(
         })
         .collect::<StdResult<Vec<(CanonicalAddr, RewardInfo)>>>()?;
 
+    let farm_staked: NexusStakerResponse =
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: deps.api.addr_humanize(&config.nexus_gov)?.to_string(),
+            msg: to_binary(&NexusGovQueryMsg::Staker {
+                address: env.contract.address.to_string(),
+            })?,
+        }))?;
+
     let lp_balance =
-        query_pylon_pool_balance(deps, &config.pylon_staking, &env.contract.address)?;
+        query_nexus_pool_balance(deps, &config.nasset_staking, &env.contract.address, env.block.time.seconds())?;
 
     let bucket = pool_info_read(deps.storage);
     let reward_infos: Vec<RewardInfoResponseItem> = reward_pair
@@ -811,7 +849,7 @@ fn read_reward_infos(
                 pending_spec_reward: calc_spec_balance(reward_info.spec_share, spec_staked),
                 pending_farm_reward: calc_farm_balance(
                     reward_info.farm_share,
-                    state.total_farm_amount,
+                    farm_staked.balance,
                     state.total_farm_share,
                 ),
                 deposit_amount: if has_deposit_amount {

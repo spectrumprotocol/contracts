@@ -624,24 +624,23 @@ fn withdraw_reward(
     let rewards_bucket = rewards_read(deps.storage, staker_addr);
 
     // single reward withdraw; or all rewards
-    let reward_pairs: Vec<(String, RewardInfo)>;
-    if let Some(asset_denom) = asset_denom {
+    let reward_pairs = if let Some(asset_denom) = asset_denom {
         let key = asset_denom.as_bytes();
         let reward_info = rewards_bucket.may_load(key)?;
-        reward_pairs = if let Some(reward_info) = reward_info {
+        if let Some(reward_info) = reward_info {
             vec![(asset_denom.clone(), reward_info)]
         } else {
             vec![]
-        };
+        }
     } else {
-        reward_pairs = rewards_bucket
+        rewards_bucket
             .range(None, None, Order::Ascending)
             .map(|item| {
                 let (k, v) = item?;
                 Ok((String::from_utf8(k)?, v))
             })
-            .collect::<StdResult<Vec<(String, RewardInfo)>>>()?;
-    }
+            .collect::<StdResult<Vec<(String, RewardInfo)>>>()?
+    };
 
     let farm_staked = query_farm_gov_balance(
         deps.as_ref(),
