@@ -1,18 +1,18 @@
 #![allow(clippy::assign_op_pattern)]
 #![allow(clippy::ptr_offset_with_cast)]
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::iter::FromIterator;
 
 use crate::state::{config_store, read_config, Config};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{attr, from_binary, to_binary, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg, QueryRequest, WasmQuery, Addr, QuerierWrapper};
+use cosmwasm_std::{attr, from_binary, to_binary, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg, QueryRequest, WasmQuery, Addr, QuerierWrapper, Fraction};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use spectrum_protocol::mirror_farm::Cw20HookMsg as MirrorCw20HookMsg;
 use spectrum_protocol::staker::{ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, QueryMsg, SimulateZapToBondResponse};
 use terraswap::asset::{Asset, AssetInfo};
-use terraswap::pair::{Cw20HookMsg as PairCw20HookMsg, ExecuteMsg as PairExecuteMsg, PoolResponse, QueryMsg as PairQueryMsg, SimulationResponse};
+use terraswap::pair::{Cw20HookMsg as PairCw20HookMsg, ExecuteMsg as PairExecuteMsg, PoolResponse, QueryMsg as PairQueryMsg};
 use terraswap::querier::{query_balance, query_token_balance, simulate};
 use terraswap::factory::{QueryMsg as FactoryQueryMsg};
 
@@ -585,11 +585,12 @@ fn do_swap(
     max_spread: Option<Decimal>,
     to: Option<String>,
     messages: &mut Vec<CosmosMsg>,
-) -> StdResult<SimulationResponse> {
+) -> StdResult<(Uint128, Decimal, HashMap<String, Decimal>)> {
     let mut i = 0usize;
     let len = swaps.len();
     let mut amount = offer_amount;
-    let mut commission_amount = Uint128::zero();
+    let mut price = Decimal::one();
+    let mut prices: HashMap<String, Decimal> = HashMap::new();
     for swap in swaps {
         i += 1;
         let simulate = simulate(
@@ -602,22 +603,20 @@ fn do_swap(
         messages.push(
             create_swap_msg(
                 swap.asset_info,
-                swap.pair_contract,
+                swap.pair_contract.clone(),
                 amount,
                 swap.belief_price,
                 max_spread,
                 if i < len { None } else { to.clone() },
             )?,
         );
+        let swap_price = Decimal::from_ratio(amount, simulate.return_amount + simulate.commission_amount);
+        price = Decimal::from_ratio(price.numerator(), swap_price.inv().unwrap().numerator());
+        prices.insert(swap.pair_contract, swap_price);
         amount = simulate.return_amount;
-        commission_amount = simulate.commission_amount;
     }
 
-    Ok(SimulationResponse {
-        return_amount: amount,
-        commission_amount,
-        spread_amount: Uint128::zero(),
-    })
+    Ok((amount, price, prices))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -664,7 +663,7 @@ fn compute_zap_to_bond(
             },
             Some(swaps) => swaps
         };
-        let simulate_a = do_swap(
+        let (return_amount, belief_price, swap_hint_prices) = do_swap(
             &deps.querier,
             swaps,
             offer_amount,
@@ -681,7 +680,7 @@ fn compute_zap_to_bond(
             contract,
             Asset {
                 info: pair_asset_a,
-                amount: simulate_a.return_amount,
+                amount: return_amount,
             },
             pair_asset_b,
             None,
@@ -698,16 +697,16 @@ fn compute_zap_to_bond(
         )?;
 
         if let Some(res) = res {
-            let price_a = Decimal::from_ratio(offer_amount, simulate_a.return_amount + simulate_a.commission_amount);
             Ok(Some(SimulateZapToBondResponse {
                 lp_amount: res.lp_amount,
-                belief_price: price_a,
+                belief_price,
                 belief_price_b: Some(res.belief_price),
                 swap_ust: provide_asset.amount,
-                receive_a: simulate_a.return_amount,
+                receive_a: return_amount,
                 swap_a: Some(res.swap_ust),
                 provide_a: res.provide_b,
                 provide_b: res.provide_a,
+                swap_hint_prices: if swap_hint_prices.len() <= 1 { None } else { Some(swap_hint_prices) },
             }))
         } else {
             Ok(None)
@@ -796,6 +795,7 @@ fn compute_zap_to_bond(
                 swap_a: None,
                 provide_a: amount_a,
                 provide_b: bond_asset.amount,
+                swap_hint_prices: None,
             }))
         } else {
             Ok(None)

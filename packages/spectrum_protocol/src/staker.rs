@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use cosmwasm_std::{Decimal, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -72,6 +73,7 @@ pub struct SimulateZapToBondResponse {
     pub swap_a: Option<Uint128>,
     pub provide_a: Uint128,
     pub provide_b: Uint128,
+    pub swap_hint_prices: Option<HashMap<String, Decimal>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
