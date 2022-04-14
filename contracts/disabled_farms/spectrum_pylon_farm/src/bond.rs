@@ -10,15 +10,14 @@ use crate::state::{
 
 use cw20::Cw20ExecuteMsg;
 
-use crate::querier::query_orion_pool_balance;
-use orion::orion_staking::{ExecuteMsg as OrionGovExecuteMsg, StakerInfoResponse as OrionGovStakerInfoResponse};
-use orion::lp_staking::{Cw20HookMsg as OrionCw20HookMsg, ExecuteMsg as OrionStakingExecuteMsg};
+use crate::querier::query_pylon_pool_balance;
+use pylon_token::staking::{Cw20HookMsg as PylonCw20HookMsg, ExecuteMsg as PylonStakingExecuteMsg};
 use spectrum_protocol::farm_helper::compute_deposit_time;
 use spectrum_protocol::gov::{
     BalanceResponse as SpecBalanceResponse, ExecuteMsg as SpecExecuteMsg, QueryMsg as SpecQueryMsg,
 };
 use spectrum_protocol::math::UDec128;
-use spectrum_protocol::orion_farm::{RewardInfoResponse, RewardInfoResponseItem};
+use spectrum_protocol::pylon_farm::{RewardInfoResponse, RewardInfoResponseItem};
 
 #[allow(clippy::too_many_arguments)]
 fn bond_internal(
@@ -110,11 +109,6 @@ pub fn bond(
     amount: Uint128,
     compound_rate: Option<Decimal>,
 ) -> StdResult<Response> {
-
-    if compound_rate.is_none() || compound_rate.unwrap_or_else(Decimal::zero) != Decimal::one(){
-        return Err(StdError::generic_err("auto-stake is disabled"));
-    }
-
     let staker_addr_raw = deps.api.addr_canonicalize(&sender_addr)?;
     let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
 
@@ -131,11 +125,10 @@ pub fn bond(
     let amount_to_auto = amount * compound_rate;
     let amount_to_stake = amount.checked_sub(amount_to_auto)?;
 
-    let lp_balance = query_orion_pool_balance(
+    let lp_balance = query_pylon_pool_balance(
         deps.as_ref(),
-        &config.orion_staking,
+        &config.pylon_staking,
         &env.contract.address,
-        env.block.time.seconds()
     )?;
 
     bond_internal(
@@ -152,7 +145,7 @@ pub fn bond(
 
     stake_token(
         deps.api,
-        config.orion_staking,
+        config.pylon_staking,
         pool_info.staking_token,
         asset_token_raw,
         amount,
@@ -160,25 +153,13 @@ pub fn bond(
 }
 
 pub fn deposit_farm_share(
-    _deps: Deps,
-    env: &Env,
     state: &mut State,
     pool_info: &mut PoolInfo,
-    _config: &Config,
     amount: Uint128,
-    _time_seconds: Option<u64>
 ) -> StdResult<()> {
-    let staked = OrionGovStakerInfoResponse {
-        staker: env.contract.address.to_string(),
-        reward_index: Decimal::zero(),
-        bond_amount: Uint128::zero(),
-        pending_reward: Uint128::zero(),
-        orders: vec![]
-    };
-
     let mut new_total_share = Uint128::zero();
     if !pool_info.total_stake_bond_share.is_zero() {
-        let new_share = state.calc_farm_share(amount, staked.bond_amount);
+        let new_share = state.calc_farm_share(amount, state.total_farm_amount);
         let share_per_bond = Decimal::from_ratio(new_share, pool_info.total_stake_bond_share);
         pool_info.farm_share_index = pool_info.farm_share_index + share_per_bond;
         pool_info.farm_share += new_share;
@@ -186,6 +167,7 @@ pub fn deposit_farm_share(
     }
 
     state.total_farm_share += new_total_share;
+    state.total_farm_amount += amount;
 
     Ok(())
 }
@@ -303,16 +285,16 @@ fn increase_bond_amount(
     new_auto_bond_amount + new_stake_bond_amount
 }
 
-// stake LP token to Orion Staking
+// stake LP token to Pylon Staking
 fn stake_token(
     api: &dyn Api,
-    orion_staking: CanonicalAddr,
+    pylon_staking: CanonicalAddr,
     staking_token: CanonicalAddr,
     asset_token: CanonicalAddr,
     amount: Uint128,
 ) -> StdResult<Response> {
     let asset_token = api.addr_humanize(&asset_token)?;
-    let orion_staking = api.addr_humanize(&orion_staking)?;
+    let pylon_staking = api.addr_humanize(&pylon_staking)?;
     let staking_token = api.addr_humanize(&staking_token)?;
 
     Ok(Response::new()
@@ -320,9 +302,9 @@ fn stake_token(
             contract_addr: staking_token.to_string(),
             funds: vec![],
             msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: orion_staking.to_string(),
+                contract: pylon_staking.to_string(),
                 amount,
-                msg: to_binary(&OrionCw20HookMsg::Bond {})?,
+                msg: to_binary(&PylonCw20HookMsg::Bond {})?,
             })?,
         })])
         .add_attributes(vec![
@@ -429,11 +411,10 @@ pub fn unbond(
 
     let config = read_config(deps.storage)?;
 
-    let lp_balance = query_orion_pool_balance(
+    let lp_balance = query_pylon_pool_balance(
         deps.as_ref(),
-        &config.orion_staking,
+        &config.pylon_staking,
         &env.contract.address,
-        env.block.time.seconds()
     )?;
 
     let pool_info = unbond_internal(
@@ -450,9 +431,9 @@ pub fn unbond(
     Ok(Response::new()
         .add_messages(vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: deps.api.addr_humanize(&config.orion_staking)?.to_string(),
+                contract_addr: deps.api.addr_humanize(&config.pylon_staking)?.to_string(),
                 funds: vec![],
-                msg: to_binary(&OrionStakingExecuteMsg::Unbond { amount })?,
+                msg: to_binary(&PylonStakingExecuteMsg::Unbond { amount })?,
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: deps
@@ -482,17 +463,17 @@ pub fn update_bond(
     amount_to_auto: Uint128,
     amount_to_stake: Uint128,
 ) -> StdResult<Response> {
+
     let config = read_config(deps.storage)?;
 
     let staker_addr_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
     let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
 
     let amount = amount_to_auto + amount_to_stake;
-    let lp_balance = query_orion_pool_balance(
+    let lp_balance = query_pylon_pool_balance(
         deps.as_ref(),
-        &config.orion_staking,
+        &config.pylon_staking,
         &env.contract.address,
-        env.block.time.seconds()
     )?;
 
     unbond_internal(
@@ -557,6 +538,7 @@ pub fn withdraw(
 
     state.previous_spec_share = state.previous_spec_share.checked_sub(spec_share)?;
     state.total_farm_share = state.total_farm_share.checked_sub(farm_share)?;
+    state.total_farm_amount = state.total_farm_amount.checked_sub(farm_amount)?;
 
     state_store(deps.storage).save(&state)?;
 
@@ -582,15 +564,7 @@ pub fn withdraw(
 
     if !farm_amount.is_zero() {
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: deps.api.addr_humanize(&config.orion_gov)?.to_string(),
-            msg: to_binary(&OrionGovExecuteMsg::UnbondInit {
-                    amount: farm_amount,
-                }
-            )?,
-            funds: vec![],
-        }));
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: deps.api.addr_humanize(&config.orion_token)?.to_string(),
+            contract_addr: deps.api.addr_humanize(&config.pylon_token)?.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: info.sender.to_string(),
                 amount: farm_amount,
@@ -607,6 +581,7 @@ pub fn withdraw(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::needless_late_init)]
 fn withdraw_reward(
     deps: DepsMut,
     env: Env,
@@ -640,19 +615,10 @@ fn withdraw_reward(
             .collect::<StdResult<Vec<(CanonicalAddr, RewardInfo)>>>()?;
     }
 
-    let farm_staked = OrionGovStakerInfoResponse {
-        staker: env.contract.address.to_string(),
-        reward_index: Decimal::zero(),
-        bond_amount: Uint128::zero(),
-        pending_reward: Uint128::zero(),
-        orders: vec![]
-    };
-
-    let lp_balance = query_orion_pool_balance(
+    let lp_balance = query_pylon_pool_balance(
         deps.as_ref(),
-        &config.orion_staking,
+        &config.pylon_staking,
         &env.contract.address,
-        env.block.time.seconds()
     )?;
 
     let mut spec_amount = Uint128::zero();
@@ -670,10 +636,10 @@ fn withdraw_reward(
 
         // update withdraw
         let (asset_farm_share, asset_farm_amount) = if let Some(request_amount) = request_farm_amount {
-            let avail_amount = calc_farm_balance(reward_info.farm_share, farm_staked.bond_amount, state.total_farm_share);
+            let avail_amount = calc_farm_balance(reward_info.farm_share, state.total_farm_amount, state.total_farm_share);
             let asset_farm_amount = if request_amount > avail_amount { avail_amount } else { request_amount };
-            let mut asset_farm_share = calc_farm_share(asset_farm_amount, farm_staked.bond_amount, state.total_farm_share);
-            if calc_farm_balance(asset_farm_share, farm_staked.bond_amount, state.total_farm_share) < asset_farm_amount {
+            let mut asset_farm_share = calc_farm_share(asset_farm_amount, state.total_farm_amount, state.total_farm_share);
+            if calc_farm_balance(asset_farm_share, state.total_farm_amount, state.total_farm_share) < asset_farm_amount {
                 asset_farm_share += Uint128::new(1u128);
             }
             request_farm_amount = Some(request_amount.checked_sub(asset_farm_amount)?);
@@ -681,7 +647,7 @@ fn withdraw_reward(
         } else {
             (reward_info.farm_share, calc_farm_balance(
                 reward_info.farm_share,
-                farm_staked.bond_amount,
+                state.total_farm_amount,
                 state.total_farm_share,
             ))
         };
@@ -808,16 +774,8 @@ fn read_reward_infos(
         })
         .collect::<StdResult<Vec<(CanonicalAddr, RewardInfo)>>>()?;
 
-    let farm_staked = OrionGovStakerInfoResponse {
-        staker: env.contract.address.to_string(),
-        reward_index: Decimal::zero(),
-        bond_amount: Uint128::zero(),
-        pending_reward: Uint128::zero(),
-        orders: vec![]
-    };
-
     let lp_balance =
-        query_orion_pool_balance(deps, &config.orion_staking, &env.contract.address, env.block.time.seconds())?;
+        query_pylon_pool_balance(deps, &config.pylon_staking, &env.contract.address)?;
 
     let bucket = pool_info_read(deps.storage);
     let reward_infos: Vec<RewardInfoResponseItem> = reward_pair
@@ -854,7 +812,7 @@ fn read_reward_infos(
                 pending_spec_reward: calc_spec_balance(reward_info.spec_share, spec_staked),
                 pending_farm_reward: calc_farm_balance(
                     reward_info.farm_share,
-                    farm_staked.bond_amount,
+                    state.total_farm_amount,
                     state.total_farm_share,
                 ),
                 deposit_amount: if has_deposit_amount {

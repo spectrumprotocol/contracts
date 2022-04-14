@@ -114,7 +114,7 @@ impl TokensMath for Tokens {
             let mut i = 1;
             while i < self.len() {
                 let next_token = self[i].0.as_slice();
-                assert!(!(before_token == next_token), "duplicate token address");
+                assert_ne!(before_token, next_token, "duplicate token address");
 
                 before_token = next_token;
                 i += 1;

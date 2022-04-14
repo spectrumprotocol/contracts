@@ -621,6 +621,7 @@ pub fn withdraw(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::needless_late_init)]
 fn withdraw_reward(
     deps: DepsMut,
     env: Env,
@@ -811,6 +812,7 @@ pub fn query_reward_info(
     })
 }
 
+#[allow(clippy::needless_late_init)]
 fn read_reward_infos(
     deps: Deps,
     env: Env,
