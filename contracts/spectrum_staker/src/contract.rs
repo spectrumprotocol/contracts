@@ -1,7 +1,7 @@
 #![allow(clippy::assign_op_pattern)]
 #![allow(clippy::ptr_offset_with_cast)]
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::iter::FromIterator;
 
 use crate::state::{config_store, read_config, Config};
@@ -576,12 +576,12 @@ fn do_swap(
     max_spread: Option<Decimal>,
     to: Option<String>,
     messages: &mut Vec<CosmosMsg>,
-) -> StdResult<(Uint128, Decimal, HashMap<String, Decimal>)> {
+) -> StdResult<(Uint128, Decimal, Vec<Decimal>)> {
     let mut i = 0usize;
     let len = swaps.len();
     let mut amount = offer_amount;
     let mut price = Decimal::one();
-    let mut prices: HashMap<String, Decimal> = HashMap::new();
+    let mut prices: Vec<Decimal> = vec![];
     for swap in swaps {
         i += 1;
         let simulate = simulate(
@@ -603,7 +603,7 @@ fn do_swap(
         );
         let swap_price = Decimal::from_ratio(amount, simulate.return_amount + simulate.commission_amount);
         price = Decimal::from_ratio(price.numerator(), swap_price.inv().unwrap().numerator());
-        prices.insert(swap.pair_contract, swap_price);
+        prices.push(swap_price);
         amount = simulate.return_amount;
     }
 
