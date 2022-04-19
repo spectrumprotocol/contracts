@@ -26,7 +26,7 @@ const ASTROPORT_GENERATOR: &str = "astroport_generator";
 const TEST_CREATOR: &str = "creator";
 const USER1: &str = "user1";
 const USER2: &str = "user2";
-const ANC_LP: &str = "anc_lp";
+const STLUNA_WELDO_LP: &str = "stluna_weldo_lp";
 const SPY_TOKEN: &str = "spy_token";
 const SPY_LP: &str = "spy_lp";
 const ANC_MARKET: &str = "anc_market";
@@ -160,8 +160,8 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
     let msg = ExecuteMsg::register_asset {
-        asset_token: WELDO_TOKEN.to_string(),
-        staking_token: ANC_LP.to_string(),
+        asset_token: STLUNA_TOKEN.to_string(),
+        staking_token: STLUNA_WELDO_LP.to_string(),
         weight: 1u32,
     };
     let res = execute(deps.as_mut(), env.clone(), info, msg.clone());
@@ -179,8 +179,8 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
         res,
         PoolsResponse {
             pools: vec![PoolItem {
-                asset_token: WELDO_TOKEN.to_string(),
-                staking_token: ANC_LP.to_string(),
+                asset_token: STLUNA_TOKEN.to_string(),
+                staking_token: STLUNA_WELDO_LP.to_string(),
                 weight: 1u32,
                 farm_share: Uint128::zero(),
                 farm2_share: Uint128::zero(),
@@ -220,7 +220,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         amount: Uint128::from(10000u128),
         msg: to_binary(&Cw20HookMsg::bond {
             staker_addr: None,
-            asset_token: WELDO_TOKEN.to_string(),
+            asset_token: STLUNA_TOKEN.to_string(),
             compound_rate: Some(Decimal::percent(60)),
         })
         .unwrap(),
@@ -229,7 +229,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert!(res.is_err());
 
     // bond fail due to auto-stake is disabled, user1 1000 ANC-LP
-    let info = mock_info(ANC_LP, &[]);
+    let info = mock_info(STLUNA_WELDO_LP, &[]);
     let res = execute(deps.as_mut(), env.clone(), info, msg_fail);
     assert!(res.is_err());
 
@@ -238,21 +238,21 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         amount: Uint128::from(10000u128),
         msg: to_binary(&Cw20HookMsg::bond {
             staker_addr: None,
-            asset_token: WELDO_TOKEN.to_string(),
+            asset_token: STLUNA_TOKEN.to_string(),
             compound_rate: Some(Decimal::percent(100)),
         }).unwrap(),
     });
-    let info = mock_info(ANC_LP, &[]);
+    let info = mock_info(STLUNA_WELDO_LP, &[]);
     let res = execute(deps.as_mut(), env.clone(), info, msg_success);
     assert!(res.is_ok());
 
     // update bond is blocked due to gov_proxy is not set
     let update_bond = ExecuteMsg::update_bond {
-        asset_token: WELDO_TOKEN.to_string(),
+        asset_token: STLUNA_TOKEN.to_string(),
         amount_to_stake: Uint128::from(4000u128),
         amount_to_auto: Uint128::from(6000u128),
     };
-    let info = mock_info(ANC_LP, &[]);
+    let info = mock_info(STLUNA_WELDO_LP, &[]);
     let res = execute(deps.as_mut(), env.clone(), info, update_bond);
     assert!(res.is_err());
 
@@ -260,7 +260,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let config = read_config(deps_ref.storage).unwrap();
     let mut state = read_state(deps_ref.storage).unwrap();
     let mut pool_info = pool_info_read(deps_ref.storage)
-        .load(config.weldo_token.as_slice())
+        .load(config.stluna_token.as_slice())
         .unwrap();
     deposit_farm_share(
         deps_ref,
@@ -280,7 +280,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     ).unwrap();
     state_store(deps.as_mut().storage).save(&state).unwrap();
     pool_info_store(deps.as_mut().storage)
-        .save(config.weldo_token.as_slice(), &pool_info)
+        .save(config.stluna_token.as_slice(), &pool_info)
         .unwrap();
     deps.querier.with_token_balances(&[
         (
@@ -302,7 +302,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: WELDO_TOKEN.to_string(),
+            asset_token: STLUNA_TOKEN.to_string(),
             pending_farm_reward: Uint128::zero(),
             pending_farm2_reward: Uint128::zero(),
             pending_spec_reward: Uint128::from(2700u128),
@@ -326,7 +326,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     // unbond 3000 ANC-LP
     let info = mock_info(USER1, &[]);
     let msg = ExecuteMsg::unbond {
-        asset_token: WELDO_TOKEN.to_string(),
+        asset_token: STLUNA_TOKEN.to_string(),
         amount: Uint128::from(3000u128),
     };
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
@@ -343,11 +343,11 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                 funds: vec![],
                 msg: to_binary(&AstroportExecuteMsg::Withdraw {
                     amount:Uint128::from(3000u128),
-                    lp_token: deps.api.addr_validate(ANC_LP).unwrap(),
+                    lp_token: deps.api.addr_validate(STLUNA_WELDO_LP).unwrap(),
                 }).unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: ANC_LP.to_string(),
+                contract_addr: STLUNA_WELDO_LP.to_string(),
                 funds: vec![],
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: USER1.to_string(),
@@ -418,7 +418,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: WELDO_TOKEN.to_string(),
+            asset_token: STLUNA_TOKEN.to_string(),
             pending_farm_reward: Uint128::from(0u128),
             pending_farm2_reward: Uint128::from(0u128),
             pending_spec_reward: Uint128::from(0u128),
@@ -440,13 +440,13 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     );
 
     // bond user2 5000 ANC-LP auto-compound
-    let info = mock_info(ANC_LP, &[]);
+    let info = mock_info(STLUNA_WELDO_LP, &[]);
     let msg = ExecuteMsg::receive(Cw20ReceiveMsg {
         sender: USER2.to_string(),
         amount: Uint128::from(5000u128),
         msg: to_binary(&Cw20HookMsg::bond {
             staker_addr: None,
-            asset_token: WELDO_TOKEN.to_string(),
+            asset_token: STLUNA_TOKEN.to_string(),
             compound_rate: Some(Decimal::one()),
         })
         .unwrap(),
@@ -457,7 +457,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     let deps_ref = deps.as_ref();
     let mut state = read_state(deps_ref.storage).unwrap();
     let mut pool_info = pool_info_read(deps_ref.storage)
-        .load(config.weldo_token.as_slice())
+        .load(config.stluna_token.as_slice())
         .unwrap();
     deposit_farm_share(
         deps_ref,
@@ -511,7 +511,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: WELDO_TOKEN.to_string(),
+            asset_token: STLUNA_TOKEN.to_string(),
             pending_farm_reward: Uint128::from(0u128),
             pending_farm2_reward: Uint128::from(0u128),
             pending_spec_reward: Uint128::from(583u128),
@@ -540,7 +540,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
-            asset_token: WELDO_TOKEN.to_string(),
+            asset_token: STLUNA_TOKEN.to_string(),
             pending_farm_reward: Uint128::zero(),
             pending_farm2_reward: Uint128::zero(),
             pending_spec_reward: Uint128::from(416u128),
