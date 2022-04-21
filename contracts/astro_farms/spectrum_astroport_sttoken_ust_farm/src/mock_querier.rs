@@ -3,25 +3,23 @@ use astroport::router::SimulateSwapOperationsResponse;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::pair::{PoolResponse, SimulationResponse};
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    from_binary, from_slice, to_binary, Coin, ContractResult, Decimal, OwnedDeps, Querier,
-    QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery, Addr,
+    from_binary, from_slice, to_binary, Addr, Coin, ContractResult, Decimal, OwnedDeps, Querier,
+    QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery, BankQuery, BalanceResponse,
 };
 use spectrum_protocol::gov_proxy::StakerResponse;
 use std::collections::HashMap;
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
-use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::pair::{PoolResponse, SimulationResponse};
 
-use astroport::generator::{
-    PendingTokenResponse,
-};
+use astroport::generator::PendingTokenResponse;
 use spectrum_protocol::gov::BalanceResponse as SpecBalanceResponse;
 
 const ASTROPORT_GENERATOR: &str = "astroport_generator";
 const ASTRO_TOKEN: &str = "astro_token";
-const FARM_TOKEN: &str = "farm_token";
+const WELDO_TOKEN: &str = "weldo_token";
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
@@ -159,11 +157,11 @@ enum MockQueryMsg {
     },
     Deposit {
         lp_token: Addr,
-        user: Addr
+        user: Addr,
     },
     PendingToken {
         lp_token: Addr,
-        user: Addr
+        user: Addr,
     },
     Staker {
         address: String,
@@ -178,7 +176,7 @@ enum MockQueryMsg {
     SimulateSwapOperations {
         offer_amount: Uint128,
         operations: Vec<SwapOperation>,
-    }
+    },
 }
 
 impl WasmMockQuerier {
@@ -209,6 +207,12 @@ impl WasmMockQuerier {
                     panic!("DO NOT ENTER HERE")
                 }
             }
+            QueryRequest::Bank(BankQuery::Balance { address, denom }) => {
+                let amount = self.read_token_balance(&denom, address.clone());
+                SystemResult::Ok(ContractResult::from(to_binary(&BalanceResponse {
+                    amount: Coin { denom: denom.clone(), amount }
+                })))
+            },
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 match from_binary(msg).unwrap() {
                     MockQueryMsg::balance { address } => {
@@ -221,9 +225,14 @@ impl WasmMockQuerier {
                             pools: vec![],
                         })))
                     }
-                    MockQueryMsg::PendingToken { lp_token: _, user: _ } => {
-                        let pending = self.read_token_balance(contract_addr, ASTRO_TOKEN.to_string());
-                        let pending_on_proxy = Some(self.read_token_balance(contract_addr, FARM_TOKEN.to_string()));
+                    MockQueryMsg::PendingToken {
+                        lp_token: _,
+                        user: _,
+                    } => {
+                        let pending =
+                            self.read_token_balance(contract_addr, ASTRO_TOKEN.to_string());
+                        let pending_on_proxy =
+                            Some(self.read_token_balance(contract_addr, WELDO_TOKEN.to_string()));
                         SystemResult::Ok(ContractResult::from(to_binary(&PendingTokenResponse {
                             pending,
                             pending_on_proxy,
@@ -232,15 +241,13 @@ impl WasmMockQuerier {
                     MockQueryMsg::Staker { address } => {
                         let balance = self.read_token_balance(contract_addr, address);
                         SystemResult::Ok(ContractResult::from(to_binary(&StakerResponse {
-                            balance
+                            balance,
                         })))
                     }
                     MockQueryMsg::Deposit { lp_token: _, user } => {
                         let contract_addr = &ASTROPORT_GENERATOR.to_string();
                         let balance = self.read_token_balance(contract_addr, user.to_string());
-                        SystemResult::Ok(ContractResult::from(to_binary(
-                            &Uint128::from(balance)
-                        )))
+                        SystemResult::Ok(ContractResult::from(to_binary(&Uint128::from(balance))))
                     }
                     MockQueryMsg::Pair { asset_infos } => {
                         let key = asset_infos[0].to_string() + asset_infos[1].to_string().as_str();
@@ -268,7 +275,10 @@ impl WasmMockQuerier {
                     }
                     MockQueryMsg::Pool {} => {
                         // println!("{}", self.astroport_factory_querier.pairs.map(|it| it.0));
-                        let pair_info = self.astroport_factory_querier.pairs.iter()
+                        let pair_info = self
+                            .astroport_factory_querier
+                            .pairs
+                            .iter()
                             .map(|it| it.1)
                             .find(|pair| &pair.contract_addr == contract_addr)
                             .unwrap();
@@ -278,29 +288,28 @@ impl WasmMockQuerier {
                         //     .unwrap();
                         // println!("{}", contract_addr);
                         // println!("{}", pair_info.contract_addr);
-                        SystemResult::Ok(ContractResult::from(to_binary(
-                            &PoolResponse {
-                                assets: [
-                                    Asset {
-                                        info: pair_info.asset_infos[0].clone(),
-                                        amount: Uint128::from(1_000_000_000000u128),
-                                    },
-                                    Asset {
-                                        info: pair_info.asset_infos[1].clone(),
-                                        amount: Uint128::from(1_000_000_000000u128),
-                                    }
-                                ],
-                                total_share: Uint128::from(1_000_000_000000u128),
-                            }
-                        )))
+                        SystemResult::Ok(ContractResult::from(to_binary(&PoolResponse {
+                            assets: [
+                                Asset {
+                                    info: pair_info.asset_infos[0].clone(),
+                                    amount: Uint128::from(1_000_000_000000u128),
+                                },
+                                Asset {
+                                    info: pair_info.asset_infos[1].clone(),
+                                    amount: Uint128::from(1_000_000_000000u128),
+                                },
+                            ],
+                            total_share: Uint128::from(1_000_000_000000u128),
+                        })))
                     }
-                    MockQueryMsg::SimulateSwapOperations { offer_amount, operations } => {
-                        SystemResult::Ok(ContractResult::from(to_binary(
-                            &SimulateSwapOperationsResponse{
-                                amount: offer_amount, //TODO
-                            }
-                        )))
-                    },
+                    MockQueryMsg::SimulateSwapOperations {
+                        offer_amount,
+                        operations,
+                    } => SystemResult::Ok(ContractResult::from(to_binary(
+                        &SimulateSwapOperationsResponse {
+                            amount: offer_amount,
+                        },
+                    ))),
                 }
             }
             _ => self.base.handle_query(request),

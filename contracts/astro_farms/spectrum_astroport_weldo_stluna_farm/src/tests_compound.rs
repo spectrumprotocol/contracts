@@ -671,12 +671,6 @@ fn test_compound_farm_token_and_astro_with_fees(
     let WELDO_TOKEN_ADDR = deps.api.addr_validate(&WELDO_TOKEN.to_string()).unwrap();
     let STLUNA_TOKEN_ADDR = deps.api.addr_validate(&STLUNA_TOKEN.to_string()).unwrap();
 
-    for message in res.messages.clone() {
-        if let CosmosMsg::Wasm(WasmMsg::Execute { msg, .. }) = message.msg {
-            println!("{}", String::from_utf8(msg.0).unwrap());
-        }
-    }
-
     assert_eq!(
         res.messages
             .into_iter()
