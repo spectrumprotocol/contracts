@@ -131,7 +131,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
         gov_proxy: None,
         weldo_token: WELDO_TOKEN.to_string(),
         astroport_generator: ASTROPORT_GENERATOR.to_string(),
-        platform: TEST_CREATOR.to_string(),
+        platform: SPEC_PLATFORM.to_string(),
         controller: TEST_CONTROLLER.to_string(),
         community_fee: Decimal::zero(),
         platform_fee: Decimal::zero(),
@@ -944,25 +944,19 @@ fn test_compound_farm_token_and_astro_with_fees(deps: &mut OwnedDeps<MockStorage
         ),
     ]);
 
-    // TODO update number here
     /*
     pending rewards 6050 WELDO_TOKEN, 6050 ASTRO
-    USER1 7100 (auto 4300, stake 2800)
-    USER2 5000 (auto 0, stake 5000)
+    USER1 7100 (auto 7100, stake 0)
+    USER2 5000 (auto 5000, stake 0)
     total 12100
     total fee = 605
-    remaining = 11495
-    auto 4300 / 12100 * 11495 = 4085
-    stake 7800 / 12100 * 11495 = 7410
-    swap amount 2042 STASSET_TOKEN -> 2016 UST
-    provide UST = 1996
-    provide STASSET_TOKEN = 1996
-    remaining = 46
-    fee swap amount 605 STASSET_TOKEN -> 591 UST -> 590 SPEC
-    community fee = 363 / 605 * 590 = 354
-    platform fee = 121 / 605 * 590 = 118
-    controller fee = 121 / 605 * 590 = 118
-    total swap amount 2647 STASSET_TOKEN
+    remaining auto = 11495
+    swap amount 6050 ASTRO -> 5972 UST
+    swap amount 6050 WELDO_TOKEN -> 5990 UST (swap_operations)
+    5634 UST -> 5618 STTOKEN
+    provide UST = 5617
+    provide STASSET_TOKEN = 5618
+    total fee 591
     */
 
     let msg = ExecuteMsg::compound { threshold_compound_astro: Some(Uint128::from(1u128)) };
@@ -971,7 +965,6 @@ fn test_compound_farm_token_and_astro_with_fees(deps: &mut OwnedDeps<MockStorage
     let WELDO_TOKEN_ADDR = deps.api.addr_validate(&WELDO_TOKEN.to_string()).unwrap();
     let STLUNA_TOKEN_ADDR = deps.api.addr_validate(&STLUNA_TOKEN.to_string()).unwrap();
 
-    //TODO continue here
     assert_eq!(
         res.messages
             .into_iter()
@@ -1003,7 +996,7 @@ fn test_compound_farm_token_and_astro_with_fees(deps: &mut OwnedDeps<MockStorage
                 contract_addr: WELDO_TOKEN.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: ASTROPORT_ROUTER.to_string(),
-                    amount: Uint128::from(6065u128),
+                    amount: Uint128::from(6050u128),
                     msg: to_binary(&AstroportRouterExecuteMsg::ExecuteSwapOperations {
                         operations: vec![
                             SwapOperation::AstroSwap {
