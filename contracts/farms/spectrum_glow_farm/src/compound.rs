@@ -14,7 +14,7 @@ use glow::gov::Cw20HookMsg as GlowGovCw20HookMsg;
 use glow::staking::{
     Cw20HookMsg as GlowStakingCw20HookMsg, ExecuteMsg as GlowStakingExecuteMsg,
 };
-use spectrum_protocol::glow_farm::ExecuteMsg;
+use crate::model::ExecuteMsg;
 use terraswap::asset::{Asset, AssetInfo};
 use terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg, ExecuteMsg as TerraswapExecuteMsg, QueryMsg as TerraswapQueryMsg, PoolResponse};
 use terraswap::querier::{query_token_balance, simulate};

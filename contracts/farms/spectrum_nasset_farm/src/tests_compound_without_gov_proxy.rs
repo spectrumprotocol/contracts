@@ -10,7 +10,7 @@ use basset_vault::{basset_vault::{ExecuteMsg as bAssetVaultExecuteMsg, AnyoneMsg
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use spectrum_protocol::gov::{ExecuteMsg as GovExecuteMsg};
-use spectrum_protocol::nasset_farm::{
+use crate::model::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
 use std::fmt::Debug;

@@ -12,7 +12,7 @@ use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrap
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
 use terraswap::pair::{PoolResponse, SimulationResponse};
 use terraswap::router::{SimulateSwapOperationsResponse, SwapOperation};
-use basset_vault::nasset_token_rewards::{QueryMsg as nAssetQueryMsg, AccruedRewardsResponse};
+use basset_vault::nasset_token_rewards::{AccruedRewardsResponse};
 use spectrum_protocol::gov::BalanceResponse as SpecBalanceResponse;
 
 

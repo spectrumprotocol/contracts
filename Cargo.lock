@@ -726,23 +726,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "spectrum-anchor-farm"
-version = "0.2.0"
-dependencies = [
- "anchor-token",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw20",
- "moneymarket",
- "schemars",
- "serde",
- "spectrum-protocol",
- "terra-cosmwasm",
- "terraswap",
-]
-
-[[package]]
 name = "spectrum-anchor-gov-proxy"
 version = "0.2.0"
 dependencies = [
@@ -776,6 +759,38 @@ dependencies = [
 
 [[package]]
 name = "spectrum-astroport-luna-ust-farm"
+version = "0.2.0"
+dependencies = [
+ "astroport",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "moneymarket",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
+]
+
+[[package]]
+name = "spectrum-astroport-stluna-luna-farm"
+version = "0.2.0"
+dependencies = [
+ "astroport",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "moneymarket",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
+]
+
+[[package]]
+name = "spectrum-astroport-sttoken-ust-farm"
 version = "0.2.0"
 dependencies = [
  "astroport",
@@ -836,6 +851,23 @@ dependencies = [
  "serde",
  "spectrum-protocol",
  "terra-cosmwasm",
+]
+
+[[package]]
+name = "spectrum-astroport-weldo-stluna-farm"
+version = "0.2.0"
+dependencies = [
+ "astroport",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw20",
+ "moneymarket",
+ "schemars",
+ "serde",
+ "spectrum-protocol",
+ "terra-cosmwasm",
+ "uint",
 ]
 
 [[package]]
@@ -952,23 +984,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "spectrum-nexus-farm"
-version = "0.2.0"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw20",
- "moneymarket",
- "nexus-token",
- "schemars",
- "serde",
- "spectrum-protocol",
- "terra-cosmwasm",
- "terraswap",
-]
-
-[[package]]
 name = "spectrum-nexus-gov-proxy"
 version = "0.2.0"
 dependencies = [
@@ -981,40 +996,6 @@ dependencies = [
  "serde",
  "spectrum-protocol",
  "terra-cosmwasm",
-]
-
-[[package]]
-name = "spectrum-nexus-nasset-psi-farm"
-version = "0.2.0"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw20",
- "moneymarket",
- "nexus-token",
- "schemars",
- "serde",
- "spectrum-protocol",
- "terra-cosmwasm",
- "terraswap",
-]
-
-[[package]]
-name = "spectrum-orion-farm"
-version = "0.2.0"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw20",
- "moneymarket",
- "orion",
- "schemars",
- "serde",
- "spectrum-protocol",
- "terra-cosmwasm",
- "terraswap",
 ]
 
 [[package]]
@@ -1040,23 +1021,6 @@ dependencies = [
  "cw20",
  "schemars",
  "serde",
- "terraswap",
-]
-
-[[package]]
-name = "spectrum-pylon-farm"
-version = "0.2.0"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw20",
- "moneymarket",
- "pylon-token",
- "schemars",
- "serde",
- "spectrum-protocol",
- "terra-cosmwasm",
  "terraswap",
 ]
 
@@ -1194,23 +1158,6 @@ dependencies = [
  "spectrum-protocol",
  "terra-cosmwasm",
  "terraswap",
-]
-
-[[package]]
-name = "spectrum-valkyrie-farm"
-version = "0.2.0"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw20",
- "moneymarket",
- "schemars",
- "serde",
- "spectrum-protocol",
- "terra-cosmwasm",
- "terraswap",
- "valkyrie",
 ]
 
 [[package]]

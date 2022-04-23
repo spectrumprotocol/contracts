@@ -234,24 +234,23 @@ fn withdraw_reward(
     let rewards_bucket = rewards_read(storage, staker_addr);
 
     // single reward withdraw
-    let reward_pairs: Vec<(CanonicalAddr, RewardInfo)>;
-    if let Some(asset_token) = asset_token {
+    let reward_pairs = if let Some(asset_token) = asset_token {
         let key = asset_token.as_slice();
         let reward_info = rewards_bucket.may_load(key)?;
-        reward_pairs = if let Some(reward_info) = reward_info {
+        if let Some(reward_info) = reward_info {
             vec![(asset_token.clone(), reward_info)]
         } else {
             vec![]
-        };
+        }
     } else {
-        reward_pairs = rewards_bucket
+        rewards_bucket
             .range(None, None, Order::Ascending)
             .map(|item| {
                 let (k, v) = item?;
                 Ok((CanonicalAddr::from(k), v))
             })
-            .collect::<StdResult<Vec<(CanonicalAddr, RewardInfo)>>>()?;
-    }
+            .collect::<StdResult<Vec<(CanonicalAddr, RewardInfo)>>>()?
+    };
 
     let mut amount = Uint128::zero();
     let mut share = Uint128::zero();
@@ -346,11 +345,10 @@ fn read_reward_infos(
     staked: &BalanceResponse,
 ) -> StdResult<Vec<RewardInfoResponseItem>> {
     let rewards_bucket = rewards_read(deps.storage, staker_addr);
-    let reward_infos: Vec<RewardInfoResponseItem>;
-    if let Some(asset_token) = asset_token {
+    let reward_infos = if let Some(asset_token) = asset_token {
         let asset_token_raw = deps.api.addr_canonicalize(asset_token)?;
         let key = asset_token_raw.as_slice();
-        reward_infos = if let Some(mut reward_info) = rewards_bucket.may_load(key)? {
+        if let Some(mut reward_info) = rewards_bucket.may_load(key)? {
             let spec_share_index = reward_info.spec_share_index;
             let mut pool_info = pool_info_read(deps.storage).load(key)?;
 
@@ -366,9 +364,9 @@ fn read_reward_infos(
             }]
         } else {
             vec![]
-        };
+        }
     } else {
-        reward_infos = rewards_bucket
+        rewards_bucket
             .range(None, None, Order::Ascending)
             .map(|item| {
                 let (key, reward_info) = item?;
@@ -389,8 +387,8 @@ fn read_reward_infos(
                     spec_share_index,
                 })
             })
-            .collect::<StdResult<Vec<RewardInfoResponseItem>>>()?;
-    }
+            .collect::<StdResult<Vec<RewardInfoResponseItem>>>()?
+    };
 
     Ok(reward_infos)
 }

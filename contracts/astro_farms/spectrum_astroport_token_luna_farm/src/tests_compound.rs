@@ -716,21 +716,6 @@ fn test_compound_astro(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
                 ],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: PAIR_CONTRACT.to_string(),
-                msg: to_binary(&AstroportPairExecuteMsg::Swap {
-                    offer_asset: Asset {
-                        info: AssetInfo::NativeToken { denom: "uluna".to_string() },
-                        amount: Uint128::from(2046u128),
-                    },
-                    max_spread: None,
-                    belief_price: None,
-                    to: None,
-                }).unwrap(),
-                funds: vec![
-                    Coin { denom: "uluna".to_string(), amount: Uint128::from(2046u128) }
-                ],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: ASTRO_TOKEN.to_string(),
                 funds: vec![],
                 msg: to_binary(&Cw20ExecuteMsg::Send {
@@ -740,15 +725,6 @@ fn test_compound_astro(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
                 }).unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: FARM_TOKEN.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-                    spender: PAIR_CONTRACT.to_string(),
-                    amount: Uint128::from(2045u128),
-                    expires: None
-                }).unwrap(),
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: PAIR_CONTRACT.to_string(),
                 msg: to_binary(&AstroportPairExecuteMsg::ProvideLiquidity {
                     assets: [
@@ -756,13 +732,13 @@ fn test_compound_astro(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
                             info: AssetInfo::Token {
                                 contract_addr: deps.api.addr_validate(&FARM_TOKEN.to_string()).unwrap(),
                             },
-                            amount: Uint128::from(2045u128),
+                            amount: Uint128::zero(),
                         },
                         Asset {
                             info: AssetInfo::NativeToken {
                                 denom: "uluna".to_string(),
                             },
-                            amount: Uint128::from(2046u128),
+                            amount: Uint128::from(4092u128),
                         },
                     ],
                     slippage_tolerance: None,
@@ -770,7 +746,7 @@ fn test_compound_astro(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
                     receiver: None
                 }).unwrap(),
                 funds: vec![
-                    Coin { denom: "uluna".to_string(), amount: Uint128::from(2046u128) },
+                    Coin { denom: "uluna".to_string(), amount: Uint128::from(4092u128) },
                 ],
             })
         ]
@@ -946,21 +922,6 @@ fn test_compound_astro_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, Wasm
                 ],
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: PAIR_CONTRACT.to_string(),
-                msg: to_binary(&AstroportPairExecuteMsg::Swap {
-                    offer_asset: Asset {
-                        info: AssetInfo::NativeToken { denom: "uluna".to_string() },
-                        amount: Uint128::from(1990u128),
-                    },
-                    max_spread: None,
-                    belief_price: None,
-                    to: None,
-                }).unwrap(),
-                funds: vec![
-                    Coin { denom: "uluna".to_string(), amount: Uint128::from(1990u128) }
-                ],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: ANC_MARKET.to_string(),
                 msg: to_binary(&moneymarket::market::ExecuteMsg::DepositStable {}).unwrap(),
                 funds: vec![Coin {
@@ -988,15 +949,6 @@ fn test_compound_astro_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, Wasm
                 }).unwrap(),
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: FARM_TOKEN.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-                    spender: PAIR_CONTRACT.to_string(),
-                    amount: Uint128::from(1990u128),
-                    expires: None
-                }).unwrap(),
-                funds: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: PAIR_CONTRACT.to_string(),
                 msg: to_binary(&AstroportPairExecuteMsg::ProvideLiquidity {
                     assets: [
@@ -1004,13 +956,13 @@ fn test_compound_astro_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, Wasm
                             info: AssetInfo::Token {
                                 contract_addr: deps.api.addr_validate(&FARM_TOKEN.to_string()).unwrap(),
                             },
-                            amount: Uint128::from(1990u128),
+                            amount: Uint128::zero(),
                         },
                         Asset {
                             info: AssetInfo::NativeToken {
                                 denom: "uluna".to_string(),
                             },
-                            amount: Uint128::from(1991u128),
+                            amount: Uint128::from(3981u128),
                         },
                     ],
                     slippage_tolerance: None,
@@ -1018,7 +970,7 @@ fn test_compound_astro_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, Wasm
                     receiver: None
                 }).unwrap(),
                 funds: vec![
-                    Coin { denom: "uluna".to_string(), amount: Uint128::from(1991u128) }
+                    Coin { denom: "uluna".to_string(), amount: Uint128::from(3981u128) }
                 ],
             }),
         ]

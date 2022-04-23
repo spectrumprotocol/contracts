@@ -14,7 +14,7 @@ use terra_name_service::gov::Cw20HookMsg as TerraNameServiceGovCw20HookMsg;
 use terra_name_service::staking::{
     Cw20HookMsg as TerraNameServiceStakingCw20HookMsg, ExecuteMsg as TerraNameServiceStakingExecuteMsg,
 };
-use spectrum_protocol::terra_name_service_farm::ExecuteMsg;
+use crate::model::ExecuteMsg;
 use terraswap::asset::{Asset, AssetInfo};
 use terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg, ExecuteMsg as TerraswapExecuteMsg, QueryMsg as TerraswapQueryMsg, PoolResponse};
 use terraswap::querier::{query_token_balance, simulate};

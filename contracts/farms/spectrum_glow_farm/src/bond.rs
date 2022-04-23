@@ -18,7 +18,7 @@ use glow::gov::{
 use glow::staking::{
     Cw20HookMsg as GlowCw20HookMsg, ExecuteMsg as GlowStakingExecuteMsg,
 };
-use spectrum_protocol::glow_farm::{RewardInfoResponse, RewardInfoResponseItem};
+use crate::model::{RewardInfoResponse, RewardInfoResponseItem};
 use spectrum_protocol::farm_helper::compute_deposit_time;
 use spectrum_protocol::gov::{
     BalanceResponse as SpecBalanceResponse, ExecuteMsg as SpecExecuteMsg, QueryMsg as SpecQueryMsg,
@@ -617,24 +617,23 @@ fn withdraw_reward(
     let rewards_bucket = rewards_read(deps.storage, staker_addr);
 
     // single reward withdraw; or all rewards
-    let reward_pairs: Vec<(CanonicalAddr, RewardInfo)>;
-    if let Some(asset_token) = asset_token {
+    let reward_pairs = if let Some(asset_token) = asset_token {
         let key = asset_token.as_slice();
         let reward_info = rewards_bucket.may_load(key)?;
-        reward_pairs = if let Some(reward_info) = reward_info {
+        if let Some(reward_info) = reward_info {
             vec![(asset_token.clone(), reward_info)]
         } else {
             vec![]
-        };
+        }
     } else {
-        reward_pairs = rewards_bucket
+        rewards_bucket
             .range(None, None, Order::Ascending)
             .map(|item| {
                 let (k, v) = item?;
                 Ok((CanonicalAddr::from(k), v))
             })
-            .collect::<StdResult<Vec<(CanonicalAddr, RewardInfo)>>>()?;
-    }
+            .collect::<StdResult<Vec<(CanonicalAddr, RewardInfo)>>>()?
+    };
 
     let farm_staked: GlowStakerResponse =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {

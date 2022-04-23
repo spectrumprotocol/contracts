@@ -2,7 +2,7 @@ use cosmwasm_std::{
     attr, to_binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
     Order, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
 };
-use spectrum_protocol::nasset_farm::{RewardInfoResponseItem, RewardInfoResponse};
+use crate::model::{RewardInfoResponseItem, RewardInfoResponse};
 use terraswap::querier::query_token_balance;
 
 use crate::querier::query_farm_gov_balance;
@@ -561,6 +561,7 @@ pub fn withdraw(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::needless_late_init)]
 fn withdraw_reward(
     deps: DepsMut,
     env: Env,

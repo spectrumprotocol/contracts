@@ -614,6 +614,7 @@ pub fn withdraw(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::needless_late_init)]
 fn withdraw_reward(
     deps: DepsMut,
     env: &Env,

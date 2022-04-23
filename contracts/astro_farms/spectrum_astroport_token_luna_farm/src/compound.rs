@@ -136,22 +136,6 @@ pub fn compound(
     let ust_swap_rate = simulate(&deps.querier, luna_ust_pair_contract.clone(), &ust_asset)?;
     attributes.push(attr("total_luna_return_amount", ust_swap_rate.return_amount));
 
-    let net_swap = ust_swap_rate.return_amount.multiply_ratio(10000u128, 19995u128);
-    let net_liquidity = ust_swap_rate.return_amount.checked_sub(net_swap)?;
-
-    // let net_swap_after_tax = deduct_tax(&deps.querier, net_swap, config.base_denom.clone())?;
-    // let net_liquidity_after_tax =
-    //     deduct_tax(&deps.querier, net_liquidity, config.base_denom.clone())?;
-
-    // find farm token swap rate
-    let net_swap_asset = Asset {
-        info: AssetInfo::NativeToken {
-            denom: config.base_denom.clone(),
-        },
-        amount: net_swap,
-    };
-    let swap_rate = simulate(&deps.querier, pair_contract.clone(), &net_swap_asset)?;
-
     let mut messages: Vec<CosmosMsg> = vec![];
 
     let manual_claim_pending_token = CosmosMsg::Wasm(WasmMsg::Execute {
@@ -196,21 +180,6 @@ pub fn compound(
             }],
         });
         messages.push(swap_ust);
-
-        let swap_luna = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: pair_contract.to_string(),
-            msg: to_binary(&AstroportPairExecuteMsg::Swap {
-                offer_asset: net_swap_asset,
-                max_spread: None,
-                belief_price: None,
-                to: None,
-            })?,
-            funds: vec![Coin {
-                denom: config.base_denom.clone(),
-                amount: net_swap,
-            }],
-        });
-        messages.push(swap_luna);
     }
 
     if !total_ust_commission_amount.is_zero() {
@@ -259,18 +228,7 @@ pub fn compound(
         messages.push(stake_astro_token);
     }
 
-    if !net_liquidity.is_zero() {
-        let increase_allowance = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: farm_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
-                spender: pair_contract.to_string(),
-                amount: swap_rate.return_amount,
-                expires: None,
-            })?,
-            funds: vec![],
-        });
-        messages.push(increase_allowance);
-
+    if !ust_swap_rate.return_amount.is_zero() {
         let provide_liquidity = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: pair_contract.to_string(),
             msg: to_binary(&AstroportPairExecuteMsg::ProvideLiquidity {
@@ -279,13 +237,13 @@ pub fn compound(
                         info: AssetInfo::Token {
                             contract_addr: farm_token,
                         },
-                        amount: swap_rate.return_amount,
+                        amount: Uint128::zero(),
                     },
                     Asset {
                         info: AssetInfo::NativeToken {
                             denom: config.base_denom.clone(),
                         },
-                        amount: net_liquidity,
+                        amount: ust_swap_rate.return_amount,
                     },
                 ],
                 slippage_tolerance: None,
@@ -295,7 +253,7 @@ pub fn compound(
             funds: vec![
                 Coin {
                     denom: config.base_denom,
-                    amount: net_liquidity,
+                    amount: ust_swap_rate.return_amount,
                 },
             ],
         });
@@ -312,8 +270,7 @@ pub fn compound(
     }
 
     attributes.push(attr("action", "compound"));
-    attributes.push(attr("provide_farm_token", swap_rate.return_amount));
-    attributes.push(attr("provide_luna", net_liquidity));
+    attributes.push(attr("provide_luna", ust_swap_rate.return_amount));
 
     Ok(Response::new()
         .add_messages(messages)
