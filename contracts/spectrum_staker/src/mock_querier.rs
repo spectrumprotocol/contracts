@@ -3,16 +3,14 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{
-    from_binary, from_slice, to_binary, Coin, ContractResult, Decimal, OwnedDeps, Querier,
-    QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
-};
+use cosmwasm_std::{from_binary, from_slice, to_binary, Coin, ContractResult, Decimal, OwnedDeps, Querier, QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery, BankQuery, BalanceResponse};
 use std::collections::HashMap;
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
-use terraswap::asset::{Asset, AssetInfo, PairInfo};
+use terraswap::asset::{Asset, AssetInfo};
 use terraswap::pair::{PoolResponse, SimulationResponse};
 
 use spectrum_protocol::gov::BalanceResponse as SpecBalanceResponse;
+use crate::contract::PairInfo;
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
@@ -171,6 +169,12 @@ enum MockQueryMsg {
 impl WasmMockQuerier {
     pub fn execute_query(&self, request: &QueryRequest<TerraQueryWrapper>) -> QuerierResult {
         match &request {
+            QueryRequest::Bank(BankQuery::Balance { address, denom }) => {
+                let amount = self.read_token_balance(&denom.to_string(), address.clone());
+                SystemResult::Ok(ContractResult::from(to_binary(&BalanceResponse {
+                    amount: Coin { denom: denom.clone(), amount }
+                })))
+            },
             QueryRequest::Custom(TerraQueryWrapper { route, query_data }) => {
                 if &TerraRoute::Treasury == route {
                     match query_data {
@@ -212,10 +216,16 @@ impl WasmMockQuerier {
                         let key = asset_infos[0].to_string() + asset_infos[1].to_string().as_str();
                         match self.terraswap_factory_querier.pairs.get(&key) {
                             Some(v) => SystemResult::Ok(ContractResult::from(to_binary(&v))),
-                            None => SystemResult::Err(SystemError::InvalidRequest {
-                                error: "No pair info exists".to_string(),
-                                request: msg.as_slice().into(),
-                            }),
+                            None => {
+                                let key = asset_infos[1].to_string() + asset_infos[0].to_string().as_str();
+                                match self.terraswap_factory_querier.pairs.get(&key) {
+                                    Some(v) => SystemResult::Ok(ContractResult::from(to_binary(&v))),
+                                    None => SystemResult::Err(SystemError::InvalidRequest {
+                                        error: "No pair info exists".to_string(),
+                                        request: msg.as_slice().into(),
+                                    }),
+                                }
+                            },
                         }
                     },
                     MockQueryMsg::Simulation { offer_asset } => {
