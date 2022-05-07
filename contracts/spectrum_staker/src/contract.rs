@@ -1,5 +1,3 @@
-#![allow(clippy::assign_op_pattern)]
-#![allow(clippy::ptr_offset_with_cast)]
 
 use std::collections::HashSet;
 use std::iter::FromIterator;
@@ -19,12 +17,9 @@ use terraswap::factory::{QueryMsg as FactoryQueryMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use uint::construct_uint;
 use spectrum_protocol::staker_single_asset::SwapOperation;
-
-construct_uint! {
-	pub struct U256(4);
-}
+use crate::math::{compute_d, U256};
+use crate::querier::query_leverage;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -766,15 +761,7 @@ fn compute_zap_to_bond(
         }));
 
         if simulation_mode {
-            let (pool_a, pool_b) = if pool.assets[0].info.clone() == assets[0].info {
-                (pool.assets[0].amount, pool.assets[1].amount)
-            } else {
-                (pool.assets[1].amount, pool.assets[0].amount)
-            };
-            let lp_amount = std::cmp::min(
-                assets[0].amount.multiply_ratio(pool.total_share, pool_a),
-                assets[1].amount.multiply_ratio(pool.total_share, pool_b),
-            );
+            let lp_amount = calculate_lp(&deps.querier, &pool, &assets, &terraswap_pair_a)?;
             Ok(Some(SimulateZapToBondResponse {
                 lp_amount,
                 belief_price: price_a,
@@ -791,7 +778,44 @@ fn compute_zap_to_bond(
         }
 
     }
+}
 
+fn calculate_lp(
+    querier: &QuerierWrapper,
+    pool: &PoolResponse,
+    assets: &[Asset; 2],
+    pair_info: &PairInfo,
+) -> StdResult<Uint128> {
+
+    let (mut pool_a, mut pool_b) = if pool.assets[0].info.clone() == assets[0].info {
+        (pool.assets[0].amount, pool.assets[1].amount)
+    } else {
+        (pool.assets[1].amount, pool.assets[0].amount)
+    };
+
+    if let Some(PairType::Stable {}) = pair_info.pair_type {
+        let leverage = query_leverage(querier, pair_info.contract_addr.to_string())?;
+
+        let d_before_addition_liquidity =
+            compute_d(leverage, pool_a.u128(), pool_b.u128()).unwrap();
+
+        pool_a = pool_a + assets[0].amount;
+        pool_b = pool_b + assets[1].amount;
+
+        let d_after_addition_liquidity =
+            compute_d(leverage, pool_a.u128(), pool_b.u128()).unwrap();
+
+        Ok(pool.total_share.multiply_ratio(
+            d_after_addition_liquidity.saturating_sub(d_before_addition_liquidity),
+            d_before_addition_liquidity,
+        ))
+
+    } else {
+        Ok(std::cmp::min(
+            assets[0].amount.multiply_ratio(pool.total_share, pool_a),
+            assets[1].amount.multiply_ratio(pool.total_share, pool_b),
+        ))
+    }
 }
 
 fn update_config(
