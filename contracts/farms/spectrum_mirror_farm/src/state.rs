@@ -30,6 +30,7 @@ pub struct Config {
     pub deposit_fee: Decimal,
     #[serde(default = "default_addr")] pub anchor_market: CanonicalAddr,
     #[serde(default = "default_addr")] pub aust_token: CanonicalAddr,
+    #[serde(default = "default_addr")] pub pair_contract: CanonicalAddr,
 }
 
 pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {

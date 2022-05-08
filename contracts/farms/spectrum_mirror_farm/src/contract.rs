@@ -63,6 +63,7 @@ pub fn instantiate(
             deposit_fee: msg.deposit_fee,
             anchor_market: deps.api.addr_canonicalize(&msg.anchor_market)?,
             aust_token: deps.api.addr_canonicalize(&msg.aust_token)?,
+            pair_contract: deps.api.addr_canonicalize(&msg.pair_contract)?,
         },
     )?;
 
@@ -304,6 +305,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
         deposit_fee: config.deposit_fee,
         anchor_market: deps.api.addr_humanize(&config.anchor_market)?.to_string(),
         aust_token: deps.api.addr_humanize(&config.aust_token)?.to_string(),
+        pair_contract: deps.api.addr_humanize(&config.pair_contract)?.to_string(),
     };
 
     Ok(resp)
@@ -353,6 +355,10 @@ fn query_state(deps: Deps) -> StdResult<StateInfo> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
+    let mut config = read_config(deps.storage)?;
+    config.pair_contract = deps.api.addr_canonicalize(&msg.pair_contract)?;
+    store_config(deps.storage, &config)?;
+
     Ok(Response::default())
 }

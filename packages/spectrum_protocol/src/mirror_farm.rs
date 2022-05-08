@@ -22,6 +22,7 @@ pub struct ConfigInfo {
     pub deposit_fee: Decimal,
     pub anchor_market: String,
     pub aust_token: String,
+    pub pair_contract: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -147,4 +148,6 @@ pub struct StateInfo {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub pair_contract: String,
+}

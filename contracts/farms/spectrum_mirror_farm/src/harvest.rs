@@ -22,7 +22,7 @@ use terraswap::asset::{Asset, AssetInfo};
 use terraswap::pair::{
     Cw20HookMsg as TerraswapCw20HookMsg,
 };
-use terraswap::querier::{query_pair_info, query_token_balance, simulate};
+use terraswap::querier::{query_token_balance, simulate};
 use spectrum_protocol::farm_helper::deduct_tax;
 use spectrum_protocol::mirror_farm::ExecuteMsg;
 use moneymarket::market::{ExecuteMsg as MoneyMarketExecuteMsg};
@@ -35,7 +35,7 @@ pub fn harvest_all(mut deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<
         return Err(StdError::generic_err("unauthorized"));
     }
 
-    let terraswap_factory = deps.api.addr_humanize(&config.terraswap_factory)?;
+    let pair_contract = deps.api.addr_humanize(&config.pair_contract)?;
     let mirror_staking = deps.api.addr_humanize(&config.mirror_staking)?;
     let mirror_token = deps.api.addr_humanize(&config.mirror_token)?;
     let mirror_gov = deps.api.addr_humanize(&config.mirror_gov)?;
@@ -96,18 +96,6 @@ pub fn harvest_all(mut deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<
 
     deposit_farm_share(deps.branch(), &env, &config, stake_amount_pairs)?;
 
-    let mir_pair_info = query_pair_info(
-        &deps.querier,
-        terraswap_factory,
-        &[
-            AssetInfo::NativeToken {
-                denom: config.base_denom.clone(),
-            },
-            AssetInfo::Token {
-                contract_addr: mirror_token.to_string(),
-            },
-        ],
-    )?;
     //Find Swap Rate
     let mir = Asset {
         info: AssetInfo::Token {
@@ -117,7 +105,7 @@ pub fn harvest_all(mut deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<
     };
     let mir_swap_rate = simulate(
         &deps.querier,
-        deps.api.addr_validate(&mir_pair_info.contract_addr)?,
+        deps.api.addr_validate(&pair_contract.to_string())?,
         &mir,
     )?;
 
@@ -158,7 +146,7 @@ pub fn harvest_all(mut deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<
         let swap_mir: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: mirror_token.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: mir_pair_info.contract_addr,
+                contract: pair_contract.to_string(),
                 amount: total_mir_swap_amount,
                 msg: to_binary(&TerraswapCw20HookMsg::Swap {
                     max_spread: None,
