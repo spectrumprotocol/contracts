@@ -1,0 +1,101 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ConfigInfo",
+  "type": "object",
+  "required": [
+    "anchor_market",
+    "astro_token",
+    "astro_ust_pair_contract",
+    "astroport_generator",
+    "aust_token",
+    "community_fee",
+    "controller",
+    "controller_fee",
+    "deposit_fee",
+    "lunax_token",
+    "owner",
+    "pair_contract",
+    "platform",
+    "platform_fee",
+    "sd_token",
+    "sd_ust_pair_contract",
+    "spectrum_gov",
+    "spectrum_token",
+    "uluna_uusd_pair_contract",
+    "xastro_proxy"
+  ],
+  "properties": {
+    "anchor_market": {
+      "type": "string"
+    },
+    "astro_token": {
+      "type": "string"
+    },
+    "astro_ust_pair_contract": {
+      "type": "string"
+    },
+    "astroport_generator": {
+      "type": "string"
+    },
+    "aust_token": {
+      "type": "string"
+    },
+    "community_fee": {
+      "$ref": "#/definitions/Decimal"
+    },
+    "controller": {
+      "type": "string"
+    },
+    "controller_fee": {
+      "$ref": "#/definitions/Decimal"
+    },
+    "deposit_fee": {
+      "$ref": "#/definitions/Decimal"
+    },
+    "gov_proxy": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "lunax_token": {
+      "type": "string"
+    },
+    "owner": {
+      "type": "string"
+    },
+    "pair_contract": {
+      "type": "string"
+    },
+    "platform": {
+      "type": "string"
+    },
+    "platform_fee": {
+      "$ref": "#/definitions/Decimal"
+    },
+    "sd_token": {
+      "type": "string"
+    },
+    "sd_ust_pair_contract": {
+      "type": "string"
+    },
+    "spectrum_gov": {
+      "type": "string"
+    },
+    "spectrum_token": {
+      "type": "string"
+    },
+    "uluna_uusd_pair_contract": {
+      "type": "string"
+    },
+    "xastro_proxy": {
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "Decimal": {
+      "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
+      "type": "string"
+    }
+  }
+}
