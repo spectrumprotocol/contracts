@@ -1,4 +1,4 @@
-use cosmwasm_std::{attr, to_binary, Attribute, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg};
+use cosmwasm_std::{attr, to_binary, Attribute, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg, Decimal};
 
 use crate::{
     bond::deposit_farm_share,
@@ -160,7 +160,7 @@ pub fn compound(
                 contract: astro_ust_pair_contract.to_string(),
                 amount: total_token_swap_amount,
                 msg: to_binary(&AstroportPairCw20HookMsg::Swap {
-                    max_spread: None,
+                    max_spread: Some(Decimal::percent(100)),
                     belief_price: None,
                     to: None,
                 })?,
@@ -175,7 +175,7 @@ pub fn compound(
             contract_addr: pair_contract.to_string(),
             msg: to_binary(&AstroportPairExecuteMsg::Swap {
                 offer_asset: net_swap_asset,
-                max_spread: None,
+                max_spread: Some(Decimal::percent(100)),
                 belief_price: None,
                 to: None,
             })?,

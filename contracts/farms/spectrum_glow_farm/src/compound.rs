@@ -1,4 +1,4 @@
-use cosmwasm_std::{attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg, QueryRequest, WasmQuery};
+use cosmwasm_std::{attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg, QueryRequest, WasmQuery, Decimal};
 
 use crate::{
     bond::deposit_farm_share,
@@ -151,7 +151,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
                 contract: pair_contract.to_string(),
                 amount: total_glow_swap_amount,
                 msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                    max_spread: None,
+                    max_spread: Some(Decimal::percent(100)),
                     belief_price: None,
                     to: None,
                 })?,

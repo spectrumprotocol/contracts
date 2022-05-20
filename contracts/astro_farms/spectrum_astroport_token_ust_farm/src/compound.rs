@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, DepsMut, Env, MessageInfo,
-    QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
+    QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery, Decimal,
 };
 
 use crate::{
@@ -254,7 +254,7 @@ pub fn compound(
                     contract: pair_contract.to_string(),
                     amount: total_farm_token_swap_amount,
                     msg: to_binary(&AstroportPairCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(100)),
                         belief_price: None,
                         to: None,
                     })?,
@@ -272,7 +272,7 @@ pub fn compound(
                 contract: astro_ust_pair_contract.to_string(),
                 amount: total_astro_token_swap_amount,
                 msg: to_binary(&AstroportPairCw20HookMsg::Swap {
-                    max_spread: None,
+                    max_spread: Some(Decimal::percent(100)),
                     belief_price: None,
                     to: None,
                 })?,
@@ -536,7 +536,7 @@ pub fn send_fee(
         let swap_ust: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.pair_contract)?.to_string(),
             msg: to_binary(&AstroportPairExecuteMsg::Swap {
-                max_spread: None,
+                max_spread: Some(Decimal::percent(100)),
                 belief_price: None,
                 to: None,
                 offer_asset: Asset {
