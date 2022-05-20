@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
-use cosmwasm_std::{attr, to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery, Coin};
+use cosmwasm_std::{attr, to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery, Coin, Decimal};
 
 use crate::state::{config_store, read_config, read_reward, read_rewards, reward_store, Config, state_store, read_state};
 use cw20::{Cw20ExecuteMsg};
@@ -355,7 +355,7 @@ fn buy_spec(deps: DepsMut, env: Env, info: MessageInfo, ust_amount: Option<Uint1
                     offer_asset,
                     to: None,
                     belief_price: None,
-                    max_spread: None,
+                    max_spread: Some(Decimal::percent(100)),
                 })?,
                 funds: vec![Coin { denom: "uusd".to_string(), amount: swap_amount }],
             }),

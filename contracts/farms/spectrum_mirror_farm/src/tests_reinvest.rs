@@ -265,7 +265,7 @@ fn test_reinvest_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                     contract: "pair0000".to_string(),
                     amount: Uint128::zero(),
                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(100)),
                         belief_price: None,
                         to: None,
                     })
@@ -359,7 +359,7 @@ fn test_reinvest_mir(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
                     contract: "pair0000".to_string(),
                     amount: Uint128::from(50_000_000u128),
                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(100)),
                         belief_price: None,
                         to: None,
                     }).unwrap()
@@ -453,7 +453,7 @@ fn test_reinvest_spy(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
                 contract_addr: "pair0001".to_string(),
                 msg: to_binary(&TerraswapExecuteMsg::Swap {
                     offer_asset: net_swap_asset,
-                    max_spread: None,
+                    max_spread: Some(Decimal::percent(100)),
                     belief_price: None,
                     to: None,
                 })

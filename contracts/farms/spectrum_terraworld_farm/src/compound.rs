@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, DepsMut, Env, MessageInfo,
-    QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
+    QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery, Decimal,
 };
 
 use crate::{
@@ -184,7 +184,7 @@ pub fn compound(
                 contract: pair_contract.to_string(),
                 amount: total_twd_swap_amount,
                 msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                    max_spread: None,
+                    max_spread: Some(Decimal::percent(100)),
                     belief_price: None,
                     to: None,
                 })?,

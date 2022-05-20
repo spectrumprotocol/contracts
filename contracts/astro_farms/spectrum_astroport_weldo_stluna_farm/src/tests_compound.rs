@@ -732,7 +732,7 @@ fn test_compound_farm_token_and_astro_with_fees(
                     contract: ASTRO_UST_PAIR_CONTRACT.to_string(),
                     amount: Uint128::from(6050u128),
                     msg: to_binary(&AstroportPairCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(100)),
                         belief_price: None,
                         to: None,
                     }).unwrap() 
@@ -744,7 +744,7 @@ fn test_compound_farm_token_and_astro_with_fees(
             //     contract_addr: PAIR_CONTRACT.to_string(),
             //     msg: to_binary(&AstroportPairExecuteMsg::Swap {
             //         to: None,
-            //         max_spread: Some(Decimal::percent(50)),
+            //         max_spread: Some(Decimal::percent(100)),
             //         belief_price: None,
             //         offer_asset: Asset {
             //             info: AssetInfo::NativeToken {
@@ -896,7 +896,7 @@ fn test_compound_farm_token_and_astro_with_fees(
                      amount: Uint128::from(50073864u128), 
                      msg: to_binary(&AstroportPairCw20HookMsg::Swap {
                         to: None,
-                        max_spread: Some(Decimal::percent(50)),
+                        max_spread: Some(Decimal::percent(100)),
                         belief_price: None,
                      }).unwrap()                     
                     }).unwrap(),

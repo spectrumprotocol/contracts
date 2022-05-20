@@ -364,7 +364,7 @@ fn test_compound_farm_token_and_astro_not_reach_threshold(deps: &mut OwnedDeps<M
                 contract_addr: PAIR_CONTRACT.to_string(),
                 msg: to_binary(&AstroportPairExecuteMsg::Swap {
                     to: None,
-                    max_spread: Some(Decimal::percent(50)),
+                    max_spread: Some(Decimal::percent(100)),
                     belief_price: None,
                     offer_asset: Asset {
                         info: AssetInfo::NativeToken {
@@ -460,7 +460,7 @@ fn test_compound_farm_token_and_astro(deps: &mut OwnedDeps<MockStorage, MockApi,
                     contract: ASTRO_UST_PAIR_CONTRACT.to_string(),
                     amount: Uint128::from(100_000_000u128),
                     msg: to_binary(&AstroportPairCw20HookMsg::Swap {
-                        max_spread: Some(Decimal::percent(50)),
+                        max_spread: Some(Decimal::percent(100)),
                         belief_price: None,
                         to: None,
                     }).unwrap(),
@@ -501,7 +501,7 @@ fn test_compound_farm_token_and_astro(deps: &mut OwnedDeps<MockStorage, MockApi,
                         ],
                         minimum_receive: None,
                         to: None,
-                        max_spread: Some(Decimal::percent(50)),
+                        max_spread: Some(Decimal::percent(100)),
                     }).unwrap(),
                 }).unwrap(),
                 funds: vec![],
@@ -510,7 +510,7 @@ fn test_compound_farm_token_and_astro(deps: &mut OwnedDeps<MockStorage, MockApi,
                 contract_addr: PAIR_CONTRACT.to_string(),
                 msg: to_binary(&AstroportPairExecuteMsg::Swap {
                     to: None,
-                    max_spread: Some(Decimal::percent(50)),
+                    max_spread: Some(Decimal::percent(100)),
                     belief_price: None,
                     offer_asset: Asset {
                         info: AssetInfo::NativeToken {
@@ -985,7 +985,7 @@ fn test_compound_farm_token_and_astro_with_fees(deps: &mut OwnedDeps<MockStorage
                     contract: ASTRO_UST_PAIR_CONTRACT.to_string(),
                     amount: Uint128::from(6050u128),
                     msg: to_binary(&AstroportPairCw20HookMsg::Swap {
-                        max_spread: Some(Decimal::percent(50)),
+                        max_spread: Some(Decimal::percent(100)),
                         belief_price: None,
                         to: None,
                     }).unwrap()
@@ -1035,7 +1035,7 @@ fn test_compound_farm_token_and_astro_with_fees(deps: &mut OwnedDeps<MockStorage
                 contract_addr: PAIR_CONTRACT.to_string(),
                 msg: to_binary(&AstroportPairExecuteMsg::Swap {
                     to: None,
-                    max_spread: Some(Decimal::percent(50)),
+                    max_spread: Some(Decimal::percent(100)),
                     belief_price: None,
                     offer_asset: Asset {
                         info: AssetInfo::NativeToken {

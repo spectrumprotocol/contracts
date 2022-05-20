@@ -276,7 +276,7 @@ pub fn compound(
                 contract: astro_ust_pair_contract.to_string(),
                 amount: total_astro_token_swap_amount,
                 msg: to_binary(&AstroportPairCw20HookMsg::Swap {
-                    max_spread: Some(Decimal::percent(50)),
+                    max_spread: Some(Decimal::percent(100)),
                     belief_price: None,
                     to: None,
                 })?,
@@ -318,7 +318,7 @@ pub fn compound(
                     ],
                     minimum_receive: None,
                     to: None,
-                    max_spread: Some(Decimal::percent(50)),
+                    max_spread: Some(Decimal::percent(100)),
                 })?,
             })?,
             funds: vec![],
@@ -331,7 +331,7 @@ pub fn compound(
             contract_addr: pair_contract.to_string(),
             msg: to_binary(&AstroportPairExecuteMsg::Swap {
                 offer_asset: net_swap_asset,
-                max_spread: Some(Decimal::percent(50)),
+                max_spread: Some(Decimal::percent(100)),
                 belief_price: None,
                 to: None,
             })?,
