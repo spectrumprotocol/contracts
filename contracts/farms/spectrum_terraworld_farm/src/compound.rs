@@ -184,7 +184,7 @@ pub fn compound(
                 contract: pair_contract.to_string(),
                 amount: total_twd_swap_amount,
                 msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                    max_spread: Some(Decimal::percent(100)),
+                    max_spread: Some(Decimal::percent(50)),
                     belief_price: None,
                     to: None,
                 })?,

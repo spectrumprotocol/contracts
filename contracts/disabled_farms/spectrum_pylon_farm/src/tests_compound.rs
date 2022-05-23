@@ -297,7 +297,7 @@ fn test_compound_mine_from_allowance(deps: &mut OwnedDeps<MockStorage, MockApi, 
                     contract: MINE_POOL.to_string(),
                     amount: Uint128::from(50_000_000u128),
                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                        max_spread: Some(Decimal::percent(100)),
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     })
@@ -726,7 +726,7 @@ fn test_compound_mine(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                     contract: MINE_POOL.to_string(),
                     amount: Uint128::from(6000u128),
                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                        max_spread: Some(Decimal::percent(100)),
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     })
@@ -930,7 +930,7 @@ fn test_compound_mine_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmM
                     contract: MINE_POOL.to_string(),
                     amount: Uint128::from(6352u128),
                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                        max_spread: Some(Decimal::percent(100)),
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     }).unwrap()

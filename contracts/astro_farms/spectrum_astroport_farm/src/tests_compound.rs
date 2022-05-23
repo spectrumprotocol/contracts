@@ -688,7 +688,7 @@ fn test_compound_astro(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
                     contract: PAIR_CONTRACT.to_string(),
                     amount: Uint128::from(2100u128),
                     msg: to_binary(&AstroportCw20HookMsg::Swap {
-                        max_spread: Some(Decimal::percent(100)),
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     })
@@ -893,7 +893,7 @@ fn test_compound_astro_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, Wasm
                     contract: PAIR_CONTRACT.to_string(),
                     amount: Uint128::from(2647u128),
                     msg: to_binary(&AstroportCw20HookMsg::Swap {
-                        max_spread: Some(Decimal::percent(100)),
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     }).unwrap()

@@ -628,7 +628,7 @@ fn test_harvest_all(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
                     contract: MIR_PAIR_INFO.to_string(),
                     amount: Uint128::from(7100u128),
                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                        max_spread: Some(Decimal::percent(100)),
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     }).unwrap()

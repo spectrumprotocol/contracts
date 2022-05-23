@@ -128,7 +128,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
                 contract: pair_contract.to_string(),
                 amount: total_reward_token_swap_amount,
                 msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                    max_spread: Some(Decimal::percent(100)),
+                    max_spread: Some(Decimal::percent(50)),
                     belief_price: None,
                     to: None,
                 })?,
@@ -171,7 +171,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
                 amount: total_reward_token_commission,
                 msg: to_binary(&TerraswapCw20HookMsg::Swap {
                     to: None,
-                    max_spread: Some(Decimal::percent(100)),
+                    max_spread: Some(Decimal::percent(50)),
                     belief_price: None,
                 })?,
             })?,

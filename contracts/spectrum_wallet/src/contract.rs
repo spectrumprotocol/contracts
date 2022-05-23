@@ -355,7 +355,7 @@ fn buy_spec(deps: DepsMut, env: Env, info: MessageInfo, ust_amount: Option<Uint1
                     offer_asset,
                     to: None,
                     belief_price: None,
-                    max_spread: Some(Decimal::percent(100)),
+                    max_spread: Some(Decimal::percent(50)),
                 })?,
                 funds: vec![Coin { denom: "uusd".to_string(), amount: swap_amount }],
             }),
