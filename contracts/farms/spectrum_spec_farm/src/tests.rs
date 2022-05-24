@@ -1,5 +1,6 @@
 use crate::contract::{execute, instantiate, query};
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
+use crate::state::RewardInfoWithAddr;
 use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{CosmosMsg, Decimal, OwnedDeps, StdError, Storage, Uint128, WasmMsg, from_binary, to_binary};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
@@ -13,8 +14,8 @@ use std::str::FromStr;
 const GOV: &str = "gov";
 const TOKEN: &str = "token";
 const TEST_CREATOR: &str = "creator";
-const USER1: &str = "user1";
-const USER2: &str = "user2";
+const USER1: &str = "terra1vcxq7mwygns8wp80kylslv6zrmxpqlk4zn57um";
+const USER2: &str = "terra1vcxq7mwygns8wp80kylslv6zrmxpqlk4zn12xx";
 const LP: &str = "lp_token";
 
 #[test]
@@ -323,7 +324,7 @@ fn test_bond(mut deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         staker_addr: USER2.to_string(),
         asset_token: None,
     };
-    let res: RewardInfoResponse = from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
+    let res: RewardInfoResponse = from_binary(&query(deps.as_ref(), env.clone(), msg).unwrap()).unwrap();
     assert_eq!(
         res.reward_infos,
         vec![RewardInfoResponseItem {
@@ -334,4 +335,21 @@ fn test_bond(mut deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             spec_share_index: Decimal::from_str("10.625").unwrap(),
         },]
     );
+
+    let msg = QueryMsg::reward_infos {
+        start_after: None,
+    };
+    let res: Vec<RewardInfoWithAddr> =
+        from_binary(&query(deps.as_ref(), env, msg).unwrap()).unwrap();
+    assert_eq!(
+        res,
+        vec![RewardInfoWithAddr {
+            staker_addr: TOKEN.to_string(),
+            spec_share: Uint128::from(530u128),
+            bond_amount: Uint128::from(80u128),
+            spec_share_index: Decimal::from_str("5").unwrap(),
+            key: vec![],
+        },]
+    );
+
 }

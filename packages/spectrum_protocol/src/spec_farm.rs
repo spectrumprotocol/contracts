@@ -48,6 +48,9 @@ pub enum QueryMsg {
         asset_token: Option<String>,
     },
     state {},
+    reward_infos {
+        start_after: Option<String> 
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

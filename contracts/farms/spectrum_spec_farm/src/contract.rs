@@ -10,7 +10,7 @@ use crate::state::{
     PoolInfo, State,
 };
 
-use crate::bond::{bond, deposit_reward, query_reward_info, unbond, withdraw};
+use crate::bond::{bond, deposit_reward, query_reward_info, unbond, withdraw, query_reward_infos};
 use cw20::Cw20ReceiveMsg;
 use spectrum_protocol::spec_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
@@ -150,6 +150,10 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             asset_token,
         } => to_binary(&query_reward_info(deps, staker_addr, asset_token)?),
         QueryMsg::state {} => to_binary(&query_state(deps)?),
+        QueryMsg::reward_infos {
+            start_after
+        } => to_binary(&query_reward_infos(deps, start_after)?),
+        
     }
 }
 

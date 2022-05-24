@@ -5,7 +5,7 @@ use cosmwasm_std::{
 
 use crate::state::{
     pool_info_read, pool_info_store, read_config, read_state, rewards_read, rewards_store,
-    state_store, Config, PoolInfo, RewardInfo, State,
+    state_store, Config, PoolInfo, RewardInfo, State, all_rewards_read, RewardInfoWithAddr,
 };
 
 use cw20::Cw20ExecuteMsg;
@@ -391,4 +391,12 @@ fn read_reward_infos(
     };
 
     Ok(reward_infos)
+}
+
+pub fn query_reward_infos(
+    deps: Deps,
+    start_after: Option<String>,
+) -> StdResult<Vec<RewardInfoWithAddr>> {
+    let reward_infos = all_rewards_read(deps.api, deps.storage, None, None, None);
+    reward_infos
 }
