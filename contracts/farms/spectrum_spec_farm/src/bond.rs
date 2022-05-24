@@ -3,15 +3,12 @@ use cosmwasm_std::{
     QueryRequest, Response, StdError, StdResult, Storage, Uint128, WasmMsg, WasmQuery,
 };
 
-use crate::state::{
-    pool_info_read, pool_info_store, read_config, read_state, rewards_read, rewards_store,
-    state_store, Config, PoolInfo, RewardInfo, State,
-};
+use crate::state::{pool_info_read, pool_info_store, read_config, read_state, rewards_read, rewards_store, state_store, Config, PoolInfo, RewardInfo, State, query_rewards};
 
 use cw20::Cw20ExecuteMsg;
 use spectrum_protocol::gov::{BalanceResponse, ExecuteMsg, QueryMsg};
 use spectrum_protocol::math::UDec128;
-use spectrum_protocol::spec_farm::{RewardInfoResponse, RewardInfoResponseItem};
+use spectrum_protocol::spec_farm::{RewardInfoResponse, RewardInfoResponseItem, RewardInfoResponseItemWithAddr};
 
 pub fn bond(
     deps: DepsMut,
@@ -335,6 +332,41 @@ pub fn query_reward_info(
         staker_addr,
         reward_infos,
     })
+}
+
+pub fn query_all_reward_infos(
+    deps: Deps,
+    start_after: Option<String>,
+    limit: Option<u32>,
+) -> StdResult<Vec<RewardInfoResponseItemWithAddr>> {
+    // let mut state = read_state(deps.storage)?;
+    // let config = read_config(deps.storage)?;
+    // let staked = deposit_reward(deps, &mut state, &config, true)?;
+
+    let reward_infos = query_rewards(
+        deps.storage,
+        start_after.map(|it| deps.api.addr_canonicalize(&it).unwrap()),
+        limit)?;
+    let mut results: Vec<RewardInfoResponseItemWithAddr> = vec![];
+    for (addr_raw, asset_token_raw, reward_info) in reward_infos {
+
+        // let spec_share_index = reward_info.spec_share_index;
+        // let mut pool_info = pool_info_read(deps.storage).load(key)?;
+        // reward_to_pool(&state, &mut pool_info)?;
+        // before_share_change(&pool_info, &mut reward_info)?;
+
+        let staker_addr = deps.api.addr_humanize(&addr_raw)?.to_string();
+        let asset_token = deps.api.addr_humanize(&asset_token_raw)?.to_string();
+        results.push(RewardInfoResponseItemWithAddr {
+            staker_addr,
+            asset_token,
+            bond_amount: reward_info.bond_amount,
+            spec_share: reward_info.spec_share,
+            spec_share_index: reward_info.spec_share_index,
+        });
+    }
+
+    Ok(results)
 }
 
 fn read_reward_infos(

@@ -47,6 +47,10 @@ pub enum QueryMsg {
         staker_addr: String,
         asset_token: Option<String>,
     },
+    all_reward_infos {
+        start_after: Option<String>,
+        limit: Option<u32>,
+    },
     state {},
 }
 
@@ -77,6 +81,15 @@ pub struct RewardInfoResponseItem {
     pub asset_token: String,
     pub bond_amount: Uint128,
     pub pending_spec_reward: Uint128,
+    pub spec_share: Uint128,
+    pub spec_share_index: Decimal,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct RewardInfoResponseItemWithAddr {
+    pub staker_addr: String,
+    pub asset_token: String,
+    pub bond_amount: Uint128,
     pub spec_share: Uint128,
     pub spec_share_index: Decimal,
 }

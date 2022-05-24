@@ -1,10 +1,10 @@
-use crate::state::{account_store, poll_voter_store, read_account, read_config, read_poll, read_state, read_vault, read_vaults, state_store, vault_store, Account, Config, State, StatePool, SEC_IN_DAY};
+use crate::state::{account_store, poll_voter_store, read_account, read_config, read_poll, read_state, read_vault, read_vaults, state_store, vault_store, Account, Config, State, StatePool, SEC_IN_DAY, query_accounts};
 use cosmwasm_std::{
     attr, to_binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
     StdError, StdResult, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
-use spectrum_protocol::gov::{BalanceResponse, PollStatus, VaultInfo, VaultsResponse, BalancePoolInfo};
+use spectrum_protocol::gov::{BalanceResponse, PollStatus, VaultInfo, VaultsResponse, BalancePoolInfo, BalanceResponseWithAddr};
 use terraswap::querier::query_token_balance;
 
 pub fn reconcile_balance(deps: &Deps, state: &mut State, config: &Config, deposited_amount: Uint128) -> StdResult<Uint128> {
@@ -636,6 +636,82 @@ pub fn query_balances(deps: Deps, address: String, height: u64) -> StdResult<Bal
         })
     }
 }
+
+pub fn query_all_balances(deps: Deps, start_after: Option<String>, limit: Option<u32>, height: u64) -> StdResult<Vec<BalanceResponseWithAddr>> {
+    let config = read_config(deps.storage)?;
+    let mut state = read_state(deps.storage)?;
+
+    reconcile_balance(&deps, &mut state, &config, Uint128::zero())?;
+
+    let accounts = query_accounts(
+        deps.storage,
+        start_after.map(|it| deps.api.addr_canonicalize(&it).unwrap()),
+        limit)?;
+
+    let mut results: Vec<BalanceResponseWithAddr> = vec![];
+    for (addr_raw, mut account) in accounts {
+        reconcile_account(&mut account, &state);
+
+        // // filter out not in-progress polls
+        // account.locked_balance.retain(|(poll_id, _)| {
+        //     let poll = read_poll(deps.storage, &poll_id.to_be_bytes())
+        //         .unwrap()
+        //         .unwrap();
+        //
+        //     poll.status == PollStatus::in_progress
+        // });
+
+        if addr_raw == config.burnvault_address {
+            let mintable = calc_mintable(&state, &config, height);
+            let to_burnvault = mintable * config.burnvault_ratio;
+            let share = state.calc_share(0u64, to_burnvault)?;
+            account.share += share;
+
+            // add_share is optional, this will result to the same amount
+            // state.add_share(0u64, share, to_burnvault)?;
+        } else if addr_raw == config.warchest_address {
+            let mintable = calc_mintable(&state, &config, height);
+            let to_warchest = mintable
+                * (Decimal::one() - config.burnvault_ratio)
+                * config.warchest_ratio;
+            let share = state.calc_share(0u64, to_warchest)?;
+            account.share += share;
+
+            // add_share is optional, this will result to the same amount
+            // state.add_share(0u64, share, to_warchest)?;
+        }
+
+        let addr = deps.api.addr_humanize(&addr_raw)?;
+        results.push(BalanceResponseWithAddr {
+            address: addr.to_string(),
+            balance: account.calc_total_balance(&state)?,
+            share: account.share,
+            pools: vec![
+                vec![
+                    BalancePoolInfo {
+                        days: 0u64,
+                        share: account.share,
+                        balance: state.calc_balance(0u64, account.share)?,
+                        unlock: 0u64,
+                        aust_index: account.aust_index,
+                        pending_aust: account.pending_aust,
+                    },
+                ],
+                account.pools.into_iter().map(|it| BalancePoolInfo {
+                    days: it.days,
+                    share: it.share,
+                    unlock: it.unlock,
+                    balance: state.calc_balance(it.days, it.share).unwrap(),
+                    aust_index: it.aust_index,
+                    pending_aust: it.pending_aust,
+                }).collect()
+            ].concat()
+        });
+    }
+
+    Ok(results)
+}
+
 
 pub fn calc_mintable(state: &State, config: &Config, height: u64) -> Uint128 {
     let last_mint = if config.mint_start > state.last_mint {

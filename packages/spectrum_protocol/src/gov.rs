@@ -136,6 +136,10 @@ pub enum QueryMsg {
     balance {
         address: String,
     },
+    all_balances {
+        start_after: Option<String>,
+        limit: Option<u32>,
+    },
     config {},
     poll {
         poll_id: u64,
@@ -179,6 +183,15 @@ pub struct BalanceResponse {
     pub locked_balance: Vec<(u64, VoterInfo)>,
     #[serde(default)] pub pools: Vec<BalancePoolInfo>,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+pub struct BalanceResponseWithAddr {
+    pub address: String,
+    pub balance: Uint128,
+    pub share: Uint128,
+    #[serde(default)] pub pools: Vec<BalancePoolInfo>,
+}
+
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct PollInfo {

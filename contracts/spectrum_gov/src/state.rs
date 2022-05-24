@@ -322,6 +322,19 @@ pub fn read_account(storage: &dyn Storage, key: &[u8]) -> StdResult<Option<Accou
     bucket_read(storage, PREFIX_ACCOUNT).may_load(key)
 }
 
+pub fn query_accounts(storage: &dyn Storage, start_after: Option<CanonicalAddr>, limit: Option<u32>) -> StdResult<Vec<(CanonicalAddr, Account)>> {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT) as usize;
+    let start = calc_range_start_addr(start_after);
+    bucket_read::<Account>(storage, PREFIX_ACCOUNT)
+        .range(start.as_deref(), None, Order::Ascending)
+        .take(limit)
+        .map(|it| {
+            let (key, item) = it?;
+            Ok((CanonicalAddr::from(key), item))
+        })
+        .collect()
+}
+
 static PREFIX_POLL_INDEXER: &[u8] = b"poll_indexer";
 
 pub fn poll_indexer_store<'a>(

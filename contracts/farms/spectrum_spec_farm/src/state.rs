@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{CanonicalAddr, Decimal, StdResult, Storage, Uint128};
+use cosmwasm_std::{CanonicalAddr, Decimal, Order, StdResult, Storage, Uint128};
 use cosmwasm_storage::{
     bucket, bucket_read, singleton, singleton_read, Bucket, ReadonlyBucket, Singleton,
 };
@@ -67,6 +67,50 @@ pub struct RewardInfo {
     pub spec_share_index: Decimal,
     pub bond_amount: Uint128,
     pub spec_share: Uint128,
+}
+
+fn encode_length(namespace: &[u8]) -> [u8; 2] {
+    if namespace.len() > 0xFFFF {
+        panic!("only supports namespaces up to length 0xFFFF")
+    }
+    let length_bytes = (namespace.len() as u32).to_be_bytes();
+    [length_bytes[2], length_bytes[3]]
+}
+
+fn calc_range_start_addr(start_after: Option<CanonicalAddr>) -> Option<Vec<u8>> {
+    start_after.map(|addr| {
+        let slice = addr.as_slice();
+        let mut out = Vec::with_capacity(slice.len() + 6);
+        out.extend_from_slice(&encode_length(slice));
+        out.extend_from_slice(slice);
+        out.push(255);
+        out.push(255);
+        out.push(255);
+        out.push(255);
+        out
+    })
+}
+
+pub fn query_rewards(
+    storage: &dyn Storage,
+    start_after: Option<CanonicalAddr>,
+    limit: Option<u32>,
+) -> StdResult<Vec<(CanonicalAddr, CanonicalAddr, RewardInfo)>> {
+    let limit = limit.unwrap_or(32) as usize;
+    let start = calc_range_start_addr(start_after);
+    bucket_read::<RewardInfo>(storage, PREFIX_REWARD)
+        .range(start.as_deref(), None, Order::Ascending)
+        .take(limit)
+        .map(|it| {
+            let (key, item) = it?;
+            let (left, right) = key.split_at(2);
+            let mut len_bytes: [u8; 2] = Default::default();
+            len_bytes.copy_from_slice(left);
+            let len = u16::from_be_bytes(len_bytes) as usize;
+            let (addr1, addr2) = right.split_at(len);
+            Ok((CanonicalAddr::from(addr1), CanonicalAddr::from(addr2), item))
+        })
+        .collect()
 }
 
 pub fn rewards_store<'a>(

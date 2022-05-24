@@ -1,16 +1,13 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    from_binary, to_binary, Binary, CanonicalAddr, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, Uint128,
-};
-use spectrum_protocol::gov::{ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, QueryMsg, StateInfo, StatePoolInfo};
+use cosmwasm_std::{from_binary, to_binary, Binary, CanonicalAddr, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, Empty};
+use spectrum_protocol::gov::{ConfigInfo, Cw20HookMsg, ExecuteMsg, QueryMsg, StateInfo, StatePoolInfo};
 
 use crate::poll::{
     poll_end, poll_execute, poll_expire, poll_start, poll_vote, query_poll, query_polls,
     query_voters,
 };
-use crate::stake::{calc_mintable, mint, query_balances, query_vaults, stake_tokens, upsert_vault, withdraw, validate_minted, reconcile_balance, update_stake, upsert_pool, harvest};
+use crate::stake::{calc_mintable, mint, query_balances, query_vaults, stake_tokens, upsert_vault, withdraw, validate_minted, reconcile_balance, update_stake, upsert_pool, harvest, query_all_balances};
 use crate::state::{config_store, read_config, read_state, state_store, Config, State};
 use cw20::Cw20ReceiveMsg;
 
@@ -300,6 +297,7 @@ fn update_config(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::balance { address } => to_binary(&query_balances(deps, address, env.block.height)?),
+        QueryMsg::all_balances { start_after, limit } => to_binary(&query_all_balances(deps, start_after, limit, env.block.height)?),
         QueryMsg::config {} => to_binary(&query_config(deps)?),
         QueryMsg::poll { poll_id } => to_binary(&query_poll(deps, poll_id)?),
         QueryMsg::polls {
@@ -395,14 +393,6 @@ fn query_state(deps: Deps, height: u64) -> StdResult<StateInfo> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    let mut state = read_state(deps.storage)?;
-    state.pool_weight = 1u32;
-    for pool in state.pools.iter_mut() {
-        pool.weight = 1u32;
-        state.pool_weight += 1u32;
-    }
-    state_store(deps.storage).save(&state)?;
-
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: Empty) -> StdResult<Response> {
     Ok(Response::default())
 }

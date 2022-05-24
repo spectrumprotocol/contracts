@@ -799,8 +799,8 @@ fn calculate_lp(
         let d_before_addition_liquidity =
             compute_d(leverage, pool_a.u128(), pool_b.u128()).unwrap();
 
-        pool_a = pool_a + assets[0].amount;
-        pool_b = pool_b + assets[1].amount;
+        pool_a += assets[0].amount;
+        pool_b += assets[1].amount;
 
         let d_after_addition_liquidity =
             compute_d(leverage, pool_a.u128(), pool_b.u128()).unwrap();
