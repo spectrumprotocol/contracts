@@ -7,6 +7,7 @@ use cw20_legacy::{
     msg::{ExecuteMsg, QueryMsg, InstantiateMsg},
     ContractError,
 };
+use spectrum_protocol::staker::MigrateMsg;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -25,10 +26,21 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    cw20_execute(deps, env, info, msg)
+    match msg {
+        ExecuteMsg::Send { .. } => { Err(ContractError::Unauthorized {}) },
+        ExecuteMsg::SendFrom { .. } => { Err(ContractError::Unauthorized {}) },
+        ExecuteMsg::Transfer { .. } => { Err(ContractError::Unauthorized {}) },
+        ExecuteMsg::TransferFrom { .. } => { Err(ContractError::Unauthorized {}) },
+        _ => cw20_execute(deps, env, info, msg),
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     cw20_query(deps, env, msg)
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }
