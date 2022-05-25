@@ -26,13 +26,7 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    match msg {
-        ExecuteMsg::Send { .. } => { Err(ContractError::Unauthorized {}) },
-        ExecuteMsg::SendFrom { .. } => { Err(ContractError::Unauthorized {}) },
-        ExecuteMsg::Transfer { .. } => { Err(ContractError::Unauthorized {}) },
-        ExecuteMsg::TransferFrom { .. } => { Err(ContractError::Unauthorized {}) },
-        _ => cw20_execute(deps, env, info, msg),
-    }
+    cw20_execute(deps, env, info, msg)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
