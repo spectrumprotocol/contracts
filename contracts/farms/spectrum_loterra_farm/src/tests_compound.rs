@@ -296,7 +296,7 @@ fn test_compound_lota_from_allowance(deps: &mut OwnedDeps<MockStorage, MockApi, 
                     contract: LOTA_POOL.to_string(),
                     amount: Uint128::from(50_000_000u128),
                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     })
@@ -708,7 +708,7 @@ fn test_compound_lota(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                     contract: LOTA_POOL.to_string(),
                     amount: Uint128::from(6000u128),
                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     })
@@ -900,7 +900,7 @@ fn test_compound_lota_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmM
                     contract: LOTA_POOL.to_string(),
                     amount: Uint128::from(6352u128),
                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     }).unwrap()

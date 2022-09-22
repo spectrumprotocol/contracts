@@ -322,7 +322,7 @@ fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
 //                     contract: PSI_POOL.to_string(),
 //                     amount: Uint128::from(50_000_000u128),
 //                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
-//                         max_spread: None,
+//                         max_spread: Some(Decimal::percent(50)),
 //                         belief_price: None,
 //                         to: None,
 //                     })
@@ -712,7 +712,7 @@ fn test_compound_reward_token(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMoc
                     contract: PAIR_CONTRACT.to_string(),
                     amount: Uint128::from(12000u128),
                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     }).unwrap()
@@ -847,7 +847,7 @@ fn test_compound_reward_token_with_fees(deps: &mut OwnedDeps<MockStorage, MockAp
                     contract: PAIR_CONTRACT.to_string(),
                     amount: Uint128::from(11495u128),
                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     }).unwrap()
@@ -860,7 +860,7 @@ fn test_compound_reward_token_with_fees(deps: &mut OwnedDeps<MockStorage, MockAp
                     contract: UST_PAIR_CONTRACT.to_string(),
                     amount: Uint128::from(605u128),
                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     }).unwrap()

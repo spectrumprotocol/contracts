@@ -298,7 +298,7 @@ fn test_compound_glow_from_allowance(deps: &mut OwnedDeps<MockStorage, MockApi, 
                     contract: GLOW_POOL.to_string(),
                     amount: Uint128::from(50_000_000u128),
                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     })
@@ -737,7 +737,7 @@ fn test_compound_glow(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                     contract: GLOW_POOL.to_string(),
                     amount: Uint128::from(2100u128),
                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     })
@@ -943,7 +943,7 @@ fn test_compound_glow_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmM
                     contract: GLOW_POOL.to_string(),
                     amount: Uint128::from(2647u128),
                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     }).unwrap()

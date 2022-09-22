@@ -732,7 +732,7 @@ fn test_compound_farm_token_and_astro_with_fees(
                     contract: ASTRO_UST_PAIR_CONTRACT.to_string(),
                     amount: Uint128::from(6050u128),
                     msg: to_binary(&AstroportPairCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     }).unwrap() 

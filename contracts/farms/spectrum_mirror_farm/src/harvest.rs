@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use cosmwasm_std::{
     attr, to_binary, Attribute, Coin, CosmosMsg, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, Uint128, WasmMsg,
+    Response, StdError, StdResult, Uint128, WasmMsg, Decimal,
 };
 
 use crate::{
@@ -161,7 +161,7 @@ pub fn harvest_all(mut deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<
                 contract: mir_pair_info.contract_addr,
                 amount: total_mir_swap_amount,
                 msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                    max_spread: None,
+                    max_spread: Some(Decimal::percent(50)),
                     belief_price: None,
                     to: None,
                 })?,
