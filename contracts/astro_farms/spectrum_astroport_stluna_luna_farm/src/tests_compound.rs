@@ -809,7 +809,7 @@ fn test_compound_farm_token_and_astro_with_fees(
             //                 amount: Uint128::from(5617u128),
             //             },
             //         ],
-            //         slippage_tolerance: None,
+            //         slippage_tolerance: Some(Decimal::percent(50)),
             //         auto_stake: Some(true),
             //         receiver: None
             //     })
@@ -939,7 +939,7 @@ fn test_compound_farm_token_and_astro_with_fees(
                             amount: Uint128::from(100000000u128),
                         },
                     ],
-                    slippage_tolerance: None,
+                    slippage_tolerance: Some(Decimal::percent(50)),
                     auto_stake: Some(true),
                     receiver: None
                 })

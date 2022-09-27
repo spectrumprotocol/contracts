@@ -516,7 +516,7 @@ pub fn send_fee(
                         amount: provide_stluna,
                     },
                 ],
-                slippage_tolerance: None,
+                slippage_tolerance: Some(Decimal::percent(50)),
                 receiver: None,
                 auto_stake: Some(true),
             })?,

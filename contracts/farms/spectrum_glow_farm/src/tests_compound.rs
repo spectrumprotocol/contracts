@@ -334,7 +334,7 @@ fn test_compound_glow_from_allowance(deps: &mut OwnedDeps<MockStorage, MockApi, 
                             amount: Uint128::from(48_867_757u128),
                         },
                     ],
-                    slippage_tolerance: None,
+                    slippage_tolerance: Some(Decimal::percent(50)),
                     receiver: None
                 })
                 .unwrap(),
@@ -783,7 +783,7 @@ fn test_compound_glow(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                             amount: Uint128::from(2052u128),
                         },
                     ],
-                    slippage_tolerance: None,
+                    slippage_tolerance: Some(Decimal::percent(50)),
                     receiver: None
                 })
                 .unwrap(),
@@ -1005,7 +1005,7 @@ fn test_compound_glow_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmM
                             amount: Uint128::from(1996u128),
                         },
                     ],
-                    slippage_tolerance: None,
+                    slippage_tolerance: Some(Decimal::percent(50)),
                     receiver: None
                 })
                     .unwrap(),

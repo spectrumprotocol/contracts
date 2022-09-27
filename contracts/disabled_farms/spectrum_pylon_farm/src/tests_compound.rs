@@ -333,7 +333,7 @@ fn test_compound_mine_from_allowance(deps: &mut OwnedDeps<MockStorage, MockApi, 
                             amount: Uint128::from(48_867_757u128),
                         },
                     ],
-                    slippage_tolerance: None,
+                    slippage_tolerance: Some(Decimal::percent(50)),
                     receiver: None
                 })
                 .unwrap(),
@@ -762,7 +762,7 @@ fn test_compound_mine(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                             amount: Uint128::from(5863u128),
                         },
                     ],
-                    slippage_tolerance: None,
+                    slippage_tolerance: Some(Decimal::percent(50)),
                     receiver: None
                 })
                 .unwrap(),
@@ -982,7 +982,7 @@ fn test_compound_mine_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmM
                             amount: Uint128::from(5616u128),
                         },
                     ],
-                    slippage_tolerance: None,
+                    slippage_tolerance: Some(Decimal::percent(50)),
                     receiver: None
                 })
                     .unwrap(),

@@ -358,7 +358,7 @@ fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
 //                             amount: Uint128::from(48_867_757u128),
 //                         },
 //                     ],
-//                     slippage_tolerance: None,
+//                     slippage_tolerance: Some(Decimal::percent(50)),
 //                     receiver: None
 //                 })
 //                 .unwrap(),

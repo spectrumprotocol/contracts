@@ -244,7 +244,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
                         amount: provide_psi,
                     },
                 ],
-                slippage_tolerance: None,
+                slippage_tolerance: Some(Decimal::percent(50)),
                 receiver: None,
             })?,
             funds: vec![],

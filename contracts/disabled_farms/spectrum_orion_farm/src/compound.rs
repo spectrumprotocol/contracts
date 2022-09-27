@@ -236,7 +236,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
                         amount: net_reinvest_ust,
                     },
                 ],
-                slippage_tolerance: None,
+                slippage_tolerance: Some(Decimal::percent(50)),
                 receiver: None,
             })?,
             funds: vec![Coin {

@@ -734,7 +734,7 @@ fn test_compound_astro(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
                             amount: Uint128::from(2052u128),
                         },
                     ],
-                    slippage_tolerance: None,
+                    slippage_tolerance: Some(Decimal::percent(50)),
                     auto_stake: Some(true),
                     receiver: None
                 }).unwrap(),
@@ -954,7 +954,7 @@ fn test_compound_astro_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, Wasm
                             amount: Uint128::from(1996u128),
                         },
                     ],
-                    slippage_tolerance: None,
+                    slippage_tolerance: Some(Decimal::percent(50)),
                     auto_stake: Some(true),
                     receiver: None
                 }).unwrap(),

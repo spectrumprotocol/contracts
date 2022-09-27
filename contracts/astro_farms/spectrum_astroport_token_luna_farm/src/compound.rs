@@ -246,7 +246,7 @@ pub fn compound(
                         amount: ust_swap_rate.return_amount,
                     },
                 ],
-                slippage_tolerance: None,
+                slippage_tolerance: Some(Decimal::percent(50)),
                 receiver: None,
                 auto_stake: Some(true),
             })?,

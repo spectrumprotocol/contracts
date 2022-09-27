@@ -301,7 +301,7 @@ fn test_reinvest_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                             amount: Uint128::zero(),
                         },
                     ],
-                    slippage_tolerance: None,
+                    slippage_tolerance: Some(Decimal::percent(50)),
                     receiver: None
                 })
                 .unwrap(),
@@ -392,7 +392,7 @@ fn test_reinvest_mir(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
                             amount: Uint128::from(48_867_757u128),
                         },
                     ],
-                    slippage_tolerance: None,
+                    slippage_tolerance: Some(Decimal::percent(50)),
                     receiver: None
                 }).unwrap(),
                 funds: vec![Coin {
@@ -490,7 +490,7 @@ fn test_reinvest_spy(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
                             amount: Uint128::from(49_356_435u128),
                         },
                     ],
-                    slippage_tolerance: None,
+                    slippage_tolerance: Some(Decimal::percent(50)),
                     receiver: None
                 })
                 .unwrap(),

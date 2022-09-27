@@ -126,7 +126,7 @@ fn re_invest_asset(
                     amount: net_liquidity_after_tax,
                 },
             ],
-            slippage_tolerance: None,
+            slippage_tolerance: Some(Decimal::percent(50)),
             receiver: None,
         })?,
         funds: vec![Coin {
@@ -265,7 +265,7 @@ fn re_invest_mir(
                     amount: net_reinvest_ust,
                 },
             ],
-            slippage_tolerance: None,
+            slippage_tolerance: Some(Decimal::percent(50)),
             receiver: None,
         })?,
         funds: vec![Coin {

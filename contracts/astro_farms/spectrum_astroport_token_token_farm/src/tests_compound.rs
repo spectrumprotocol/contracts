@@ -361,7 +361,7 @@ fn test_compound_farm_token_and_astro_not_reach_threshold(deps: &mut OwnedDeps<M
                             amount: Uint128::from(49_924_888u128),
                         },
                     ],
-                    slippage_tolerance: None,
+                    slippage_tolerance: Some(Decimal::percent(50)),
                     auto_stake: Some(true),
                     receiver: None
                 }).unwrap(),
@@ -482,7 +482,7 @@ fn test_compound_farm_token_and_astro(deps: &mut OwnedDeps<MockStorage, MockApi,
                             amount: Uint128::from(49924888u128),
                         },
                     ],
-                    slippage_tolerance: None,
+                    slippage_tolerance: Some(Decimal::percent(50)),
                     auto_stake: Some(true),
                     receiver: None
                 })
@@ -1087,7 +1087,7 @@ fn test_compound_farm_token_and_astro_with_fees(deps: &mut OwnedDeps<MockStorage
                             amount: Uint128::from(1020u128),
                         },
                     ],
-                    slippage_tolerance: None,
+                    slippage_tolerance: Some(Decimal::percent(50)),
                     auto_stake: Some(true),
                     receiver: None
                 }).unwrap(),

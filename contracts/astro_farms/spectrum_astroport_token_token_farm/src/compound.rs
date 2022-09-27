@@ -361,7 +361,7 @@ pub fn compound(
                         amount: provide_farm_token,
                     },
                 ],
-                slippage_tolerance: None,
+                slippage_tolerance: Some(Decimal::percent(50)),
                 receiver: None,
                 auto_stake: Some(true),
             })?,

@@ -339,7 +339,7 @@ pub fn compound(
                         amount: net_reinvest_ust,
                     },
                 ],
-                slippage_tolerance: None,
+                slippage_tolerance: Some(Decimal::percent(50)),
                 receiver: None,
                 auto_stake: Some(true),
             })?,
