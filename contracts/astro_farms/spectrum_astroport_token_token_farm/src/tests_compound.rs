@@ -319,7 +319,7 @@ fn test_compound_farm_token_and_astro_not_reach_threshold(deps: &mut OwnedDeps<M
                     contract: PAIR_CONTRACT.to_string(),
                     amount: Uint128::from(50_075_112u128),
                     msg: to_binary(&AstroportCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     }).unwrap()
@@ -361,7 +361,7 @@ fn test_compound_farm_token_and_astro_not_reach_threshold(deps: &mut OwnedDeps<M
                             amount: Uint128::from(49_924_888u128),
                         },
                     ],
-                    slippage_tolerance: None,
+                    slippage_tolerance: Some(Decimal::percent(50)),
                     auto_stake: Some(true),
                     receiver: None
                 }).unwrap(),
@@ -414,7 +414,7 @@ fn test_compound_farm_token_and_astro(deps: &mut OwnedDeps<MockStorage, MockApi,
                     contract: PAIR_CONTRACT.to_string(),
                     amount: Uint128::from(50075112u128),
                     msg: to_binary(&AstroportCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     })
@@ -429,7 +429,7 @@ fn test_compound_farm_token_and_astro(deps: &mut OwnedDeps<MockStorage, MockApi,
                     contract: ASTRO_UST_PAIR_CONTRACT.to_string(),
                     amount: Uint128::from(100_000_000u128),
                     msg: to_binary(&AstroportCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     }).unwrap()
@@ -482,7 +482,7 @@ fn test_compound_farm_token_and_astro(deps: &mut OwnedDeps<MockStorage, MockApi,
                             amount: Uint128::from(49924888u128),
                         },
                     ],
-                    slippage_tolerance: None,
+                    slippage_tolerance: Some(Decimal::percent(50)),
                     auto_stake: Some(true),
                     receiver: None
                 })
@@ -981,7 +981,7 @@ fn test_compound_farm_token_and_astro_with_fees(deps: &mut OwnedDeps<MockStorage
                     contract: PAIR_CONTRACT.to_string(),
                     amount: Uint128::from(1022u128),
                     msg: to_binary(&AstroportCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     }).unwrap()
@@ -994,7 +994,7 @@ fn test_compound_farm_token_and_astro_with_fees(deps: &mut OwnedDeps<MockStorage
                     contract: ASTRO_UST_PAIR_CONTRACT.to_string(),
                     amount: Uint128::from(2344u128),
                     msg: to_binary(&AstroportCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     }).unwrap()
@@ -1007,7 +1007,7 @@ fn test_compound_farm_token_and_astro_with_fees(deps: &mut OwnedDeps<MockStorage
                     contract: FARM_UST_PAIR_CONTRACT.to_string(),
                     amount: Uint128::from(302u128),
                     msg: to_binary(&AstroportCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     }).unwrap()
@@ -1087,7 +1087,7 @@ fn test_compound_farm_token_and_astro_with_fees(deps: &mut OwnedDeps<MockStorage
                             amount: Uint128::from(1020u128),
                         },
                     ],
-                    slippage_tolerance: None,
+                    slippage_tolerance: Some(Decimal::percent(50)),
                     auto_stake: Some(true),
                     receiver: None
                 }).unwrap(),

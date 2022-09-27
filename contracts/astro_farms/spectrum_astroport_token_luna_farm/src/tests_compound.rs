@@ -693,7 +693,7 @@ fn test_compound_astro(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
                     contract: ASTRO_UST_PAIR_CONTRACT.to_string(),
                     amount: Uint128::from(4200u128),
                     msg: to_binary(&AstroportCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     }).unwrap()
@@ -707,7 +707,7 @@ fn test_compound_astro(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
                         info: AssetInfo::NativeToken { denom: "uusd".to_string() },
                         amount: Uint128::from(4104u128),
                     },
-                    max_spread: None,
+                    max_spread: Some(Decimal::percent(50)),
                     belief_price: None,
                     to: None,
                 }).unwrap(),
@@ -741,7 +741,7 @@ fn test_compound_astro(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
                             amount: Uint128::from(4092u128),
                         },
                     ],
-                    slippage_tolerance: None,
+                    slippage_tolerance: Some(Decimal::percent(50)),
                     auto_stake: Some(true),
                     receiver: None
                 }).unwrap(),
@@ -899,7 +899,7 @@ fn test_compound_astro_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, Wasm
                     contract: ASTRO_UST_PAIR_CONTRACT.to_string(),
                     amount: Uint128::from(4690u128),
                     msg: to_binary(&AstroportCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     }).unwrap()
@@ -913,7 +913,7 @@ fn test_compound_astro_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, Wasm
                         info: AssetInfo::NativeToken { denom: "uusd".to_string() },
                         amount: Uint128::from(3992u128),
                     },
-                    max_spread: None,
+                    max_spread: Some(Decimal::percent(50)),
                     belief_price: None,
                     to: None,
                 }).unwrap(),
@@ -965,7 +965,7 @@ fn test_compound_astro_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, Wasm
                             amount: Uint128::from(3981u128),
                         },
                     ],
-                    slippage_tolerance: None,
+                    slippage_tolerance: Some(Decimal::percent(50)),
                     auto_stake: Some(true),
                     receiver: None
                 }).unwrap(),

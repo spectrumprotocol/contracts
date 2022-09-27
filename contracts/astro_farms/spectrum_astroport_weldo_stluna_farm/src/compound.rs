@@ -258,7 +258,7 @@ pub fn compound(
                 contract: astro_ust_pair_contract.to_string(),
                 amount: total_astro_token_swap_amount,
                 msg: to_binary(&AstroportPairCw20HookMsg::Swap {
-                    max_spread: None,
+                    max_spread: Some(Decimal::percent(50)),
                     belief_price: None,
                     to: None,
                 })?,
@@ -516,7 +516,7 @@ pub fn send_fee(
                         amount: provide_stluna,
                     },
                 ],
-                slippage_tolerance: None,
+                slippage_tolerance: Some(Decimal::percent(50)),
                 receiver: None,
                 auto_stake: Some(true),
             })?,

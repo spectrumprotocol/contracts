@@ -89,7 +89,7 @@ fn re_invest_asset(
         contract_addr: pair_info.contract_addr.clone(),
         msg: to_binary(&TerraswapExecuteMsg::Swap {
             offer_asset: net_swap_asset,
-            max_spread: None,
+            max_spread: Some(Decimal::percent(50)),
             belief_price: None,
             to: None,
         })?,
@@ -126,7 +126,7 @@ fn re_invest_asset(
                     amount: net_liquidity_after_tax,
                 },
             ],
-            slippage_tolerance: None,
+            slippage_tolerance: Some(Decimal::percent(100)),
             receiver: None,
         })?,
         funds: vec![Coin {
@@ -230,7 +230,7 @@ fn re_invest_mir(
             contract: pair_info.contract_addr.clone(),
             amount: swap_amount,
             msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                max_spread: None,
+                max_spread: Some(Decimal::percent(50)),
                 belief_price: None,
                 to: None,
             })?,
@@ -265,7 +265,7 @@ fn re_invest_mir(
                     amount: net_reinvest_ust,
                 },
             ],
-            slippage_tolerance: None,
+            slippage_tolerance: Some(Decimal::percent(100)),
             receiver: None,
         })?,
         funds: vec![Coin {

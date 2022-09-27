@@ -400,7 +400,7 @@ pub fn compound(
                         amount: net_liquidity_after_tax,
                     },
                 ],
-                slippage_tolerance: None,
+                slippage_tolerance: Some(Decimal::percent(50)),
                 receiver: None,
                 auto_stake: Some(true),
             })?,

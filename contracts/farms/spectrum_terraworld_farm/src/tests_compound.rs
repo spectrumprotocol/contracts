@@ -305,7 +305,7 @@ fn test_compound_twd_from_allowance(deps: &mut OwnedDeps<MockStorage, MockApi, W
                     contract: TWD_POOL.to_string(),
                     amount: Uint128::from(50_000_000u128),
                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     })
@@ -341,7 +341,7 @@ fn test_compound_twd_from_allowance(deps: &mut OwnedDeps<MockStorage, MockApi, W
                             amount: Uint128::from(48_867_757u128),
                         },
                     ],
-                    slippage_tolerance: None,
+                    slippage_tolerance: Some(Decimal::percent(100)),
                     receiver: None
                 })
                 .unwrap(),
@@ -755,7 +755,7 @@ fn test_compound_twd(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
                     contract: TWD_POOL.to_string(),
                     amount: Uint128::from(2100u128),
                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     })
@@ -801,7 +801,7 @@ fn test_compound_twd(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
                             amount: Uint128::from(2052u128),
                         },
                     ],
-                    slippage_tolerance: None,
+                    slippage_tolerance: Some(Decimal::percent(100)),
                     receiver: None
                 })
                 .unwrap(),
@@ -947,7 +947,7 @@ fn test_compound_twd_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMo
                     contract: TWD_POOL.to_string(),
                     amount: Uint128::from(3287u128),
                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     }).unwrap()
@@ -1007,7 +1007,7 @@ fn test_compound_twd_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMo
                             amount: Uint128::from(1996u128),
                         },
                     ],
-                    slippage_tolerance: None,
+                    slippage_tolerance: Some(Decimal::percent(100)),
                     receiver: None
                 }).unwrap(),
                 funds: vec![Coin {
@@ -1136,7 +1136,7 @@ fn test_compound_twd_with_fees_but_not_compound_gov(deps: &mut OwnedDeps<MockSto
                     contract: TWD_POOL.to_string(),
                     amount: Uint128::from(2647u128),
                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     }).unwrap()
@@ -1198,7 +1198,7 @@ fn test_compound_twd_with_fees_but_not_compound_gov(deps: &mut OwnedDeps<MockSto
                             amount: Uint128::from(1996u128),
                         },
                     ],
-                    slippage_tolerance: None,
+                    slippage_tolerance: Some(Decimal::percent(100)),
                     receiver: None
                 })
                     .unwrap(),

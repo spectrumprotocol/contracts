@@ -327,7 +327,7 @@ fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
 //                     contract: PSI_POOL.to_string(),
 //                     amount: Uint128::from(50_000_000u128),
 //                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
-//                         max_spread: None,
+//                         max_spread: Some(Decimal::percent(50)),
 //                         belief_price: None,
 //                         to: None,
 //                     })
@@ -363,7 +363,7 @@ fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
 //                             amount: Uint128::from(48_867_757u128),
 //                         },
 //                     ],
-//                     slippage_tolerance: None,
+//                     slippage_tolerance: Some(Decimal::percent(50)),
 //                     receiver: None
 //                 })
 //                 .unwrap(),
@@ -747,7 +747,7 @@ fn test_compound_psi(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
                     contract: NASSET_POOL.to_string(),
                     amount: Uint128::from(2103u128),
                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     }).unwrap()
@@ -798,7 +798,7 @@ fn test_compound_psi(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
                             amount: Uint128::from(2097u128),
                         },
                     ],
-                    slippage_tolerance: None,
+                    slippage_tolerance: Some(Decimal::percent(50)),
                     receiver: None
                 }).unwrap(),
                 funds: vec![],
@@ -932,7 +932,7 @@ fn test_compound_psi_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMo
                     contract: NASSET_POOL.to_string(),
                     amount: Uint128::from(2045u128),
                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                         to: None,
                     }).unwrap()
@@ -945,7 +945,7 @@ fn test_compound_psi_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMo
                     contract: PSI_POOL.to_string(),
                     amount: Uint128::from(605u128),
                     msg: to_binary(&TerraswapCw20HookMsg::Swap {
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(50)),
                         to: None,
                         belief_price: None,
                     }).unwrap(),
@@ -1015,7 +1015,7 @@ fn test_compound_psi_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMo
                             amount: Uint128::from(2040u128),
                         },
                     ],
-                    slippage_tolerance: None,
+                    slippage_tolerance: Some(Decimal::percent(50)),
                     receiver: None
                 })
                     .unwrap(),
