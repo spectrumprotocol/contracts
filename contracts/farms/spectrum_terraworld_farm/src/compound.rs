@@ -267,7 +267,7 @@ pub fn compound(
                         amount: net_reinvest_ust,
                     },
                 ],
-                slippage_tolerance: Some(Decimal::percent(50)),
+                slippage_tolerance: Some(Decimal::percent(100)),
                 receiver: None,
             })?,
             funds: vec![Coin {

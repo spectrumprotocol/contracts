@@ -332,7 +332,7 @@ fn test_compound_lota_from_allowance(deps: &mut OwnedDeps<MockStorage, MockApi, 
                             amount: Uint128::from(48_867_757u128),
                         },
                     ],
-                    slippage_tolerance: Some(Decimal::percent(50)),
+                    slippage_tolerance: Some(Decimal::percent(100)),
                     receiver: None
                 })
                 .unwrap(),
@@ -744,7 +744,7 @@ fn test_compound_lota(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                             amount: Uint128::from(5863u128),
                         },
                     ],
-                    slippage_tolerance: Some(Decimal::percent(50)),
+                    slippage_tolerance: Some(Decimal::percent(100)),
                     receiver: None
                 })
                 .unwrap(),
@@ -952,7 +952,7 @@ fn test_compound_lota_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmM
                             amount: Uint128::from(5616u128),
                         },
                     ],
-                    slippage_tolerance: Some(Decimal::percent(50)),
+                    slippage_tolerance: Some(Decimal::percent(100)),
                     receiver: None
                 }).unwrap(),
                 funds: vec![Coin {

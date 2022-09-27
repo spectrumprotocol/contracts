@@ -341,7 +341,7 @@ fn test_compound_twd_from_allowance(deps: &mut OwnedDeps<MockStorage, MockApi, W
                             amount: Uint128::from(48_867_757u128),
                         },
                     ],
-                    slippage_tolerance: Some(Decimal::percent(50)),
+                    slippage_tolerance: Some(Decimal::percent(100)),
                     receiver: None
                 })
                 .unwrap(),
@@ -801,7 +801,7 @@ fn test_compound_twd(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>
                             amount: Uint128::from(2052u128),
                         },
                     ],
-                    slippage_tolerance: Some(Decimal::percent(50)),
+                    slippage_tolerance: Some(Decimal::percent(100)),
                     receiver: None
                 })
                 .unwrap(),
@@ -1007,7 +1007,7 @@ fn test_compound_twd_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMo
                             amount: Uint128::from(1996u128),
                         },
                     ],
-                    slippage_tolerance: Some(Decimal::percent(50)),
+                    slippage_tolerance: Some(Decimal::percent(100)),
                     receiver: None
                 }).unwrap(),
                 funds: vec![Coin {
@@ -1198,7 +1198,7 @@ fn test_compound_twd_with_fees_but_not_compound_gov(deps: &mut OwnedDeps<MockSto
                             amount: Uint128::from(1996u128),
                         },
                     ],
-                    slippage_tolerance: Some(Decimal::percent(50)),
+                    slippage_tolerance: Some(Decimal::percent(100)),
                     receiver: None
                 })
                     .unwrap(),
