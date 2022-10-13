@@ -1,7 +1,8 @@
 use std::convert::TryFrom;
-use cosmwasm_std::{QuerierWrapper, StdError, StdResult, Uint128};
-use terraswap::asset::{Asset, AssetInfo};
+use cosmwasm_std::{QuerierWrapper, StdError, StdResult, Uint128, Decimal};
+use terraswap::asset::{Asset};
 use terraswap::pair::PoolResponse;
+use terra_cosmwasm::TerraQuerier;
 
 pub fn compute_deposit_time(
     last_deposit_amount: Uint128,
@@ -16,13 +17,21 @@ pub fn compute_deposit_time(
 }
 
 pub fn deduct_tax(querier: &QuerierWrapper, amount: Uint128, base_denom: String) -> StdResult<Uint128> {
-    let asset = Asset {
-        info: AssetInfo::NativeToken {
-            denom: base_denom,
-        },
-        amount,
-    };
-    asset.deduct_tax(querier).map(|it| it.amount)
+    Ok(amount.checked_sub(compute_tax(querier, amount, base_denom)?)?)
+}
+
+static DECIMAL_FRACTION: Uint128 = Uint128::new(1_000_000_000_000_000_000u128);
+pub fn compute_tax(querier: &QuerierWrapper, amount: Uint128, base_denom: String) -> StdResult<Uint128> {
+    let terra_querier = TerraQuerier::new(querier);
+    let tax_rate: Decimal = (terra_querier.query_tax_rate()?).rate;
+    let tax_cap: Uint128 = (terra_querier.query_tax_cap(base_denom)?).cap;
+    Ok(std::cmp::min(
+        amount.checked_sub(amount.multiply_ratio(
+            DECIMAL_FRACTION,
+            DECIMAL_FRACTION * tax_rate + DECIMAL_FRACTION,
+        ))?,
+        tax_cap,
+    ))
 }
 
 pub fn compute_provide_after_swap(

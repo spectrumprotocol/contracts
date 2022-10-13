@@ -1,4 +1,4 @@
-use cosmwasm_std::{attr, to_binary, Attribute, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg};
+use cosmwasm_std::{attr, to_binary, Attribute, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg, Decimal};
 
 use crate::{
     bond::deposit_farm_share,
@@ -160,7 +160,7 @@ pub fn compound(
                 contract: astro_ust_pair_contract.to_string(),
                 amount: total_token_swap_amount,
                 msg: to_binary(&AstroportPairCw20HookMsg::Swap {
-                    max_spread: None,
+                    max_spread: Some(Decimal::percent(50)),
                     belief_price: None,
                     to: None,
                 })?,
@@ -175,7 +175,7 @@ pub fn compound(
             contract_addr: pair_contract.to_string(),
             msg: to_binary(&AstroportPairExecuteMsg::Swap {
                 offer_asset: net_swap_asset,
-                max_spread: None,
+                max_spread: Some(Decimal::percent(50)),
                 belief_price: None,
                 to: None,
             })?,
@@ -234,6 +234,9 @@ pub fn compound(
     }
 
     if !net_liquidity_after_tax.is_zero() {
+        let luna_amount = deduct_tax(&deps.querier,
+            deduct_tax(&deps.querier, swap_rate.return_amount, config.farm_denom.to_string())?,
+            config.farm_denom.to_string())?;
         let provide_liquidity = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: pair_contract.to_string(),
             msg: to_binary(&AstroportPairExecuteMsg::ProvideLiquidity {
@@ -242,7 +245,7 @@ pub fn compound(
                         info: AssetInfo::NativeToken {
                             denom: config.farm_denom.clone(),
                         },
-                        amount: swap_rate.return_amount,
+                        amount: luna_amount,
                     },
                     Asset {
                         info: AssetInfo::NativeToken {
@@ -251,14 +254,14 @@ pub fn compound(
                         amount: net_liquidity_after_tax,
                     },
                 ],
-                slippage_tolerance: None,
+                slippage_tolerance: Some(Decimal::percent(50)),
                 receiver: None,
                 auto_stake: Some(true),
             })?,
             funds: vec![
                 Coin {
                     denom: config.farm_denom,
-                    amount: swap_rate.return_amount,
+                    amount: luna_amount,
                 },
                 Coin {
                     denom: config.base_denom,

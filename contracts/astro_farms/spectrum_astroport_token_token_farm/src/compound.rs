@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, Uint128, WasmMsg,
+    Response, StdError, StdResult, Uint128, WasmMsg, Decimal,
 };
 
 use crate::{
@@ -197,7 +197,7 @@ pub fn compound(
                 contract: pair_contract.to_string(),
                 amount: total_farm_token_swap_amount,
                 msg: to_binary(&AstroportPairCw20HookMsg::Swap {
-                    max_spread: None,
+                    max_spread: Some(Decimal::percent(50)),
                     belief_price: None,
                     to: None,
                 })?,
@@ -214,7 +214,7 @@ pub fn compound(
                 contract: astro_ust_pair_contract.to_string(),
                 amount: total_astro_token_swap_amount,
                 msg: to_binary(&AstroportPairCw20HookMsg::Swap {
-                    max_spread: None,
+                    max_spread: Some(Decimal::percent(50)),
                     belief_price: None,
                     to: None,
                 })?,
@@ -266,7 +266,7 @@ pub fn compound(
                     amount: total_farm_token_commission,
                     msg: to_binary(&AstroportPairCw20HookMsg::Swap {
                         to: None,
-                        max_spread: None,
+                        max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
                     })?,
                 })?,
@@ -361,7 +361,7 @@ pub fn compound(
                         amount: provide_farm_token,
                     },
                 ],
-                slippage_tolerance: None,
+                slippage_tolerance: Some(Decimal::percent(50)),
                 receiver: None,
                 auto_stake: Some(true),
             })?,
@@ -490,7 +490,7 @@ pub fn send_fee(
         let swap_ust: CosmosMsg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.farm_ust_pair_contract)?.to_string(),
             msg: to_binary(&AstroportPairExecuteMsg::Swap {
-                max_spread: None,
+                max_spread: Some(Decimal::percent(50)),
                 belief_price: None,
                 to: None,
                 offer_asset: Asset {

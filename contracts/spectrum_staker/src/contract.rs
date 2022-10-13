@@ -16,6 +16,7 @@ use terraswap::factory::{QueryMsg as FactoryQueryMsg};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use spectrum_protocol::farm_helper::deduct_tax;
 
 use spectrum_protocol::staker_single_asset::SwapOperation;
 use crate::math::{compute_d, U256};
@@ -242,13 +243,13 @@ fn bond(
                 if info.sender != env.contract.address {
                     asset.assert_sent_native_token_balance(&info)?;
                 }
-                let coin = asset.deduct_tax(&deps.querier)?;
+                let after_tax = deduct_tax(&deps.querier, asset.amount, denom.to_string())?;
                 let provide_asset = Asset {
                     info: asset.info.clone(),
-                    amount: coin.amount,
+                    amount: after_tax,
                 };
-                if !coin.amount.is_zero() {
-                    funds.push(coin);
+                if !after_tax.is_zero() {
+                    funds.push(Coin { denom: denom.clone(), amount: after_tax });
                 }
                 provide_assets.push(provide_asset);
                 if default_asset_token.is_none() {
@@ -605,6 +606,14 @@ fn do_swap(
     Ok((amount, price, prices))
 }
 
+fn safe_deduct_tax(asset: &Asset, querier: &QuerierWrapper) -> StdResult<Uint128> {
+    match asset.info.clone() {
+        AssetInfo::Token { .. } => Ok(asset.amount),
+        AssetInfo::NativeToken { denom } =>
+            deduct_tax(querier, asset.amount, denom)
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn compute_zap_to_bond(
     deps: Deps,
@@ -630,8 +639,7 @@ fn compute_zap_to_bond(
             info: provide_asset.info.clone(),
             amount: provide_asset.amount,
         };
-        let tax_amount = ust_swap_asset.compute_tax(&deps.querier)?;
-        let offer_amount = provide_asset.amount.checked_sub(tax_amount)?;
+        let offer_amount = safe_deduct_tax(&ust_swap_asset, &deps.querier)?;
 
         // swap ust -> A
         let swaps = match swap_hints {
@@ -658,6 +666,11 @@ fn compute_zap_to_bond(
         )?;
 
         let asset_token = asset_token.unwrap_or_else(|| pair_asset_b.to_string());
+        let return_asset = Asset {
+            info: pair_asset_a.clone(),
+            amount: return_amount,
+        };
+        let return_amount = safe_deduct_tax(&return_asset, &deps.querier)?;
         let res = compute_zap_to_bond(
             deps,
             env,
@@ -714,10 +727,10 @@ fn compute_zap_to_bond(
                 info: provide_asset.info.clone(),
                 amount: swap_amount,
             };
-            let tax_amount = swap_asset.compute_tax(&deps.querier)?;
+            let after_tax = safe_deduct_tax(&swap_asset, &deps.querier)?;
             let swap_asset = Asset {
                 info: provide_asset.info,
-                amount: swap_amount.checked_sub(tax_amount)?,
+                amount: after_tax,
             };
 
             // swap ust -> A
@@ -727,7 +740,11 @@ fn compute_zap_to_bond(
                 &swap_asset)?;
             apply_pool(&mut pool, &swap_asset, simulate_a.return_amount);
             let price_a = Decimal::from_ratio(swap_asset.amount, simulate_a.return_amount + simulate_a.commission_amount);
-            let amount_a = simulate_a.return_amount;
+            let asset_a = Asset {
+                info: pair_asset_a.clone(),
+                amount: simulate_a.return_amount,
+            };
+            let amount_a = safe_deduct_tax(&asset_a, &deps.querier)?;
             messages.push(
                 create_swap_msg(
                     swap_asset.info.clone(),
@@ -799,8 +816,8 @@ fn calculate_lp(
         let d_before_addition_liquidity =
             compute_d(leverage, pool_a.u128(), pool_b.u128()).unwrap();
 
-        pool_a = pool_a + assets[0].amount;
-        pool_b = pool_b + assets[1].amount;
+        pool_a += assets[0].amount;
+        pool_b += assets[1].amount;
 
         let d_after_addition_liquidity =
             compute_d(leverage, pool_a.u128(), pool_b.u128()).unwrap();
@@ -1031,17 +1048,20 @@ fn zap_to_unbond_hook(
         };
         let mut messages: Vec<CosmosMsg> = vec![];
         if !transfer_asset.amount.is_zero() {
-            let tax_amount = transfer_asset.compute_tax(&deps.querier)?;
+            let after_tax = safe_deduct_tax(&transfer_asset, &deps.querier)?;
             messages.push(CosmosMsg::Bank(BankMsg::Send {
                 to_address: staker_addr.clone(),
                 amount: vec![Coin {
                     denom,
-                    amount: transfer_asset.amount.checked_sub(tax_amount)?,
+                    amount: after_tax,
                 }],
             }));
         }
 
-        let offer_amount = current_token_a_amount.checked_sub(prev_asset_a.amount)?;
+        let offer_amount = safe_deduct_tax(&Asset {
+            info: prev_asset_a.info.clone(),
+            amount: current_token_a_amount.checked_sub(prev_asset_a.amount)?
+        }, &deps.querier)?;
 
         let swaps = match swap_hints {
             None => {
