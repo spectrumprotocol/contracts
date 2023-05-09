@@ -70,6 +70,13 @@ pub enum ExecuteMsg {
         amount_to_auto: Uint128,
     },
     send_fee {},
+    // Emergency withdrawal all lp token from Generator
+    emergency_withdraw { },
+    // Assert balance
+    assert_balance {
+        staking_token: String,
+        amount: Uint128,
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -155,4 +162,4 @@ pub struct StateInfo {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {}
+pub struct MigrateMsg { }
