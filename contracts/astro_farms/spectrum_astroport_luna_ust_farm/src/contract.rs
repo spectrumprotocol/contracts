@@ -1,24 +1,27 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Order, Response, StdError, StdResult, Uint128,
+    attr, from_binary, to_binary, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Order, Response, StdError, StdResult, Uint128, WasmMsg,
 };
 
 use crate::{
     bond::bond,
     compound::{compound, stake},
+    querier::query_astroport_pool_balance,
     state::{read_config, state_store, store_config, Config, PoolInfo, State},
 };
 
 use cw20::Cw20ReceiveMsg;
 
 use crate::bond::{deposit_spec_reward, query_reward_info, unbond, update_bond, withdraw};
+use crate::compound::send_fee;
 use crate::state::{pool_info_read, pool_info_store, read_state};
 use spectrum_protocol::astroport_luna_ust_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
-use crate::compound::send_fee;
+
+use astroport::{generator::ExecuteMsg as AstroportExecuteMsg, querier::query_token_balance};
 
 /// (we require 0-1)
 fn validate_percentage(value: Decimal, field: &str) -> StdResult<()> {
@@ -126,6 +129,11 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             amount_to_stake,
         ),
         ExecuteMsg::send_fee {} => send_fee(deps, env, info),
+        ExecuteMsg::emergency_withdraw {} => emergency_withdraw(deps, env, info),
+        ExecuteMsg::assert_balance {
+            staking_token,
+            amount,
+        } => assert_balance(deps, env, info, staking_token, amount),
     }
 }
 
@@ -254,6 +262,70 @@ fn register_asset(
         attr("action", "register_asset"),
         attr("asset_token", asset_denom),
     ]))
+}
+
+fn emergency_withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
+    let config = read_config(deps.storage)?;
+
+    if config.controller != deps.api.addr_canonicalize(info.sender.as_str())? {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    let pool_info = pool_info_read(deps.storage)
+        .range(None, None, Order::Ascending)
+        .map(|item| {
+            let (_, pool_info) = item?;
+            Ok(pool_info)
+        })
+        .collect::<StdResult<Vec<PoolInfo>>>()?;
+    let lp_balance = query_astroport_pool_balance(
+        deps.as_ref(),
+        &&pool_info[0].staking_token,
+        &env.contract.address,
+        &config.astroport_generator,
+    )?;
+
+    let staking_token = deps.api.addr_humanize(&pool_info[0].staking_token)?;
+
+    Ok(Response::new().add_messages(vec![
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: deps
+                .api
+                .addr_humanize(&config.astroport_generator)?
+                .to_string(),
+            funds: vec![],
+            msg: to_binary(&AstroportExecuteMsg::EmergencyWithdraw {
+                lp_token: staking_token.clone(),
+            })?,
+        }),
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: env.contract.address.to_string(),
+            msg: to_binary(&ExecuteMsg::assert_balance {
+                staking_token: staking_token.to_string(),
+                amount: lp_balance,
+            })?,
+            funds: vec![],
+        }),
+    ]))
+}
+
+fn assert_balance(
+    deps: DepsMut,
+    env: Env,
+    _info: MessageInfo,
+    staking_token: String,
+    amount: Uint128,
+) -> StdResult<Response> {
+    let staking_token = deps.api.addr_validate(&staking_token)?;
+    let balance = query_token_balance(&deps.querier, staking_token, env.contract.address)?;
+    if balance < amount {
+        Err(StdError::generic_err(format!(
+            "Balance is less than {}",
+            amount
+        )))
+    } else {
+        Ok(Response::default())
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

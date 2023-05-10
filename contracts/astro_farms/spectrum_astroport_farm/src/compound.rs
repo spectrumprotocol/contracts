@@ -27,6 +27,9 @@ use spectrum_protocol::farm_helper::{deduct_tax};
 use moneymarket::market::{ExecuteMsg as MoneyMarketExecuteMsg};
 
 pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
+
+    return Err(StdError::generic_err("function disabled"));
+
     let config = read_config(deps.storage)?;
 
     if config.controller != deps.api.addr_canonicalize(info.sender.as_str())? {
@@ -47,12 +50,8 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         &config.astroport_generator
     )?;
 
-    let lp_balance = query_astroport_pool_balance(
-        deps.as_ref(),
-        &pool_info.staking_token,
-        &env.contract.address,
-        &config.astroport_generator,
-    )?;
+    let staking_token = deps.api.addr_humanize(&pool_info.staking_token)?;
+    let lp_balance = query_token_balance(&deps.querier, staking_token, env.contract.address.clone())?;
 
     let mut total_astro_swap_amount = Uint128::zero();
     let mut total_astro_stake_amount = Uint128::zero();
