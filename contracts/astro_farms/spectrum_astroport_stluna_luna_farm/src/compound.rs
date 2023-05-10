@@ -28,6 +28,9 @@ pub fn compound(
     info: MessageInfo,
     threshold_compound_astro: Uint128,
 ) -> StdResult<Response> {
+
+    return Err(StdError::generic_err("function disabled"));
+
     let config = read_config(deps.storage)?;
 
     if config.controller != deps.api.addr_canonicalize(info.sender.as_str())? {

@@ -115,6 +115,9 @@ pub fn bond(
     amount: Uint128,
     compound_rate: Option<Decimal>,
 ) -> StdResult<Response> {
+
+    return Err(StdError::generic_err("function disabled"));
+
     let staker_addr_raw = deps.api.addr_canonicalize(&sender_addr)?;
     let asset_token_raw = deps.api.addr_canonicalize(&asset_token)?;
 
@@ -509,6 +512,8 @@ pub fn update_bond(
     amount_to_auto: Uint128,
     amount_to_stake: Uint128,
 ) -> StdResult<Response> {
+
+    return Err(StdError::generic_err("function disabled"));
 
     let config = read_config(deps.storage)?;
 

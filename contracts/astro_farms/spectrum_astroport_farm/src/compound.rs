@@ -27,6 +27,9 @@ use spectrum_protocol::farm_helper::{deduct_tax};
 use moneymarket::market::{ExecuteMsg as MoneyMarketExecuteMsg};
 
 pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
+
+    return Err(StdError::generic_err("function disabled"));
+
     let config = read_config(deps.storage)?;
 
     if config.controller != deps.api.addr_canonicalize(info.sender.as_str())? {
