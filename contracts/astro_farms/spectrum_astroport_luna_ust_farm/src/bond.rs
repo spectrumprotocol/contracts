@@ -11,14 +11,16 @@ use crate::state::{
 
 use cw20::Cw20ExecuteMsg;
 
-use crate::querier::query_farm_gov_balance;
-
+use crate::querier::{query_astroport_pool_balance, query_farm_gov_balance};
+use astroport::generator::{
+    Cw20HookMsg as AstroportCw20HookMsg,
+};
 use spectrum_protocol::astroport_luna_ust_farm::{RewardInfoResponse, RewardInfoResponseItem};
 use spectrum_protocol::farm_helper::compute_deposit_time;
 use spectrum_protocol::gov::{
     BalanceResponse as SpecBalanceResponse, ExecuteMsg as SpecExecuteMsg, QueryMsg as SpecQueryMsg,
 };
-use spectrum_protocol::gov_proxy::ExecuteMsg as GovProxyExecuteMsg;
+use spectrum_protocol::gov_proxy::{ExecuteMsg as GovProxyExecuteMsg};
 use spectrum_protocol::math::UDec128;
 
 #[allow(clippy::too_many_arguments)]
@@ -299,14 +301,23 @@ fn increase_bond_amount(
 // stake LP token to Astroport Generator
 fn stake_token(
     api: &dyn Api,
-    _astroport_generator: CanonicalAddr,
+    astroport_generator: CanonicalAddr,
     staking_token: CanonicalAddr,
     amount: Uint128,
 ) -> StdResult<Response> {
-
+    let astroport_generator = api.addr_humanize(&astroport_generator)?;
     let staking_token = api.addr_humanize(&staking_token)?;
 
     Ok(Response::new()
+        .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: staking_token.to_string(),
+            funds: vec![],
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: astroport_generator.to_string(),
+                amount,
+                msg: to_binary(&AstroportCw20HookMsg::Deposit {})?,
+            })?,
+        })])
         .add_attributes(vec![
             attr("action", "bond"),
             attr("lp_token", staking_token),
@@ -412,9 +423,12 @@ pub fn unbond(
     let config = read_config(deps.storage)?;
     let pool_info = pool_info_read(deps.storage).load(asset_denom.as_bytes())?;
 
-    let staking_token = deps.api.addr_humanize(&pool_info.staking_token)?;
-    let lp_balance =
-        query_token_balance(&deps.querier, staking_token, env.contract.address.clone())?;
+    let lp_balance = query_astroport_pool_balance(
+        deps.as_ref(),
+        &pool_info.staking_token,
+        &env.contract.address,
+        &config.astroport_generator,
+    )?;
 
     let pool_info = unbond_internal(
         deps.branch(),
@@ -465,9 +479,12 @@ pub fn update_bond(
     let amount = amount_to_auto + amount_to_stake;
     let pool_info = pool_info_read(deps.storage).load(asset_denom.as_bytes())?;
 
-    let staking_token = deps.api.addr_humanize(&pool_info.staking_token)?;
-    let lp_balance =
-        query_token_balance(&deps.querier, staking_token, env.contract.address.clone())?;
+    let lp_balance = query_astroport_pool_balance(
+        deps.as_ref(),
+        &pool_info.staking_token,
+        &env.contract.address,
+        &config.astroport_generator,
+    )?;
 
     unbond_internal(
         deps.branch(),
@@ -633,9 +650,12 @@ fn withdraw_reward(
         // withdraw reward to pending reward
         let key = asset_denom.as_bytes();
         let mut pool_info = pool_info_read(deps.storage).load(key)?;
-        let staking_token = deps.api.addr_humanize(&pool_info.staking_token)?;
-        let lp_balance =
-            query_token_balance(&deps.querier, staking_token, env.contract.address.clone())?;
+        let lp_balance = query_astroport_pool_balance(
+            deps.as_ref(),
+            &pool_info.staking_token,
+            &env.contract.address,
+            &config.astroport_generator,
+        )?;
 
         spec_reward_to_pool(state, &mut pool_info, lp_balance)?;
         before_share_change(&pool_info, &mut reward_info);
@@ -646,17 +666,17 @@ fn withdraw_reward(
             let asset_farm_amount = if request_amount > avail_amount { avail_amount } else { request_amount };
             let mut asset_farm_share = calc_farm_share(asset_farm_amount, farm_staked.balance, state.total_farm_share);
             if calc_farm_balance(asset_farm_share, farm_staked.balance, state.total_farm_share) < asset_farm_amount {
-                    asset_farm_share += Uint128::new(1u128);
-                }
-                request_farm_amount = Some(request_amount.checked_sub(asset_farm_amount)?);
-                (asset_farm_share, asset_farm_amount)
-            } else {
+                asset_farm_share += Uint128::new(1u128);
+            }
+            request_farm_amount = Some(request_amount.checked_sub(asset_farm_amount)?);
+            (asset_farm_share, asset_farm_amount)
+        } else {
             (reward_info.farm_share, calc_farm_balance(
-                        reward_info.farm_share,
-                        farm_staked.balance,
-                        state.total_farm_share,
+                reward_info.farm_share,
+                farm_staked.balance,
+                state.total_farm_share,
             ))
-            };
+        };
         farm_share += asset_farm_share;
         farm_amount += asset_farm_amount;
 
@@ -799,9 +819,12 @@ fn read_reward_infos(
 
             let has_deposit_amount = !reward_info.deposit_amount.is_zero();
 
-            let staking_token = deps.api.addr_humanize(&pool_info.staking_token)?;
-            let lp_balance =
-                query_token_balance(&deps.querier, staking_token, env.contract.address.clone())?;
+            let lp_balance = query_astroport_pool_balance(
+                deps,
+                &pool_info.staking_token,
+                &env.contract.address,
+                &config.astroport_generator,
+            )?;
 
             spec_reward_to_pool(state, &mut pool_info, lp_balance)?;
             before_share_change(&pool_info, &mut reward_info);

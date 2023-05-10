@@ -2,16 +2,16 @@ use cosmwasm_std::{attr, to_binary, Attribute, Coin, CosmosMsg, DepsMut, Env, Me
 
 use crate::{
     bond::deposit_farm_share,
-    querier::{query_astroport_pending_token},
+    querier::{query_astroport_pending_token, query_astroport_pool_balance},
     state::{read_config, state_store},
 };
 
 use cw20::Cw20ExecuteMsg;
 
-use crate::state::{pool_info_read, pool_info_store, read_state, PoolInfo};
+use crate::state::{pool_info_read, pool_info_store, read_state, Config, PoolInfo};
 use astroport::asset::{Asset, AssetInfo};
 use astroport::generator::{
-    ExecuteMsg as AstroportExecuteMsg
+    Cw20HookMsg as AstroportCw20HookMsg, ExecuteMsg as AstroportExecuteMsg
 };
 use astroport::pair::{
     Cw20HookMsg as AstroportPairCw20HookMsg, ExecuteMsg as AstroportPairExecuteMsg,
@@ -52,8 +52,12 @@ pub fn compound(
         &config.astroport_generator
     )?;
 
-    let staking_token = deps.api.addr_humanize(&pool_info.staking_token)?;
-    let lp_balance = query_token_balance(&deps.querier, staking_token, env.contract.address.clone())?;
+    let lp_balance = query_astroport_pool_balance(
+        deps.as_ref(),
+        &pool_info.staking_token,
+        &env.contract.address,
+        &config.astroport_generator,
+    )?;
 
     let mut total_token_swap_amount = Uint128::zero();
     let mut total_token_stake_amount = Uint128::zero();
@@ -247,7 +251,7 @@ pub fn compound(
                 ],
                 slippage_tolerance: Some(Decimal::percent(50)),
                 receiver: None,
-                auto_stake: Some(false),
+                auto_stake: Some(true),
             })?,
             funds: vec![
                 Coin {
@@ -286,7 +290,8 @@ pub fn stake(
     if info.sender != env.contract.address {
         return Err(StdError::generic_err("unauthorized"));
     }
-
+    let config: Config = read_config(deps.storage)?;
+    let astroport_generator = deps.api.addr_humanize(&config.astroport_generator)?;
     let asset_token_raw: CanonicalAddr = deps.api.addr_canonicalize(&asset_token)?;
     let pool_info: PoolInfo = pool_info_read(deps.storage).load(asset_token_raw.as_slice())?;
     let staking_token = deps.api.addr_humanize(&pool_info.staking_token)?;
@@ -294,6 +299,15 @@ pub fn stake(
     let amount = query_token_balance(&deps.querier, staking_token.clone(), env.contract.address)?;
 
     Ok(Response::new()
+        .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: staking_token.to_string(),
+            funds: vec![],
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: astroport_generator.to_string(),
+                amount,
+                msg: to_binary(&AstroportCw20HookMsg::Deposit {})?,
+            })?,
+        })])
         .add_attributes(vec![
             attr("action", "stake"),
             attr("asset_token", asset_token),
