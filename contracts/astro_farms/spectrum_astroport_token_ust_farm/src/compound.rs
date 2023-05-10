@@ -60,12 +60,8 @@ pub fn compound(
         &config.astroport_generator
     )?;
 
-    let lp_balance = query_astroport_pool_balance(
-        deps.as_ref(),
-        &pool_info.staking_token,
-        &env.contract.address,
-        &config.astroport_generator,
-    )?;
+    let staking_token = deps.api.addr_humanize(&pool_info.staking_token)?;
+    let lp_balance = query_token_balance(&deps.querier, staking_token, env.contract.address.clone())?;
 
     let mut total_farm_token_swap_amount = Uint128::zero();
     let mut total_farm_token_stake_amount = Uint128::zero();

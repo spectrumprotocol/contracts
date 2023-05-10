@@ -426,12 +426,8 @@ pub fn unbond(
     let config = read_config(deps.storage)?;
     let pool_info = pool_info_read(deps.storage).load(asset_denom.as_bytes())?;
 
-    let lp_balance = query_astroport_pool_balance(
-        deps.as_ref(),
-        &pool_info.staking_token,
-        &env.contract.address,
-        &config.astroport_generator,
-    )?;
+    let staking_token = deps.api.addr_humanize(&pool_info.staking_token)?;
+    let lp_balance = query_token_balance(&deps.querier, staking_token, env.contract.address.clone())?;
 
     let pool_info = unbond_internal(
         deps.branch(),
@@ -484,12 +480,8 @@ pub fn update_bond(
     let amount = amount_to_auto + amount_to_stake;
     let pool_info = pool_info_read(deps.storage).load(asset_denom.as_bytes())?;
 
-    let lp_balance = query_astroport_pool_balance(
-        deps.as_ref(),
-        &pool_info.staking_token,
-        &env.contract.address,
-        &config.astroport_generator,
-    )?;
+    let staking_token = deps.api.addr_humanize(&pool_info.staking_token)?;
+    let lp_balance = query_token_balance(&deps.querier, staking_token, env.contract.address.clone())?;
 
     unbond_internal(
         deps.branch(),
@@ -655,13 +647,9 @@ fn withdraw_reward(
         // withdraw reward to pending reward
         let key = asset_denom.as_bytes();
         let mut pool_info = pool_info_read(deps.storage).load(key)?;
-        let lp_balance = query_astroport_pool_balance(
-            deps.as_ref(),
-            &pool_info.staking_token,
-            &env.contract.address,
-            &config.astroport_generator,
-        )?;
-
+        let staking_token = deps.api.addr_humanize(&pool_info.staking_token)?;
+        let lp_balance = query_token_balance(&deps.querier, staking_token, env.contract.address.clone())?;
+    
         spec_reward_to_pool(state, &mut pool_info, lp_balance)?;
         before_share_change(&pool_info, &mut reward_info);
 
@@ -824,13 +812,9 @@ fn read_reward_infos(
 
             let has_deposit_amount = !reward_info.deposit_amount.is_zero();
 
-            let lp_balance = query_astroport_pool_balance(
-                deps,
-                &pool_info.staking_token,
-                &env.contract.address,
-                &config.astroport_generator,
-            )?;
-
+            let staking_token = deps.api.addr_humanize(&pool_info.staking_token)?;
+            let lp_balance = query_token_balance(&deps.querier, staking_token, env.contract.address.clone())?;
+        
             spec_reward_to_pool(state, &mut pool_info, lp_balance)?;
             before_share_change(&pool_info, &mut reward_info);
 
