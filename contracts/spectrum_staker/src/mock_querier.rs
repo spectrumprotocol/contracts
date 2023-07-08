@@ -5,9 +5,9 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{from_binary, from_slice, to_binary, Coin, ContractResult, Decimal, OwnedDeps, Querier, QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery, BankQuery, BalanceResponse};
 use std::collections::HashMap;
-use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
-use terraswap::asset::{Asset, AssetInfo};
-use terraswap::pair::{PoolResponse, SimulationResponse};
+use classic_bindings::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
+use classic_terraswap::asset::{Asset, AssetInfo};
+use classic_terraswap::pair::{PoolResponse, SimulationResponse};
 
 use spectrum_protocol::gov::BalanceResponse as SpecBalanceResponse;
 use crate::contract::PairInfo;
@@ -16,7 +16,7 @@ use crate::contract::PairInfo;
 /// this uses our CustomQuerier.
 pub fn mock_dependencies(
     contract_balance: &[Coin],
-) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier> {
+) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery> {
     let contract_addr = MOCK_CONTRACT_ADDR.to_string();
     let custom_querier: WasmMockQuerier =
         WasmMockQuerier::new(MockQuerier::new(&[(&contract_addr, contract_balance)]));
@@ -25,6 +25,7 @@ pub fn mock_dependencies(
         storage: MockStorage::default(),
         api: MockApi::default(),
         querier: custom_querier,
+        custom_query_type: Default::default(),
     }
 }
 
@@ -188,7 +189,7 @@ impl WasmMockQuerier {
                             let cap = self
                                 .tax_querier
                                 .caps
-                                .get(denom)
+                                .get(denom.as_str())
                                 .copied()
                                 .unwrap_or_default();
                             let res = TaxCapResponse { cap };

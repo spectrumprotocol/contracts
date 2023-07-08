@@ -1,8 +1,8 @@
 use cosmwasm_std::Uint128;
 use cw20::Cw20ReceiveMsg;
-use pylon_utils::common::OrderBy;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use crate::common::OrderBy;
 
 use crate::time_range::TimeRange;
 

@@ -33,7 +33,7 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// * **msg** is a message of type [`InstantiateMsg`] which contains the basic settings for creating a contract
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
@@ -78,7 +78,7 @@ pub fn instantiate(
 /// * **ExecuteMsg::Callback(msg)** Handles the callbacks describes in the [`CallbackMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
@@ -108,7 +108,7 @@ pub fn execute(
 ///
 /// * **cw20_msg** is the object of type [`Cw20ReceiveMsg`].
 fn receive_cw20(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     _env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
@@ -180,7 +180,7 @@ fn update_rewards(deps: DepsMut) -> Result<Response, ContractError> {
 /// ## Executor
 /// Only the contract of generator can execute it
 fn send_rewards(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     info: MessageInfo,
     account: Addr,
     amount: Uint128,
@@ -221,7 +221,7 @@ fn send_rewards(
 /// ## Executor
 /// Only the contract of generator can execute it
 fn withdraw(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     account: Addr,
@@ -282,7 +282,7 @@ fn withdraw(
 /// ## Executor
 /// Callback functions can only be called this contract itself
 pub fn handle_callback(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     msg: CallbackMsg,
@@ -312,7 +312,7 @@ pub fn handle_callback(
 /// * **prev_lp_balance** is the object of type [`CallbackMsg`]. Sets the previous balance for
 /// calculating the withdrawal amount.
 pub fn transfer_lp_tokens_after_withdraw(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     account: Addr,
     prev_lp_balance: Uint128,
@@ -357,7 +357,7 @@ pub fn transfer_lp_tokens_after_withdraw(
 ///
 /// * **QueryMsg::RewardInfo {}** returns the reward token contract address.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps<TerraQuery>, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let cfg = CONFIG.load(deps.storage)?;
     match msg {
         QueryMsg::Config {} => to_binary(&ConfigResponse {
@@ -428,6 +428,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 ///
 /// * **_msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(_deps: DepsMut<TerraQuery>, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
 }

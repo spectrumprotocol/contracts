@@ -3,7 +3,7 @@ use crate::oracle::PriceResponse;
 use crate::querier::{compute_tax, deduct_tax, query_price, query_tax_rate, TimeConstraints};
 use crate::tokens::{Tokens, TokensHuman, TokensMath, TokensToRaw};
 
-use cosmwasm_bignumber::{Decimal256, Uint256};
+use cosmwasm_std::{Decimal256, Uint256};
 use cosmwasm_std::{Addr, Api, CanonicalAddr, Coin, Decimal, StdError, Uint128};
 
 #[test]

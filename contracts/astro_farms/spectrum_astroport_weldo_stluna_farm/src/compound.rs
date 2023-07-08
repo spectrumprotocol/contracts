@@ -1,11 +1,12 @@
 #![allow(clippy::assign_op_pattern)]
 #![allow(clippy::ptr_offset_with_cast)]
 
+use classic_bindings::TerraQuery;
 use cosmwasm_std::{attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, DepsMut, Env, MessageInfo, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery, Decimal, QuerierWrapper, Addr};
 
 use crate::{
     bond::deposit_farm_share,
-    querier::{query_astroport_pending_token, query_astroport_pool_balance, astroport_router_simulate_swap},
+    querier::{query_astroport_pending_token, astroport_router_simulate_swap},
     state::{read_config, state_store}, model::ExecuteMsg,
 };
 
@@ -38,7 +39,7 @@ construct_uint! {
 // astro -> ust -> luna -> stluna 92%
 
 pub fn compound(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     threshold_compound_astro: Uint128,
@@ -356,7 +357,7 @@ pub fn compute_provide_after_swap(
 }
 
 pub fn stake(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     asset_token: String,
@@ -392,7 +393,7 @@ pub fn stake(
 }
 
 pub fn send_fee(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
 ) -> StdResult<Response> {
@@ -572,7 +573,7 @@ pub fn send_fee(
 /// 3. total supply of the share token
 fn query_pool(
     pair_contract: String,
-    querier: &QuerierWrapper,
+    querier: &QuerierWrapper<TerraQuery>,
     primary_asset_info: &AssetInfo,
     secondary_asset_info: &AssetInfo,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
@@ -657,7 +658,7 @@ fn get_swap_amount(
 
 #[allow(clippy::too_many_arguments)]
 fn optimal_swap(
-    querier: &QuerierWrapper,
+    querier: &QuerierWrapper<TerraQuery>,
     provide_a_amount: Uint128,
     provide_b_amount: Uint128,
     asset_info_a: AssetInfo,

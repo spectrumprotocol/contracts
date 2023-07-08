@@ -1,3 +1,4 @@
+use classic_bindings::TerraQuery;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{from_binary, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, CosmosMsg, WasmMsg, Empty};
@@ -27,7 +28,7 @@ pub struct ConfigInfo {
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     _env: Env,
     _info: MessageInfo,
     msg: ConfigInfo,
@@ -49,7 +50,7 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
+pub fn execute(deps: DepsMut<TerraQuery>, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::Unstake { amount} => unstake(deps, env, info, amount),
@@ -57,7 +58,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
 }
 
 fn receive_cw20(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     msg: Cw20ReceiveMsg,
@@ -75,7 +76,7 @@ fn receive_cw20(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps<TerraQuery>, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::State {} => to_binary(&query_state(deps)?),
@@ -83,7 +84,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
+fn query_config(deps: Deps<TerraQuery>) -> StdResult<ConfigInfo> {
     let config = read_config(deps.storage)?;
     let resp = ConfigInfo {
         xastro_token: deps.api.addr_humanize(&config.xastro_token)?.to_string(),
@@ -93,12 +94,12 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
     Ok(resp)
 }
 
-fn query_state(deps: Deps) -> StdResult<State> {
+fn query_state(deps: Deps<TerraQuery>) -> StdResult<State> {
     read_state(deps.storage)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, env: Env, _msg: Empty) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut<TerraQuery>, env: Env, _msg: Empty) -> StdResult<Response> {
     let config = read_config(deps.storage)?;
     let farm_token = deps.api.addr_humanize(&config.farm_token)?;
     let xastro_gov = deps.api.addr_humanize(&config.farm_gov)?;

@@ -1,7 +1,7 @@
 use crate::mock_querier::mock_dependencies;
 use crate::querier::{compute_tax, deduct_tax, query_tax_rate};
 
-use cosmwasm_bignumber::{Decimal256, Uint256};
+use cosmwasm_std::{Decimal256, Uint256};
 use cosmwasm_std::{Coin, Decimal, Uint128};
 
 #[test]

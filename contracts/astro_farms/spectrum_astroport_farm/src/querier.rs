@@ -1,3 +1,4 @@
+use classic_bindings::TerraQuery;
 use astroport::generator::{
     PendingTokenResponse, QueryMsg as AstroportQueryMsg,
 };
@@ -5,7 +6,7 @@ use cosmwasm_std::{to_binary, CanonicalAddr, Deps, QueryRequest, StdResult, Uint
 use spectrum_protocol::gov_proxy::{QueryMsg as GovProxyQueryMsg, StakerResponse};
 
 pub fn query_astroport_pending_token(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     lp_token: &CanonicalAddr,
     staker: &Addr,
     astroport_generator: &CanonicalAddr,
@@ -20,7 +21,7 @@ pub fn query_astroport_pending_token(
 }
 
 pub fn query_astroport_pool_balance(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     lp_token: &CanonicalAddr,
     staker: &Addr,
     astroport_generator: &CanonicalAddr,
@@ -35,7 +36,7 @@ pub fn query_astroport_pool_balance(
 }
 
 pub fn query_farm_gov_balance(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     gov_proxy: &CanonicalAddr,
     staker: &Addr,
 ) -> StdResult<StakerResponse> {

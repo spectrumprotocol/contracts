@@ -1,9 +1,10 @@
+use classic_bindings::TerraQuery;
 use cosmwasm_std::{to_binary, CanonicalAddr, Deps, QueryRequest, StdResult, Uint128, WasmQuery, Addr};
 
 use mirror_protocol::staking::{PoolInfoResponse, QueryMsg, RewardInfoResponse};
 
 pub fn query_mirror_reward_info(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     mirror_staking: String,
     staker: String,
 ) -> StdResult<RewardInfoResponse> {
@@ -17,7 +18,7 @@ pub fn query_mirror_reward_info(
 }
 
 pub fn query_mirror_pool_balance(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     mirror_staking: &CanonicalAddr,
     asset_token: &CanonicalAddr,
     staker: &Addr,
@@ -37,7 +38,7 @@ pub fn query_mirror_pool_balance(
 }
 
 pub fn query_mirror_pool_info(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     mirror_staking: String,
     asset_token: String,
 ) -> StdResult<PoolInfoResponse> {

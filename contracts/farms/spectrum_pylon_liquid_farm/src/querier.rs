@@ -1,3 +1,4 @@
+use classic_bindings::TerraQuery;
 use cosmwasm_std::{to_binary, CanonicalAddr, Deps, QueryRequest, StdResult, WasmQuery, Addr, Uint128};
 
 use pylon_gateway::pool_msg::{QueryMsg as PylonGatewayPoolQueryMsg};
@@ -5,7 +6,7 @@ use pylon_gateway::pool_resp::{ClaimableRewardResponse};
 use spectrum_protocol::gov_proxy::{QueryMsg as GovProxyQueryMsg, StakerResponse};
 
 pub fn query_claimable_reward(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     gateway_pool: &CanonicalAddr,
     owner: &Addr,
     timestamp: Option<u64>,
@@ -20,7 +21,7 @@ pub fn query_claimable_reward(
 }
 
 pub fn query_farm_gov_balance(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     gov_proxy: &Option<CanonicalAddr>,
     address: String,
 ) -> StdResult<StakerResponse> {

@@ -1,3 +1,4 @@
+use classic_bindings::TerraQuery;
 use cosmwasm_std::{attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg, QueryRequest, WasmQuery};
 
 use crate::{
@@ -26,7 +27,7 @@ use spectrum_protocol::gov::{ExecuteMsg as GovExecuteMsg};
 use spectrum_protocol::farm_helper::{deduct_tax};
 use moneymarket::market::{ExecuteMsg as MoneyMarketExecuteMsg};
 
-pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
+pub fn compound(deps: DepsMut<TerraQuery>, env: Env, info: MessageInfo) -> StdResult<Response> {
 
     return Err(StdError::generic_err("function disabled"));
 
@@ -302,7 +303,7 @@ pub fn compute_provide_after_swap(
 
 // TODO remove this function and its entry interface?
 pub fn stake(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     asset_token: String,
@@ -338,7 +339,7 @@ pub fn stake(
 }
 
 pub fn send_fee(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
 ) -> StdResult<Response> {

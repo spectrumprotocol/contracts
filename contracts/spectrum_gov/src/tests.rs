@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use classic_bindings::TerraQuery;
 use crate::contract::{execute, instantiate, query};
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
 use crate::stake::{calc_mintable, reconcile_balance};
@@ -44,7 +45,7 @@ fn test() {
     test_aust(&mut deps, stake);
 }
 
-fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> ConfigInfo {
+fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) -> ConfigInfo {
     // test instantiate & read config & read state
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
@@ -187,7 +188,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
 }
 
 fn test_stake(
-    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>,
+    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>,
 ) -> (Uint128, Uint128, Uint128) {
     // stake, error
     let env = mock_env();
@@ -290,7 +291,7 @@ fn test_stake(
 }
 
 fn test_poll_executed(
-    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>,
+    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>,
     config: &ConfigInfo,
     (stake_amount, stake_amount_2, total_amount): (Uint128, Uint128, Uint128),
 ) -> (Uint128, Uint128, Uint128) {
@@ -619,7 +620,7 @@ fn test_poll_executed(
 }
 
 fn test_poll_low_quorum(
-    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>,
+    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>,
     (stake_amount, stake_amount_2, total_amount): (Uint128, Uint128, Uint128),
 ) -> (Uint128, Uint128, Uint128) {
     // start poll2
@@ -761,7 +762,7 @@ fn test_poll_low_quorum(
 }
 
 fn test_poll_low_threshold(
-    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>,
+    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>,
     (stake_amount, stake_amount_2, total_amount): (Uint128, Uint128, Uint128),
 ) -> (Uint128, Uint128, Uint128) {
 
@@ -910,7 +911,7 @@ fn test_poll_low_threshold(
 }
 
 fn test_poll_expired(
-    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>,
+    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>,
     (stake_amount, stake_amount_2, total_amount): (Uint128, Uint128, Uint128),
 ) -> (Uint128, Uint128, Uint128) {
     // start poll
@@ -1015,7 +1016,7 @@ fn test_poll_expired(
 }
 
 fn test_reward(
-    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>,
+    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>,
     (stake_amount, stake_amount_2, total_amount): (Uint128, Uint128, Uint128),
 ) -> Uint128 {
     let mut env = mock_env();
@@ -1269,7 +1270,7 @@ fn test_reward(
 }
 
 fn test_pools(
-    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>,
+    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>,
     total_amount: Uint128,
 ) -> Uint128 {
     // invalid owner cannot add pool
@@ -1491,7 +1492,7 @@ fn test_pools(
 }
 
 fn test_aust(
-    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>,
+    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>,
     total_amount: Uint128,
 ) {
     // add aust

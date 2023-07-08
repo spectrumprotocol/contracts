@@ -1,3 +1,4 @@
+use classic_bindings::TerraQuery;
 use cosmwasm_std::{Deps, StdResult, Addr, Uint128};
 use astroport::querier::{query_supply, query_token_balance};
 use crate::state::Config;
@@ -14,7 +15,7 @@ pub struct StakerResponse {
 }
 
 pub fn query_xastro_gov(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     config: &Config,
     staker: &Addr,
 ) -> StdResult<StakerResponse> {

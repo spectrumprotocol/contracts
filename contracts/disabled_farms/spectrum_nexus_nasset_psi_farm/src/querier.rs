@@ -1,9 +1,10 @@
+use classic_bindings::TerraQuery;
 use cosmwasm_std::{to_binary, CanonicalAddr, Deps, QueryRequest, StdResult, Uint128, WasmQuery, Addr};
 
 use nexus_token::staking::{QueryMsg as NexusStakingQueryMsg, StakerInfoResponse};
 
 pub fn query_nexus_reward_info(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     nasset_staking: &CanonicalAddr,
     staker: &Addr,
     time_seconds: Option<u64>,
@@ -18,7 +19,7 @@ pub fn query_nexus_reward_info(
 }
 
 pub fn query_nexus_pool_balance(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     nasset_staking: &CanonicalAddr,
     staker: &Addr,
     time_seconds: u64,

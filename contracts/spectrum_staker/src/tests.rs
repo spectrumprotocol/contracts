@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::iter::FromIterator;
 use std::str::FromStr;
+use classic_bindings::TerraQuery;
 
 use crate::contract::{execute, compute_swap_amount, instantiate, query, PairInfo, PairType};
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
@@ -8,8 +9,8 @@ use cosmwasm_std::testing::{MOCK_CONTRACT_ADDR, mock_env, mock_info, MockApi, Mo
 use cosmwasm_std::{from_binary, to_binary, Coin, CosmosMsg, Decimal, OwnedDeps, StdError, Uint128, WasmMsg, Addr, BankMsg};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use spectrum_protocol::staker::{ConfigInfo, Cw20HookMsg, ExecuteMsg, QueryMsg};
-use terraswap::asset::{Asset, AssetInfo};
-use terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg, ExecuteMsg as TerraswapExecuteMsg, PoolResponse};
+use classic_terraswap::asset::{Asset, AssetInfo};
+use classic_terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg, ExecuteMsg as TerraswapExecuteMsg, PoolResponse};
 use spectrum_protocol::staker_single_asset::SwapOperation;
 
 const TOKEN: &str = "token";
@@ -140,7 +141,7 @@ fn test() {
     test_native_assets(&mut deps);
 }
 
-fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     // test instantiate & read config & read state
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
@@ -208,7 +209,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     );
 }
 
-fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     let env = mock_env();
     let info = mock_info(
         USER1,
@@ -350,7 +351,8 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                         },
                     ],
                     slippage_tolerance: Some(Decimal::percent(1u64)),
-                    receiver: None
+                    receiver: None,
+                    deadline: None,
                 })
                 .unwrap(),
                 funds: vec![Coin {
@@ -400,7 +402,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert!(res.is_ok())
 }
 
-fn test_bond_2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_bond_2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     let env = mock_env();
     let info = mock_info(
         USER1,
@@ -494,7 +496,8 @@ fn test_bond_2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                         },
                     ],
                     slippage_tolerance: Some(Decimal::percent(1u64)),
-                    receiver: None
+                    receiver: None,
+                    deadline: None,
                 })
                     .unwrap(),
                 funds: vec![],
@@ -516,7 +519,7 @@ fn test_bond_2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     );
 }
 
-fn test_zap_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_zap_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     let env = mock_env();
     let info = mock_info(
         USER1,
@@ -643,6 +646,7 @@ fn test_zap_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                     max_spread: Some(Decimal::percent(1u64)),
                     belief_price: Some(Decimal::from_ratio(1u128, 1u128)),
                     to: None,
+                    deadline: None,
                 })
                 .unwrap(),
                 funds: vec![Coin {
@@ -703,7 +707,7 @@ fn test_zap_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     assert!(res.is_ok())
 }
 
-fn test_zap_bond2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_zap_bond2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     let env = mock_env();
     let info = mock_info(
         USER1,
@@ -754,6 +758,7 @@ fn test_zap_bond2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                     max_spread: Some(Decimal::percent(1u64)),
                     belief_price: Some(Decimal::from_ratio(1u128, 1u128)),
                     to: None,
+                    deadline: None,
                 }).unwrap(),
                 funds: vec![Coin {
                     denom: "uusd".to_string(),
@@ -769,6 +774,7 @@ fn test_zap_bond2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                         max_spread: Some(Decimal::percent(1u64)),
                         belief_price: Some(Decimal::from_ratio(6u128, 5u128)),
                         to: None,
+                        deadline: None,
                     }).unwrap()
                 }).unwrap(),
                 funds: vec![],
@@ -858,6 +864,7 @@ fn test_zap_bond2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                     max_spread: Some(Decimal::percent(1u64)),
                     belief_price: Some(Decimal::from_ratio(1u128, 1u128)),
                     to: None,
+                    deadline: None,
                 }).unwrap(),
                 funds: vec![Coin {
                     denom: "uusd".to_string(),
@@ -876,6 +883,7 @@ fn test_zap_bond2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                     max_spread: Some(Decimal::percent(1u64)),
                     belief_price: Some(Decimal::from_ratio(1u128, 2u128)),
                     to: None,
+                    deadline: None,
                 }).unwrap(),
                 funds: vec![Coin {
                     denom: "uluna".to_string(),
@@ -891,6 +899,7 @@ fn test_zap_bond2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
                         max_spread: Some(Decimal::percent(1u64)),
                         belief_price: Some(Decimal::from_ratio(6u128, 5u128)),
                         to: None,
+                        deadline: None,
                     }).unwrap()
                 }).unwrap(),
                 funds: vec![],
@@ -925,7 +934,7 @@ fn test_zap_bond2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
 
 }
 
-fn test_zap_unbond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_zap_unbond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     let env = mock_env();
     let info = mock_info(USER1, &[]);
 
@@ -1038,7 +1047,7 @@ fn test_zap_unbond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) 
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     amount: Uint128::from(124u128),
                     contract: PAIR.to_string(),
-                    msg: to_binary(&TerraswapCw20HookMsg::WithdrawLiquidity {}).unwrap(),
+                    msg: to_binary(&TerraswapCw20HookMsg::WithdrawLiquidity { min_assets: None, deadline: None }).unwrap(),
                 }).unwrap(),
                 funds: vec![],
             }),
@@ -1116,6 +1125,7 @@ fn test_zap_unbond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) 
                         belief_price: Some(Decimal::one()),
                         max_spread: Some(Decimal::percent(1u64)),
                         to: Some(USER1.to_string()),
+                        deadline: None,
                     }).unwrap(),
                 }).unwrap(),
                 funds: vec![],
@@ -1124,7 +1134,7 @@ fn test_zap_unbond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) 
     );
 }
 
-fn test_zap_unbond2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_zap_unbond2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     let env = mock_env();
     let info = mock_info(LP_B, &[]);
 
@@ -1161,7 +1171,7 @@ fn test_zap_unbond2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     amount: Uint128::from(124u128),
                     contract: PAIR_B.to_string(),
-                    msg: to_binary(&TerraswapCw20HookMsg::WithdrawLiquidity {}).unwrap(),
+                    msg: to_binary(&TerraswapCw20HookMsg::WithdrawLiquidity { min_assets: None, deadline: None }).unwrap(),
                 }).unwrap(),
                 funds: vec![],
             }),
@@ -1244,6 +1254,7 @@ fn test_zap_unbond2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
                         belief_price: Some(Decimal::percent(120)),
                         max_spread: Some(Decimal::percent(1u64)),
                         to: None,
+                        deadline: None,
                     }).unwrap(),
                 }).unwrap(),
                 funds: vec![],
@@ -1317,6 +1328,7 @@ fn test_zap_unbond2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
                         belief_price: Some(Decimal::one()),
                         max_spread: Some(Decimal::percent(1u64)),
                         to: Some(USER1.to_string()),
+                        deadline: None,
                     }).unwrap(),
                 }).unwrap(),
                 funds: vec![],
@@ -1325,7 +1337,7 @@ fn test_zap_unbond2(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
     );
 }
 
-fn test_zap_unbond3(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_zap_unbond3(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     let env = mock_env();
     let info = mock_info(LP_B, &[]);
 
@@ -1377,7 +1389,7 @@ fn test_zap_unbond3(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     amount: Uint128::from(124u128),
                     contract: PAIR_B.to_string(),
-                    msg: to_binary(&TerraswapCw20HookMsg::WithdrawLiquidity {}).unwrap(),
+                    msg: to_binary(&TerraswapCw20HookMsg::WithdrawLiquidity { min_assets: None, deadline: None }).unwrap(),
                 }).unwrap(),
                 funds: vec![],
             }),
@@ -1490,6 +1502,7 @@ fn test_zap_unbond3(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
                         belief_price: Some(Decimal::percent(120)),
                         max_spread: Some(Decimal::percent(1u64)),
                         to: None,
+                        deadline: None,
                     }).unwrap(),
                 }).unwrap(),
                 funds: vec![],
@@ -1593,6 +1606,7 @@ fn test_zap_unbond3(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
                         belief_price: Some(Decimal::one()),
                         max_spread: Some(Decimal::percent(1u64)),
                         to: None,
+                        deadline: None,
                     }).unwrap(),
                 }).unwrap(),
                 funds: vec![],
@@ -1607,6 +1621,7 @@ fn test_zap_unbond3(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
                     belief_price: Some(Decimal::from_ratio(1u128, 2u128)),
                     max_spread: Some(Decimal::percent(1u64)),
                     to: Some(USER1.to_string()),
+                    deadline: None,
                 }).unwrap(),
                 funds: vec![
                     Coin { denom: "uluna".to_string(), amount: Uint128::from(123u128) }
@@ -1626,7 +1641,7 @@ fn test_get_swap_amount() {
     assert_eq!(swap_a, Uint128::from(1192_872692u128));
 }
 
-fn test_native_assets(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_native_assets(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[Coin {
         denom: "uusd".to_string(),
@@ -1671,6 +1686,7 @@ fn test_native_assets(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                     belief_price: Some(Decimal::from_str("1").unwrap()),
                     max_spread: Some(Decimal::percent(1)),
                     to: None,
+                    deadline: None,
                 }).unwrap(),
                 funds: vec![
                     Coin { denom: "uusd".to_string(), amount: Uint128::from(100_000_000u128) }
@@ -1739,6 +1755,7 @@ fn test_native_assets(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
                     belief_price: Some(Decimal::from_str("1").unwrap()),
                     max_spread: Some(Decimal::percent(1)),
                     to: None,
+                    deadline: None,
                 }).unwrap(),
                 funds: vec![
                     Coin { denom: "uusd".to_string(), amount: Uint128::from(100_000_000u128) }

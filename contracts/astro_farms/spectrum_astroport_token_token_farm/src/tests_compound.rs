@@ -20,6 +20,7 @@ use astroport::generator::{
 };
 use spectrum_protocol::gov_proxy::{ExecuteMsg as GovProxyExecuteMsg, Cw20HookMsg as GovProxyCw20HookMsg};
 use std::str;
+use classic_bindings::TerraQuery;
 
 const SPEC_GOV: &str = "SPEC_GOV";
 const SPEC_PLATFORM: &str = "spec_platform";
@@ -115,7 +116,7 @@ fn test() {
     // compound FARM_TOKEN only
 }
 
-fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> ConfigInfo {
+fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) -> ConfigInfo {
     // test init & read config & read state
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
@@ -192,7 +193,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
     config
 }
 
-fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     // no permission
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
@@ -248,7 +249,7 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
     assert_eq!(res.total_weight, 1u32);
 }
 
-fn test_compound_unauthorized(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_compound_unauthorized(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     // reinvest err
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
@@ -257,7 +258,7 @@ fn test_compound_unauthorized(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMoc
     assert!(res.is_err());
 }
 
-fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     // reinvest zero
     let env = mock_env();
     let info = mock_info(TEST_CONTROLLER, &[]);
@@ -283,7 +284,7 @@ fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
     );
 }
 
-fn test_compound_farm_token_and_astro_not_reach_threshold(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_compound_farm_token_and_astro_not_reach_threshold(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     let env = mock_env();
     let info = mock_info(TEST_CONTROLLER, &[]);
 
@@ -378,7 +379,7 @@ fn test_compound_farm_token_and_astro_not_reach_threshold(deps: &mut OwnedDeps<M
     );
 }
 
-fn test_compound_farm_token_and_astro(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_compound_farm_token_and_astro(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     let env = mock_env();
     let info = mock_info(TEST_CONTROLLER, &[]);
 
@@ -501,7 +502,7 @@ fn test_compound_farm_token_and_astro(deps: &mut OwnedDeps<MockStorage, MockApi,
     );
 }
 
-fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     deps.querier.with_token_balances(&[]);
 
     // bond err
@@ -894,7 +895,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     );
 }
 
-fn test_compound_farm_token_and_astro_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_compound_farm_token_and_astro_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     // update fees
     let env = mock_env();
     let info = mock_info(SPEC_GOV, &[]);

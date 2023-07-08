@@ -1,8 +1,9 @@
-use cosmwasm_bignumber::{Decimal256, Uint256};
+use cosmwasm_std::{Decimal256, Uint256};
 use cosmwasm_std::{to_binary, Addr, Binary, Deps, QueryRequest, StdResult, WasmQuery};
 use cosmwasm_storage::to_length_prefixed;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use classic_bindings::TerraQuery;
 
 use crate::querier::AnchorMarketQueryMsg;
 
@@ -25,7 +26,7 @@ pub struct BorrowerInfo {
 }
 
 pub fn query_borrower_info(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     anchor_market_contract: &Addr,
     borrower: &Addr,
 ) -> StdResult<BorrowerInfoResponse> {
@@ -66,7 +67,7 @@ pub struct StateResponse {
     // pub anc_emission_rate: Decimal256,
 }
 
-pub fn query_market_state(deps: Deps, anchor_market_contract: &Addr) -> StdResult<StateResponse> {
+pub fn query_market_state(deps: Deps<TerraQuery>, anchor_market_contract: &Addr) -> StdResult<StateResponse> {
     let market_state: StateResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
         contract_addr: anchor_market_contract.to_string(),
         //Anchor use cosmwasm_storage::Singleton which add length prefix
@@ -94,7 +95,7 @@ pub struct ConfigResponse {
     pub max_borrow_factor: Decimal256,
 }
 
-pub fn query_market_config(deps: Deps, anchor_market_contract: &Addr) -> StdResult<ConfigResponse> {
+pub fn query_market_config(deps: Deps<TerraQuery>, anchor_market_contract: &Addr) -> StdResult<ConfigResponse> {
     let market_config: ConfigResponse =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
             contract_addr: anchor_market_contract.to_string(),

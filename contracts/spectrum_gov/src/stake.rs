@@ -1,3 +1,4 @@
+use classic_bindings::TerraQuery;
 use crate::state::{account_store, poll_voter_store, read_account, read_config, read_poll, read_state, read_vault, read_vaults, state_store, vault_store, Account, Config, State, StatePool, SEC_IN_DAY};
 use cosmwasm_std::{
     attr, to_binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
@@ -5,14 +6,14 @@ use cosmwasm_std::{
 };
 use cw20::Cw20ExecuteMsg;
 use spectrum_protocol::gov::{BalanceResponse, PollStatus, VaultInfo, VaultsResponse, BalancePoolInfo};
-use terraswap::querier::query_token_balance;
+use classic_terraswap::querier::query_token_balance;
 
-pub fn reconcile_balance(deps: &Deps, state: &mut State, config: &Config, deposited_amount: Uint128) -> StdResult<Uint128> {
+pub fn reconcile_balance(deps: &Deps<TerraQuery>, state: &mut State, config: &Config, deposited_amount: Uint128) -> StdResult<Uint128> {
     reconcile_aust(deps, state, config)?;
     reconcile_spec(deps, state, config, deposited_amount)
 }
 
-fn reconcile_aust(deps: &Deps, state: &mut State, config: &Config) -> StdResult<()> {
+fn reconcile_aust(deps: &Deps<TerraQuery>, state: &mut State, config: &Config) -> StdResult<()> {
 
     let balance = query_token_balance(
         &deps.querier,
@@ -80,7 +81,7 @@ fn distribute_reward(state: &State, diff: Uint128) -> StdResult<Vec<Uint128>> {
     Ok(changes)
 }
 
-fn reconcile_spec(deps: &Deps, state: &mut State, config: &Config, deposited_amount: Uint128) -> StdResult<Uint128> {
+fn reconcile_spec(deps: &Deps<TerraQuery>, state: &mut State, config: &Config, deposited_amount: Uint128) -> StdResult<Uint128> {
 
     let balance = query_token_balance(
         &deps.querier,
@@ -158,7 +159,7 @@ fn reconcile_account(account: &mut Account, state: &State) {
 /// - update_config
 /// - upsert_vault
 /// - withdraw (for warchest & vault)
-pub fn mint(deps: DepsMut, env: Env) -> StdResult<Response> {
+pub fn mint(deps: DepsMut<TerraQuery>, env: Env) -> StdResult<Response> {
     let mut state = state_store(deps.storage).load()?;
     let config = read_config(deps.storage)?;
     let mut mintable = calc_mintable(&state, &config, env.block.height);
@@ -230,7 +231,7 @@ pub fn mint(deps: DepsMut, env: Env) -> StdResult<Response> {
 }
 
 pub fn stake_tokens(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     sender: String,
     amount: Uint128,
@@ -275,7 +276,7 @@ pub fn stake_tokens(
 }
 
 pub fn update_stake(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     amount: Uint128,
@@ -324,7 +325,7 @@ pub fn update_stake(
 
 // Withdraw amount if not staked. By default all funds will be withdrawn.
 pub fn withdraw(
-    mut deps: DepsMut,
+    mut deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     amount: Option<Uint128>,
@@ -393,7 +394,7 @@ pub fn withdraw(
 }
 
 pub fn harvest(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     info: MessageInfo,
     aust_amount: Option<Uint128>,
     days: u64,
@@ -432,7 +433,7 @@ pub fn harvest(
 }
 
 fn send_tokens(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     asset_token: &CanonicalAddr,
     recipient: &CanonicalAddr,
     amount: Uint128,
@@ -460,7 +461,7 @@ fn send_tokens(
 // removes not in-progress poll voter info & unlock tokens
 // and returns the largest locked amount in participated polls.
 fn compute_locked_balance(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     account: &mut Account,
     voter: &CanonicalAddr,
 ) -> StdResult<Uint128> {
@@ -487,7 +488,7 @@ fn compute_locked_balance(
 }
 
 pub fn upsert_pool(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     days: u64,
@@ -524,7 +525,7 @@ pub fn upsert_pool(
 }
 
 pub fn upsert_vault(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     vault_address: String,
@@ -553,7 +554,7 @@ pub fn upsert_vault(
     )]))
 }
 
-pub fn query_balances(deps: Deps, address: String, height: u64) -> StdResult<BalanceResponse> {
+pub fn query_balances(deps: Deps<TerraQuery>, address: String, height: u64) -> StdResult<BalanceResponse> {
     let addr_raw = deps.api.addr_canonicalize(&address).unwrap();
 
     let config = read_config(deps.storage)?;
@@ -667,7 +668,7 @@ pub fn validate_minted(state: &State, config: &Config, height: u64) -> StdResult
     }
 }
 
-pub fn query_vaults(deps: Deps) -> StdResult<VaultsResponse> {
+pub fn query_vaults(deps: Deps<TerraQuery>) -> StdResult<VaultsResponse> {
     let vaults = read_vaults(deps.storage)?;
     Ok(VaultsResponse {
         vaults: vaults

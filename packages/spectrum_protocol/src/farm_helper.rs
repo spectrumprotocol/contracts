@@ -1,8 +1,8 @@
 use std::convert::TryFrom;
 use cosmwasm_std::{QuerierWrapper, StdError, StdResult, Uint128, Decimal};
-use terraswap::asset::{Asset};
-use terraswap::pair::PoolResponse;
-use terra_cosmwasm::TerraQuerier;
+use classic_terraswap::asset::{Asset};
+use classic_terraswap::pair::PoolResponse;
+use classic_bindings::{TerraQuerier, TerraQuery};
 
 pub fn compute_deposit_time(
     last_deposit_amount: Uint128,
@@ -16,12 +16,12 @@ pub fn compute_deposit_time(
     u64::try_from(weight_avg).map_err(|_| StdError::generic_err("Overflow in compute_deposit_time"))
 }
 
-pub fn deduct_tax(querier: &QuerierWrapper, amount: Uint128, base_denom: String) -> StdResult<Uint128> {
+pub fn deduct_tax(querier: &QuerierWrapper<TerraQuery>, amount: Uint128, base_denom: String) -> StdResult<Uint128> {
     Ok(amount.checked_sub(compute_tax(querier, amount, base_denom)?)?)
 }
 
 static DECIMAL_FRACTION: Uint128 = Uint128::new(1_000_000_000_000_000_000u128);
-pub fn compute_tax(querier: &QuerierWrapper, amount: Uint128, base_denom: String) -> StdResult<Uint128> {
+pub fn compute_tax(querier: &QuerierWrapper<TerraQuery>, amount: Uint128, base_denom: String) -> StdResult<Uint128> {
     let terra_querier = TerraQuerier::new(querier);
     let tax_rate: Decimal = (terra_querier.query_tax_rate()?).rate;
     let tax_cap: Uint128 = (terra_querier.query_tax_cap(base_denom)?).cap;

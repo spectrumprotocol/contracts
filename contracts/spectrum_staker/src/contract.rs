@@ -1,6 +1,7 @@
 
 use std::collections::HashSet;
 use std::iter::FromIterator;
+use classic_bindings::TerraQuery;
 
 use crate::state::{config_store, read_config, Config};
 #[cfg(not(feature = "library"))]
@@ -9,10 +10,10 @@ use cosmwasm_std::{attr, from_binary, to_binary, BankMsg, Binary, CanonicalAddr,
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use spectrum_protocol::mirror_farm::Cw20HookMsg as MirrorCw20HookMsg;
 use spectrum_protocol::staker::{ConfigInfo, Cw20HookMsg, ExecuteMsg, MigrateMsg, QueryMsg, SimulateZapToBondResponse};
-use terraswap::asset::{Asset, AssetInfo};
-use terraswap::pair::{Cw20HookMsg as PairCw20HookMsg, ExecuteMsg as PairExecuteMsg, PoolResponse, QueryMsg as PairQueryMsg};
-use terraswap::querier::{query_balance, query_token_balance, simulate};
-use terraswap::factory::{QueryMsg as FactoryQueryMsg};
+use classic_terraswap::asset::{Asset, AssetInfo};
+use classic_terraswap::pair::{Cw20HookMsg as PairCw20HookMsg, ExecuteMsg as PairExecuteMsg, PoolResponse, QueryMsg as PairQueryMsg};
+use classic_terraswap::querier::{query_balance, query_token_balance, simulate};
+use classic_terraswap::factory::{QueryMsg as FactoryQueryMsg};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -65,7 +66,7 @@ fn validate_contract(contract: CanonicalAddr, config: &Config) -> StdResult<()> 
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     _env: Env,
     _info: MessageInfo,
     msg: ConfigInfo,
@@ -86,7 +87,7 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
+pub fn execute(deps: DepsMut<TerraQuery>, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
         ExecuteMsg::receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::bond {
@@ -182,7 +183,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
 }
 
 fn receive_cw20(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
@@ -216,7 +217,7 @@ fn receive_cw20(
 
 #[allow(clippy::too_many_arguments)]
 fn bond(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     contract: String,
@@ -338,6 +339,7 @@ fn bond(
             assets: [provide_assets[0].clone(), provide_assets[1].clone()],
             slippage_tolerance: Some(slippage_tolerance),
             receiver: None,
+            deadline: None,
         })?,
         funds,
     }));
@@ -363,7 +365,7 @@ fn bond(
 
 #[allow(clippy::too_many_arguments)]
 fn bond_hook(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     contract: String,
@@ -404,7 +406,7 @@ fn bond_hook(
 }
 
 fn query_pair_info(
-    querier: &QuerierWrapper,
+    querier: &QuerierWrapper<TerraQuery>,
     factory_contract: Addr,
     asset_infos: &[AssetInfo; 2],
 ) -> StdResult<PairInfo> {
@@ -485,6 +487,7 @@ fn create_swap_msg(
                     belief_price,
                     max_spread,
                     to,
+                    deadline: None,
                 })?
             })?,
             funds: vec![],
@@ -499,6 +502,7 @@ fn create_swap_msg(
                 belief_price,
                 max_spread,
                 to,
+                deadline: None,
             })?,
             funds: vec![
                 Coin { denom, amount }
@@ -509,7 +513,7 @@ fn create_swap_msg(
 
 #[allow(clippy::too_many_arguments)]
 fn zap_to_bond(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     contract: String,
@@ -566,7 +570,7 @@ fn zap_to_bond(
 }
 
 fn do_swap(
-    querier: &QuerierWrapper,
+    querier: &QuerierWrapper<TerraQuery>,
     swaps: Vec<SwapOperation>,
     offer_amount: Uint128,
     max_spread: Option<Decimal>,
@@ -606,7 +610,7 @@ fn do_swap(
     Ok((amount, price, prices))
 }
 
-fn safe_deduct_tax(asset: &Asset, querier: &QuerierWrapper) -> StdResult<Uint128> {
+fn safe_deduct_tax(asset: &Asset, querier: &QuerierWrapper<TerraQuery>) -> StdResult<Uint128> {
     match asset.info.clone() {
         AssetInfo::Token { .. } => Ok(asset.amount),
         AssetInfo::NativeToken { denom } =>
@@ -616,7 +620,7 @@ fn safe_deduct_tax(asset: &Asset, querier: &QuerierWrapper) -> StdResult<Uint128
 
 #[allow(clippy::too_many_arguments)]
 fn compute_zap_to_bond(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     env: Env,
     config: &Config,
     contract: String,
@@ -798,7 +802,7 @@ fn compute_zap_to_bond(
 }
 
 fn calculate_lp(
-    querier: &QuerierWrapper,
+    querier: &QuerierWrapper<TerraQuery>,
     pool: &PoolResponse,
     assets: &[Asset; 2],
     pair_info: &PairInfo,
@@ -836,7 +840,7 @@ fn calculate_lp(
 }
 
 fn update_config(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     info: MessageInfo,
     insert_allowlist: Option<Vec<String>>,
     remove_allowlist: Option<Vec<String>>,
@@ -870,7 +874,7 @@ fn update_config(
 }
 
 fn get_balance(
-    deps: &Deps,
+    deps: &Deps<TerraQuery>,
     account_addr: Addr,
     asset_info: AssetInfo,
 ) -> StdResult<Uint128> {
@@ -886,7 +890,7 @@ fn get_balance(
 
 #[allow(clippy::too_many_arguments)]
 fn zap_to_unbond(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     staker_addr: String,
@@ -938,7 +942,7 @@ fn zap_to_unbond(
             msg: to_binary(&Cw20ExecuteMsg::Send {
                 amount,
                 contract: terraswap_pair.contract_addr.to_string(),
-                msg: to_binary(&PairCw20HookMsg::WithdrawLiquidity {})?,
+                msg: to_binary(&PairCw20HookMsg::WithdrawLiquidity { min_assets: None, deadline: None })?,
             })?,
             funds: vec![],
         }),
@@ -967,7 +971,7 @@ fn zap_to_unbond(
 
 #[allow(clippy::too_many_arguments)]
 fn zap_to_unbond_hook(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     staker_addr: String,
@@ -1008,6 +1012,7 @@ fn zap_to_unbond_hook(
                         to: None,
                         belief_price: belief_price_b,
                         max_spread: Some(max_spread),
+                        deadline: None,
                     })?,
                 })?,
                 funds: vec![],
@@ -1089,7 +1094,7 @@ fn zap_to_unbond_hook(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps<TerraQuery>, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::config {} => to_binary(&query_config(deps)?),
         QueryMsg::simulate_zap_to_bond {
@@ -1108,7 +1113,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-pub fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
+pub fn query_config(deps: Deps<TerraQuery>) -> StdResult<ConfigInfo> {
     let config = read_config(deps.storage)?;
     let resp = ConfigInfo {
         owner: deps.api.addr_humanize(&config.owner)?.to_string(),
@@ -1128,7 +1133,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
 }
 
 fn simulate_zap_to_bond(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     env: Env,
     provide_asset: Asset,
     pair_asset_a: AssetInfo,
@@ -1161,6 +1166,6 @@ fn simulate_zap_to_bond(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(_deps: DepsMut<TerraQuery>, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
 }

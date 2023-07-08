@@ -9,7 +9,7 @@ use cosmwasm_std::{
     StdResult, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
-use terra_cosmwasm::TerraQuerier;
+use classic_bindings::{TerraQuerier, TerraQuery};
 
 /// ## Description
 /// This enum describes asset.
@@ -45,7 +45,7 @@ impl Asset {
     /// * **self** is the type of the caller object.
     ///
     /// * **querier** is the object of type [`QuerierWrapper`]
-    pub fn compute_tax(&self, querier: &QuerierWrapper) -> StdResult<Uint128> {
+    pub fn compute_tax(&self, querier: &QuerierWrapper<TerraQuery>) -> StdResult<Uint128> {
         let amount = self.amount;
         if let AssetInfo::NativeToken { denom } = &self.info {
             let terra_querier = TerraQuerier::new(querier);
@@ -69,7 +69,7 @@ impl Asset {
     /// * **self** is the type of the caller object.
     ///
     /// * **querier** is the object of type [`QuerierWrapper`]
-    pub fn deduct_tax(&self, querier: &QuerierWrapper) -> StdResult<Coin> {
+    pub fn deduct_tax(&self, querier: &QuerierWrapper<TerraQuery>) -> StdResult<Coin> {
         let amount = self.amount;
         if let AssetInfo::NativeToken { denom } = &self.info {
             Ok(Coin {
@@ -94,7 +94,7 @@ impl Asset {
     /// * **querier** is the object of type [`QuerierWrapper`]
     ///
     /// * **recepient** is the address where the funds will be sent.
-    pub fn into_msg(self, querier: &QuerierWrapper, recipient: Addr) -> StdResult<CosmosMsg> {
+    pub fn into_msg(self, querier: &QuerierWrapper<TerraQuery>, recipient: Addr) -> StdResult<CosmosMsg> {
         let amount = self.amount;
 
         match &self.info {
@@ -188,7 +188,7 @@ impl AssetInfo {
     /// * **self** is the type of the caller object.
     ///
     /// * **pool_addr** is the address of the contract from which the balance is requested.
-    pub fn query_pool(&self, querier: &QuerierWrapper, pool_addr: Addr) -> StdResult<Uint128> {
+    pub fn query_pool(&self, querier: &QuerierWrapper<TerraQuery>, pool_addr: Addr) -> StdResult<Uint128> {
         match self {
             AssetInfo::Token { contract_addr, .. } => {
                 query_token_balance(querier, contract_addr.clone(), pool_addr)
@@ -287,7 +287,7 @@ impl PairInfo {
     /// * **contract_addr** is the pool address of the pair.
     pub fn query_pools(
         &self,
-        querier: &QuerierWrapper,
+        querier: &QuerierWrapper<TerraQuery>,
         contract_addr: Addr,
     ) -> StdResult<[Asset; 2]> {
         Ok([

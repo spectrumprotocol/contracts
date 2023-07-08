@@ -1,3 +1,4 @@
+use classic_bindings::TerraQuery;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Empty, WasmQuery, QueryRequest, QuerierResult, ContractResult};
@@ -6,7 +7,7 @@ use crate::model::{Query, QueryMsg};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    _deps: DepsMut,
+    _deps: DepsMut<TerraQuery>,
     _env: Env,
     _info: MessageInfo,
     _msg: Empty,
@@ -15,18 +16,18 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute(_deps: DepsMut, _env: Env, _info: MessageInfo, _msg: Empty) -> StdResult<Response> {
+pub fn execute(_deps: DepsMut<TerraQuery>, _env: Env, _info: MessageInfo, _msg: Empty) -> StdResult<Response> {
     Err(StdError::generic_err("not support"))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps<TerraQuery>, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::bundle { queries } => to_binary(&query_bundle(deps, queries)?),
     }
 }
 
-fn query_bundle(deps: Deps, queries: Vec<Query>) -> StdResult<Vec<Binary>> {
+fn query_bundle(deps: Deps<TerraQuery>, queries: Vec<Query>) -> StdResult<Vec<Binary>> {
     let mut results: Vec<Binary> = vec![];
     for query in queries {
         let request: QueryRequest<Empty> = QueryRequest::Wasm(WasmQuery::Smart {
@@ -48,6 +49,6 @@ fn query_bundle(deps: Deps, queries: Vec<Query>) -> StdResult<Vec<Binary>> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: Empty) -> StdResult<Response> {
+pub fn migrate(_deps: DepsMut<TerraQuery>, _env: Env, _msg: Empty) -> StdResult<Response> {
     Ok(Response::default())
 }

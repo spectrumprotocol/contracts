@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::iter::FromIterator;
+use classic_bindings::TerraQuery;
 
 use crate::state::{config_store, read_config, Config};
 #[cfg(not(feature = "library"))]
@@ -8,9 +9,9 @@ use cosmwasm_std::{attr, to_binary, Binary, CanonicalAddr, Coin, CosmosMsg, Deci
 use cw20::{Cw20ExecuteMsg};
 use spectrum_protocol::pylon_liquid_farm::Cw20HookMsg as PylonLiquidCw20HookMsg;
 use spectrum_protocol::staker_single_asset::{ConfigInfo, ExecuteMsg, MigrateMsg, QueryMsg, SwapOperation};
-use terraswap::asset::{Asset, AssetInfo};
-use terraswap::pair::{ExecuteMsg as PairExecuteMsg, Cw20HookMsg as PairCw20HookMsg};
-use terraswap::querier::{query_balance, query_token_balance};
+use classic_terraswap::asset::{Asset, AssetInfo};
+use classic_terraswap::pair::{ExecuteMsg as PairExecuteMsg, Cw20HookMsg as PairCw20HookMsg};
+use classic_terraswap::querier::{query_balance, query_token_balance};
 
 // max slippage tolerance is 0.5
 fn validate_slippage(slippage_tolerance: Decimal) -> StdResult<()> {
@@ -32,7 +33,7 @@ fn validate_contract(contract: CanonicalAddr, allowlist: &HashSet<CanonicalAddr>
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     _env: Env,
     _info: MessageInfo,
     msg: ConfigInfo,
@@ -51,7 +52,7 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
+pub fn execute(deps: DepsMut<TerraQuery>, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
         ExecuteMsg::zap_to_bond {
             contract,
@@ -95,7 +96,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
 }
 
 fn query_asset_balance(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     asset_info: &AssetInfo,
     account_addr: &Addr,
 ) -> StdResult<Uint128> {
@@ -115,7 +116,7 @@ fn query_asset_balance(
 
 #[allow(clippy::too_many_arguments)]
 fn zap_to_bond_hook(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     contract: String,
@@ -153,7 +154,7 @@ fn zap_to_bond_hook(
 
 #[allow(clippy::too_many_arguments)]
 fn swap_operation(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     contract: String,
     provide_asset: Asset,
@@ -201,6 +202,7 @@ fn swap_operation(
                             to: None,
                             max_spread: Some(max_spread),
                             belief_price: swap.belief_price,
+                            deadline: None,
                         })?,
                     })?,
                     funds: vec![],
@@ -215,6 +217,7 @@ fn swap_operation(
                             amount,
                             info: provide_asset.info.clone(),
                         },
+                        deadline: None,
                     })?,
                     funds: vec![Coin { denom, amount }]
                 }),
@@ -243,7 +246,7 @@ fn swap_operation(
 
 #[allow(clippy::too_many_arguments)]
 fn zap_to_bond(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     contract: String,
@@ -277,7 +280,7 @@ fn zap_to_bond(
 }
 
 fn update_config(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     info: MessageInfo,
     insert_allowlist: Option<Vec<String>>,
     remove_allowlist: Option<Vec<String>>,
@@ -306,13 +309,13 @@ fn update_config(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps<TerraQuery>, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::config {} => to_binary(&query_config(deps)?),
     }
 }
 
-pub fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
+pub fn query_config(deps: Deps<TerraQuery>) -> StdResult<ConfigInfo> {
     let config = read_config(deps.storage)?;
     let resp = ConfigInfo {
         owner: deps.api.addr_humanize(&config.owner)?.to_string(),
@@ -327,6 +330,6 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(_deps: DepsMut<TerraQuery>, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
 }

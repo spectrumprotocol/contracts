@@ -9,6 +9,7 @@ use spectrum_protocol::spec_farm::{
     RewardInfoResponseItem, StateInfo,
 };
 use std::str::FromStr;
+use classic_bindings::TerraQuery;
 
 const GOV: &str = "gov";
 const TOKEN: &str = "token";
@@ -26,7 +27,7 @@ fn test() {
     test_bond(&mut deps);
 }
 
-fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> ConfigInfo {
+fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) -> ConfigInfo {
     // test init & read config & read state
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
@@ -78,7 +79,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
     config
 }
 
-fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     // no permission
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
@@ -127,7 +128,7 @@ fn clone_storage(storage: &MockStorage) -> MockStorage {
     cloned
 }
 
-fn test_bond(mut deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_bond(mut deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     // bond err
     let mut env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);

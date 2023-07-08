@@ -1,10 +1,11 @@
+use classic_bindings::TerraQuery;
 use cosmwasm_std::{to_binary, CanonicalAddr, Deps, QueryRequest, StdResult, WasmQuery, Addr, Uint128};
 
 use basset_vault::nasset_token_rewards::{QueryMsg as nAssetQueryMsg, AccruedRewardsResponse};
 use spectrum_protocol::gov_proxy::{QueryMsg as GovProxyQueryMsg, StakerResponse};
 
 pub fn query_claimable_reward(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     nasset_rewards: &CanonicalAddr,
     address: &Addr
 ) -> StdResult<AccruedRewardsResponse> {
@@ -17,7 +18,7 @@ pub fn query_claimable_reward(
 }
 
 pub fn query_farm_gov_balance(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     gov_proxy: &Option<CanonicalAddr>,
     address: String,
 ) -> StdResult<StakerResponse> {

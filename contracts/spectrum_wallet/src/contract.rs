@@ -1,3 +1,4 @@
+use classic_bindings::TerraQuery;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
@@ -5,16 +6,16 @@ use cosmwasm_std::{attr, to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, Messa
 
 use crate::state::{config_store, read_config, read_reward, read_rewards, reward_store, Config, state_store, read_state};
 use cw20::{Cw20ExecuteMsg};
-use terraswap::asset::{Asset, AssetInfo};
-use terraswap::pair::{ExecuteMsg as PairExecuteMsg};
-use terraswap::querier::{query_pair_info, query_token_balance, simulate};
+use classic_terraswap::asset::{Asset, AssetInfo};
+use classic_terraswap::pair::{ExecuteMsg as PairExecuteMsg};
+use classic_terraswap::querier::{query_pair_info, query_token_balance, simulate};
 use spectrum_protocol::gov::{BalanceResponse as GovBalanceResponse, Cw20HookMsg as GovCw20HookMsg, ExecuteMsg as GovExecuteMsg, QueryMsg as GovQueryMsg, VoteOption};
 use spectrum_protocol::wallet::{BalanceResponse, ConfigInfo, ExecuteMsg, MigrateMsg, QueryMsg, ShareInfo, SharesResponse, StateInfo};
 use moneymarket::market::{Cw20HookMsg as MarketCw20HookMsg};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     _env: Env,
     _info: MessageInfo,
     msg: ConfigInfo,
@@ -38,7 +39,7 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
+pub fn execute(deps: DepsMut<TerraQuery>, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
         ExecuteMsg::poll_vote {
             poll_id,
@@ -73,7 +74,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
 }
 
 fn poll_vote(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     info: MessageInfo,
     poll_id: u64,
     vote: VoteOption,
@@ -99,7 +100,7 @@ fn poll_vote(
             })]))
 }
 
-fn stake(deps: DepsMut, info: MessageInfo, amount: Uint128, days: Option<u64>) -> StdResult<Response> {
+fn stake(deps: DepsMut<TerraQuery>, info: MessageInfo, amount: Uint128, days: Option<u64>) -> StdResult<Response> {
     let sender_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
     let found = reward_store(deps.storage).may_load(&sender_addr)?.is_some();
     if !found {
@@ -119,7 +120,7 @@ fn stake(deps: DepsMut, info: MessageInfo, amount: Uint128, days: Option<u64>) -
         })]))
 }
 
-fn unstake(deps: DepsMut, info: MessageInfo, amount: Option<Uint128>, days: Option<u64>) -> StdResult<Response> {
+fn unstake(deps: DepsMut<TerraQuery>, info: MessageInfo, amount: Option<Uint128>, days: Option<u64>) -> StdResult<Response> {
     let sender_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
     let found = reward_store(deps.storage).may_load(&sender_addr)?.is_some();
     if !found {
@@ -138,7 +139,7 @@ fn unstake(deps: DepsMut, info: MessageInfo, amount: Option<Uint128>, days: Opti
         })]))
 }
 
-fn harvest(deps: DepsMut, info: MessageInfo, aust_amount: Option<Uint128>, days: Option<u64>) -> StdResult<Response> {
+fn harvest(deps: DepsMut<TerraQuery>, info: MessageInfo, aust_amount: Option<Uint128>, days: Option<u64>) -> StdResult<Response> {
     let sender_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
     let found = reward_store(deps.storage).may_load(&sender_addr)?.is_some();
     if !found {
@@ -158,7 +159,7 @@ fn harvest(deps: DepsMut, info: MessageInfo, aust_amount: Option<Uint128>, days:
 }
 
 fn update_stake(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     info: MessageInfo,
     amount: Uint128,
     from_days: u64,
@@ -184,7 +185,7 @@ fn update_stake(
 }
 
 fn withdraw(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     spec_amount: Option<Uint128>,
@@ -252,7 +253,7 @@ fn withdraw(
 }
 
 fn burn(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     spec_amount: Option<Uint128>,
@@ -282,7 +283,7 @@ fn burn(
         })]))
 }
 
-fn aust_redeem(deps: DepsMut, env: Env, info: MessageInfo, aust_amount: Option<Uint128>) -> StdResult<Response> {
+fn aust_redeem(deps: DepsMut<TerraQuery>, env: Env, info: MessageInfo, aust_amount: Option<Uint128>) -> StdResult<Response> {
     let sender_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
     let found = reward_store(deps.storage).may_load(&sender_addr)?.is_some();
     if !found {
@@ -309,7 +310,7 @@ fn aust_redeem(deps: DepsMut, env: Env, info: MessageInfo, aust_amount: Option<U
         })]))
 }
 
-fn buy_spec(deps: DepsMut, env: Env, info: MessageInfo, ust_amount: Option<Uint128>) -> StdResult<Response> {
+fn buy_spec(deps: DepsMut<TerraQuery>, env: Env, info: MessageInfo, ust_amount: Option<Uint128>) -> StdResult<Response> {
     let sender_addr = deps.api.addr_canonicalize(info.sender.as_str())?;
     let found = reward_store(deps.storage).may_load(&sender_addr)?.is_some();
     if !found {
@@ -356,6 +357,7 @@ fn buy_spec(deps: DepsMut, env: Env, info: MessageInfo, ust_amount: Option<Uint1
                     to: None,
                     belief_price: None,
                     max_spread: None,
+                    deadline: None,
                 })?,
                 funds: vec![Coin { denom: "uusd".to_string(), amount: swap_amount }],
             }),
@@ -364,7 +366,7 @@ fn buy_spec(deps: DepsMut, env: Env, info: MessageInfo, ust_amount: Option<Uint1
 
 #[allow(clippy::too_many_arguments)]
 fn upsert_share(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     info: MessageInfo,
     address: String,
     lock_start: Option<u64>,
@@ -404,7 +406,7 @@ fn upsert_share(
 }
 
 fn update_config(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     info: MessageInfo,
     owner: Option<String>,
 ) -> StdResult<Response> {
@@ -426,7 +428,7 @@ fn update_config(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps<TerraQuery>, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::config {} => to_binary(&query_config(deps)?),
         QueryMsg::balance { address } => to_binary(&query_balance(deps, env, address)?),
@@ -435,7 +437,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
+fn query_config(deps: Deps<TerraQuery>) -> StdResult<ConfigInfo> {
     let config = read_config(deps.storage)?;
     let resp = ConfigInfo {
         owner: deps.api.addr_humanize(&config.owner)?.to_string(),
@@ -449,7 +451,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
     Ok(resp)
 }
 
-fn query_balance(deps: Deps, env: Env, staker_addr: String) -> StdResult<BalanceResponse> {
+fn query_balance(deps: Deps<TerraQuery>, env: Env, staker_addr: String) -> StdResult<BalanceResponse> {
 
     let staker_addr_raw = deps.api.addr_canonicalize(&staker_addr)?;
     let reward_info = read_reward(deps.storage, &staker_addr_raw)?;
@@ -472,12 +474,12 @@ fn query_balance(deps: Deps, env: Env, staker_addr: String) -> StdResult<Balance
     })
 }
 
-fn query_state(deps: Deps) -> StdResult<StateInfo> {
+fn query_state(deps: Deps<TerraQuery>) -> StdResult<StateInfo> {
     let state = read_state(deps.storage)?;
     Ok(state)
 }
 
-fn query_shares(deps: Deps) -> StdResult<SharesResponse> {
+fn query_shares(deps: Deps<TerraQuery>) -> StdResult<SharesResponse> {
     let shares = read_rewards(deps.storage)?;
     Ok(SharesResponse {
         shares: shares
@@ -493,7 +495,7 @@ fn query_shares(deps: Deps) -> StdResult<SharesResponse> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut<TerraQuery>, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
     let mut config = read_config(deps.storage)?;
     config.aust_token = deps.api.addr_canonicalize(&msg.aust_token)?;
     config.anchor_market = deps.api.addr_canonicalize(&msg.anchor_market)?;

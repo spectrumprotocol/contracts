@@ -1,8 +1,9 @@
+use classic_bindings::TerraQuery;
 use cosmwasm_std::{to_binary, CanonicalAddr, Deps, QueryRequest, StdResult, WasmQuery, Addr};
 use anchor_token::gov::{QueryMsg, StakerResponse};
 
 pub fn query_anchor_gov(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     anchor_gov: &CanonicalAddr,
     staker: &Addr,
 ) -> StdResult<StakerResponse> {

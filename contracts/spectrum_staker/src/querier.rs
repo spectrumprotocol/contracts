@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use classic_bindings::TerraQuery;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -29,7 +30,7 @@ pub enum QueryMsg {
 }
 
 pub fn query_leverage(
-    querier: &QuerierWrapper,
+    querier: &QuerierWrapper<TerraQuery>,
     contract_addr: String,
 ) -> StdResult<u64> {
     let res: ConfigResponse = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {

@@ -9,7 +9,7 @@ use cosmwasm_std::{
 };
 use spectrum_protocol::gov_proxy::StakerResponse;
 use std::collections::HashMap;
-use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
+use classic_bindings::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::pair::{PoolResponse, SimulationResponse};
 
@@ -26,7 +26,7 @@ const FARM_TOKEN: &str = "farm_token";
 /// this uses our CustomQuerier.
 pub fn mock_dependencies(
     contract_balance: &[Coin],
-) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier> {
+) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery> {
     let contract_addr = MOCK_CONTRACT_ADDR.to_string();
     let custom_querier: WasmMockQuerier =
         WasmMockQuerier::new(MockQuerier::new(&[(&contract_addr, contract_balance)]));
@@ -35,6 +35,7 @@ pub fn mock_dependencies(
         storage: MockStorage::default(),
         api: MockApi::default(),
         querier: custom_querier,
+        custom_query_type: Default::default(),
     }
 }
 
@@ -179,7 +180,7 @@ impl WasmMockQuerier {
                             let cap = self
                                 .tax_querier
                                 .caps
-                                .get(denom)
+                                .get(denom.as_str())
                                 .copied()
                                 .unwrap_or_default();
                             let res = TaxCapResponse { cap };

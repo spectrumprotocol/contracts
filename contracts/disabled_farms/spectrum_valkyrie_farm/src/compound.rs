@@ -1,3 +1,4 @@
+use classic_bindings::TerraQuery;
 use cosmwasm_std::{attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg, QueryRequest, WasmQuery, Decimal};
 
 use crate::{
@@ -15,13 +16,13 @@ use valkyrie::lp_staking::execute_msgs::{
 };
 use spectrum_protocol::valkyrie_farm::ExecuteMsg;
 use spectrum_protocol::gov::{ExecuteMsg as GovExecuteMsg};
-use terraswap::asset::{Asset, AssetInfo};
-use terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg, QueryMsg as TerraswapQueryMsg, PoolResponse};
-use terraswap::querier::{query_token_balance, simulate};
+use classic_terraswap::asset::{Asset, AssetInfo};
+use classic_terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg, QueryMsg as TerraswapQueryMsg, PoolResponse};
+use classic_terraswap::querier::{query_token_balance, simulate};
 use spectrum_protocol::farm_helper::{compute_provide_after_swap, deduct_tax};
 use moneymarket::market::{ExecuteMsg as MoneyMarketExecuteMsg};
 
-pub fn compound(deps: DepsMut, env: Env, info: MessageInfo, max_compound: Uint128) -> StdResult<Response> {
+pub fn compound(deps: DepsMut<TerraQuery>, env: Env, info: MessageInfo, max_compound: Uint128) -> StdResult<Response> {
     let config = read_config(deps.storage)?;
 
     if config.controller != deps.api.addr_canonicalize(info.sender.as_str())? {
@@ -154,6 +155,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo, max_compound: Uint12
                     max_spread: None,
                     belief_price: None,
                     to: None,
+                    deadline: None,
                 })?,
             })?,
             funds: vec![],
@@ -266,7 +268,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo, max_compound: Uint12
 }
 
 pub fn stake(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     asset_token: String,
@@ -302,7 +304,7 @@ pub fn stake(
 }
 
 pub fn send_fee(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
 ) -> StdResult<Response> {

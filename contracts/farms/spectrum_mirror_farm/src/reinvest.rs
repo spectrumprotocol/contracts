@@ -9,15 +9,16 @@ use crate::state::{pool_info_read, pool_info_store};
 use mirror_protocol::staking::Cw20HookMsg as MirrorCw20HookMsg;
 
 use std::str::FromStr;
-use terraswap::asset::{Asset, AssetInfo};
-use terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg, ExecuteMsg as TerraswapExecuteMsg, QueryMsg as TerraswapQueryMsg, PoolResponse};
-use terraswap::querier::{query_pair_info, query_token_balance, simulate};
+use classic_bindings::TerraQuery;
+use classic_terraswap::asset::{Asset, AssetInfo};
+use classic_terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg, ExecuteMsg as TerraswapExecuteMsg, QueryMsg as TerraswapQueryMsg, PoolResponse};
+use classic_terraswap::querier::{query_pair_info, query_token_balance, simulate};
 use spectrum_protocol::farm_helper::{compute_provide_after_swap, deduct_tax};
 
 const TERRASWAP_COMMISSION_RATE: &str = "0.003";
 
 pub fn re_invest(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     asset_token: String,
@@ -36,7 +37,7 @@ pub fn re_invest(
 }
 
 fn re_invest_asset(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     config: Config,
     asset_token: String,
@@ -92,6 +93,7 @@ fn re_invest_asset(
             max_spread: None,
             belief_price: None,
             to: None,
+            deadline: None,
         })?,
         funds: vec![Coin {
             denom: config.base_denom.clone(),
@@ -128,6 +130,7 @@ fn re_invest_asset(
             ],
             slippage_tolerance: None,
             receiver: None,
+            deadline: None,
         })?,
         funds: vec![Coin {
             denom: config.base_denom,
@@ -160,7 +163,7 @@ fn re_invest_asset(
 }
 
 fn re_invest_mir(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     config: Config,
     mir_token: String,
@@ -233,6 +236,7 @@ fn re_invest_mir(
                 max_spread: None,
                 belief_price: None,
                 to: None,
+                deadline: None,
             })?,
         })?,
         funds: vec![],
@@ -267,6 +271,7 @@ fn re_invest_mir(
             ],
             slippage_tolerance: None,
             receiver: None,
+            deadline: None,
         })?,
         funds: vec![Coin {
             denom: config.base_denom,
@@ -295,7 +300,7 @@ fn re_invest_mir(
 }
 
 pub fn stake(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     asset_token: String,

@@ -1,3 +1,4 @@
+use classic_bindings::TerraQuery;
 use cosmwasm_std::{CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, to_binary, Uint128, WasmMsg};
 use cw20::{Cw20ExecuteMsg};
 use astroport::querier::query_token_balance;
@@ -7,7 +8,7 @@ use crate::querier::query_xastro_gov;
 use crate::state::{account_store, read_account, read_config, read_state, state_store};
 
 pub fn query_staker_info_gov(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     env: Env,
     address: String,
 ) -> StdResult<StakerResponse> {
@@ -26,7 +27,7 @@ pub fn query_staker_info_gov(
 }
 
 pub fn stake(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     sender: String,
@@ -74,7 +75,7 @@ pub fn stake(
 }
 
 pub fn unstake(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     amount: Option<Uint128>

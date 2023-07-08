@@ -34,16 +34,16 @@ overflow-checks = true
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cw20 = { version = "0.8.0" }
-cosmwasm-std = { version = "0.16.0" }
-cosmwasm-storage = { version = "0.16.0" }
+cw20 = { version = "0.14.0" }
+cosmwasm-std = { version = "1.0.0" }
+cosmwasm-storage = { version = "1.0.0" }
 spectrum-protocol = { version = "0.2.0", path = "../../../packages/spectrum_protocol" }
-terraswap = "2.4.0"
+classic_terraswap = { version = "2.7.0", default-features = false }
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 terraworld-token = { version = "0.1.0", path = "../../../packages/terraworld_token" }
 moneymarket = { version = "0.3.1", path = "../../../packages/anchor_moneymarket" }
+classic-bindings = { version = "0.1.1" }
 
 [dev-dependencies]
-cosmwasm-schema = "0.16.0"
-terra-cosmwasm = "2.2.0"
+cosmwasm-schema = { version = "1.0.0"}

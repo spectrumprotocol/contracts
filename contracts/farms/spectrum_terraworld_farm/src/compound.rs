@@ -1,3 +1,4 @@
+use classic_bindings::TerraQuery;
 use cosmwasm_std::{
     attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, DepsMut, Env, MessageInfo,
     QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
@@ -16,9 +17,9 @@ use crate::state::{pool_info_read, pool_info_store, read_state, Config, PoolInfo
 
 use spectrum_protocol::gov::{ExecuteMsg as GovExecuteMsg};
 use spectrum_protocol::terraworld_farm::ExecuteMsg;
-use terraswap::asset::{Asset, AssetInfo};
-use terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg, ExecuteMsg as TerraswapExecuteMsg, QueryMsg as TerraswapQueryMsg, PoolResponse};
-use terraswap::querier::{query_token_balance, simulate};
+use classic_terraswap::asset::{Asset, AssetInfo};
+use classic_terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg, ExecuteMsg as TerraswapExecuteMsg, QueryMsg as TerraswapQueryMsg, PoolResponse};
+use classic_terraswap::querier::{query_token_balance, simulate};
 use spectrum_protocol::farm_helper::{compute_provide_after_swap, deduct_tax};
 use terraworld_token::gov::{
     Cw20HookMsg as TerraworldGovCw20HookMsg, ExecuteMsg as TerraworldGovExecuteMsg,
@@ -30,7 +31,7 @@ use terraworld_token::staking::{
 use moneymarket::market::{ExecuteMsg as MoneyMarketExecuteMsg};
 
 pub fn compound(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     threshold_compound_gov: Uint128,
@@ -187,6 +188,7 @@ pub fn compound(
                     max_spread: None,
                     belief_price: None,
                     to: None,
+                    deadline: None,
                 })?,
             })?,
             funds: vec![],
@@ -269,6 +271,7 @@ pub fn compound(
                 ],
                 slippage_tolerance: None,
                 receiver: None,
+                deadline: None,
             })?,
             funds: vec![Coin {
                 denom: config.base_denom,
@@ -299,7 +302,7 @@ pub fn compound(
 }
 
 pub fn stake(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     asset_token: String,
@@ -335,7 +338,7 @@ pub fn stake(
 }
 
 pub fn send_fee(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
 ) -> StdResult<Response> {
