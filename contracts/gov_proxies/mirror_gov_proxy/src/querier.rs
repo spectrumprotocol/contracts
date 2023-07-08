@@ -1,8 +1,9 @@
+use classic_bindings::TerraQuery;
 use cosmwasm_std::{to_binary, CanonicalAddr, Deps, QueryRequest, StdResult, WasmQuery, Addr};
 use mirror_protocol::gov::{QueryMsg, StakerResponse};
 
 pub fn query_mirror_gov(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     mirror_gov: &CanonicalAddr,
     staker: &Addr,
 ) -> StdResult<StakerResponse> {

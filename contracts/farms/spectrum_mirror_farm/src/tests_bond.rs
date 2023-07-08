@@ -14,6 +14,7 @@ use spectrum_protocol::mirror_farm::{
     PoolsResponse, QueryMsg, StateInfo,
 };
 use std::fmt::Debug;
+use classic_bindings::TerraQuery;
 
 const SPEC_GOV: &str = "spec_gov";
 const SPEC_TOKEN: &str = "spec_token";
@@ -62,7 +63,7 @@ fn test() {
     test_partial_withdraw(&mut deps);
 }
 
-fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> ConfigInfo {
+fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) -> ConfigInfo {
     // test instantiate & read config & read state
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
@@ -134,7 +135,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
     config
 }
 
-fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     // no permission
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
@@ -221,7 +222,7 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
     assert_eq!(res.total_weight, 3u32);
 }
 
-fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     // bond err
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
@@ -592,7 +593,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
     );
 }
 
-fn test_deposit_fee(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_deposit_fee(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     // alter config, deposit fee
     let env = mock_env();
     let info = mock_info(SPEC_GOV, &[]);
@@ -967,7 +968,7 @@ fn test_deposit_fee(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>)
 
 }
 
-fn test_staked_reward(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_staked_reward(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     // unbond user1
     let env = mock_env();
     let info = mock_info(USER1, &[]);
@@ -1163,7 +1164,7 @@ fn test_staked_reward(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
     );
 }
 
-fn test_reallocate(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_reallocate(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     // unbond user1
     let env = mock_env();
     let info = mock_info(USER1, &[]);
@@ -1282,7 +1283,7 @@ fn clone_storage(storage: &MockStorage) -> MockStorage {
     cloned
 }
 
-fn test_partial_withdraw(mut deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_partial_withdraw(mut deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     let env = mock_env();
     let info = mock_info(USER1, &[]);
 

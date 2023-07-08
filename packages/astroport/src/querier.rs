@@ -1,3 +1,4 @@
+use classic_bindings::TerraQuery;
 use crate::asset::{Asset, AssetInfo, PairInfo};
 use crate::factory::{
     ConfigResponse as FactoryConfigResponse, FeeInfoResponse, PairType, PairsResponse,
@@ -24,7 +25,7 @@ const NATIVE_TOKEN_PRECISION: u8 = 6;
 ///
 /// * **denom** is the object of type [`String`].
 pub fn query_balance(
-    querier: &QuerierWrapper,
+    querier: &QuerierWrapper<TerraQuery>,
     account_addr: Addr,
     denom: String,
 ) -> StdResult<Uint128> {
@@ -59,7 +60,7 @@ pub fn query_all_balances(querier: &QuerierWrapper, account_addr: Addr) -> StdRe
 ///
 /// * **account_addr** is the object of type [`Addr`].
 pub fn query_token_balance(
-    querier: &QuerierWrapper,
+    querier: &QuerierWrapper<TerraQuery>,
     contract_addr: Addr,
     account_addr: Addr,
 ) -> StdResult<Uint128> {
@@ -99,7 +100,7 @@ pub fn query_token_symbol(querier: &QuerierWrapper, contract_addr: Addr) -> StdR
 /// * **querier** is the object of type [`QuerierWrapper`].
 ///
 /// * **contract_addr** is the object of type [`Addr`].
-pub fn query_supply(querier: &QuerierWrapper, contract_addr: Addr) -> StdResult<Uint128> {
+pub fn query_supply(querier: &QuerierWrapper<TerraQuery>, contract_addr: Addr) -> StdResult<Uint128> {
     let res: TokenInfoResponse = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: String::from(contract_addr),
         msg: to_binary(&Cw20QueryMsg::TokenInfo {})?,
@@ -230,7 +231,7 @@ pub fn query_pairs_info(
 ///
 /// * **offer_asset** is the object of type [`Asset`].
 pub fn simulate(
-    querier: &QuerierWrapper,
+    querier: &QuerierWrapper<TerraQuery>,
     pair_contract: Addr,
     offer_asset: &Asset,
 ) -> StdResult<SimulationResponse> {

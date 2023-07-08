@@ -1,12 +1,13 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
-
-use cw20_legacy::{
-    contract::{execute as cw20_execute, query as cw20_query, instantiate as cw20_instantiate},
-    msg::{ExecuteMsg, QueryMsg, InstantiateMsg},
-    ContractError,
+use cw20_legacy::contract::{
+    instantiate as cw20_instantiate,
+    execute as cw20_execute,
+    query as cw20_query
 };
+use cw20_legacy::ContractError;
+use cw20_legacy::msg::{InstantiateMsg, ExecuteMsg, QueryMsg};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(

@@ -5,13 +5,13 @@ use cosmwasm_std::{
 };
 use std::collections::HashMap;
 
-use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
+use classic_bindings::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
 pub fn mock_dependencies(
     contract_balance: &[Coin],
-) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier> {
+) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery> {
     let custom_querier: WasmMockQuerier =
         WasmMockQuerier::new(MockQuerier::new(&[(MOCK_CONTRACT_ADDR, contract_balance)]));
 
@@ -83,7 +83,7 @@ impl WasmMockQuerier {
                             let cap = self
                                 .tax_querier
                                 .caps
-                                .get(denom)
+                                .get(denom.as_str())
                                 .copied()
                                 .unwrap_or_default();
                             let res = TaxCapResponse { cap };

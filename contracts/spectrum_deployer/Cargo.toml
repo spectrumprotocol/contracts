@@ -34,13 +34,13 @@ overflow-checks = true
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cosmwasm-std = { version = "0.16.0" }
-cosmwasm-storage = { version = "0.16.0" }
+cosmwasm-std = { version = "1.0.0" }
+cosmwasm-storage = { version = "1.0.0" }
 spectrum-protocol = { version = "0.2.0", path = "../../packages/spectrum_protocol" }
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+classic-bindings = { version = "0.1.1" }
 
 [dev-dependencies]
-cosmwasm-schema = "0.16.0"
-terra-cosmwasm = "2.2.0"
-cw20 = { version = "0.8.0" }
+cosmwasm-schema = { version = "1.0.0"}
+cw20 = { version = "0.14.0" }

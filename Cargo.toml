@@ -1,8 +1,10 @@
 [workspace]
 members = [
     "packages/*",
+    "contracts/cw20-legacy",
     "contracts/spectrum_*",
     "contracts/astro_farms/*",
+    "contracts/disabled_farms/*",
     "contracts/farms/*",
     "contracts/gov_proxies/*"
 ]

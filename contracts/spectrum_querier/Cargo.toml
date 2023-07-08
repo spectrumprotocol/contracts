@@ -34,6 +34,7 @@ overflow-checks = true
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cosmwasm-std = { version = "0.16.0" }
+cosmwasm-std = { version = "1.0.0" }
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+classic-bindings = { version = "0.1.1" }

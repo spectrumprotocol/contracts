@@ -1,7 +1,7 @@
 use cosmwasm_std::{Decimal, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use terraswap::asset::{Asset, AssetInfo};
+use classic_terraswap::asset::{Asset, AssetInfo};
 use cw20::Cw20ReceiveMsg;
 use crate::staker_single_asset::SwapOperation;
 

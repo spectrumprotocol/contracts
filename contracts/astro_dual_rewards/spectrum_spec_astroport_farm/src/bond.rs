@@ -14,7 +14,7 @@ use spectrum_protocol::math::UDec128;
 use spectrum_protocol::spec_astroport_farm::{RewardInfoResponse, RewardInfoResponseItem};
 
 pub fn bond(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     info: MessageInfo,
     staker_addr: String,
     asset_token: String,
@@ -70,7 +70,7 @@ pub fn bond(
 }
 
 pub fn deposit_reward(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     state: &mut State,
     config: &Config,
     query: bool,
@@ -126,7 +126,7 @@ fn before_share_change(pool_info: &PoolInfo, reward_info: &mut RewardInfo) -> St
 }
 
 pub fn unbond(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     info: MessageInfo,
     asset_token: String,
     amount: Uint128,
@@ -199,7 +199,7 @@ pub fn unbond(
 }
 
 pub fn withdraw(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     info: MessageInfo,
     asset_token: Option<String>,
     spec_amount: Option<Uint128>,
@@ -214,7 +214,7 @@ pub fn withdraw(
             "generator_proxy must be set first",
         ));
     }
-    
+
     // only astroport generator proxy can execute this message
     if info.sender != deps.api.addr_humanize(&config.generator_proxy.clone().unwrap())? {
         return Err(StdError::generic_err("unauthorized"));
@@ -346,7 +346,7 @@ fn calc_spec_share(amount: Uint128, stated: &BalanceResponse) -> Uint128 {
 }
 
 pub fn query_reward_info(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     staker_addr: String,
     asset_token: Option<String>,
 ) -> StdResult<RewardInfoResponse> {
@@ -370,7 +370,7 @@ pub fn query_reward_info(
 }
 
 fn read_reward_infos(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     state: &State,
     staker_addr: &CanonicalAddr,
     asset_token: &Option<String>,

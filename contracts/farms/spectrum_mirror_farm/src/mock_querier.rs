@@ -8,9 +8,9 @@ use cosmwasm_std::{
     QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
 };
 use std::collections::HashMap;
-use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
-use terraswap::asset::{Asset, AssetInfo, PairInfo};
-use terraswap::pair::{PoolResponse, SimulationResponse};
+use classic_bindings::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
+use classic_terraswap::asset::{Asset, AssetInfo, PairInfo};
+use classic_terraswap::pair::{PoolResponse, SimulationResponse};
 
 use mirror_protocol::gov::StakerResponse as MirrorStakerResponse;
 use mirror_protocol::staking::{
@@ -25,7 +25,7 @@ const MIR_STAKING: &str = "mir_staking";
 /// this uses our CustomQuerier.
 pub fn mock_dependencies(
     contract_balance: &[Coin],
-) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier> {
+) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery> {
     let contract_addr = MOCK_CONTRACT_ADDR.to_string();
     let custom_querier: WasmMockQuerier =
         WasmMockQuerier::new(MockQuerier::new(&[(&contract_addr, contract_balance)]));
@@ -34,6 +34,7 @@ pub fn mock_dependencies(
         storage: MockStorage::default(),
         api: MockApi::default(),
         querier: custom_querier,
+        custom_query_type: Default::default(),
     }
 }
 
@@ -174,7 +175,7 @@ impl WasmMockQuerier {
                             let cap = self
                                 .tax_querier
                                 .caps
-                                .get(denom)
+                                .get(denom.as_str())
                                 .copied()
                                 .unwrap_or_default();
                             let res = TaxCapResponse { cap };

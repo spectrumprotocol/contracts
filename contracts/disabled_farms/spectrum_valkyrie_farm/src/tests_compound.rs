@@ -9,8 +9,9 @@ use spectrum_protocol::valkyrie_farm::{
     ConfigInfo, ExecuteMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
 use std::fmt::Debug;
-use terraswap::asset::{AssetInfo, PairInfo};
-use terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg};
+use classic_bindings::TerraQuery;
+use classic_terraswap::asset::{AssetInfo, PairInfo};
+use classic_terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg};
 use valkyrie::lp_staking::execute_msgs::ExecuteMsg as ValkyrieStakingExecuteMsg;
 
 const SPEC_GOV: &str = "SPEC_GOV";
@@ -71,6 +72,7 @@ fn test() {
                 ],
                 contract_addr: VKR_POOL.to_string(),
                 liquidity_token: VKR_LP.to_string(),
+                asset_decimals: [6, 6],
             },
         ),
         (
@@ -86,6 +88,7 @@ fn test() {
                 ],
                 contract_addr: SPEC_POOL.to_string(),
                 liquidity_token: SPEC_LP.to_string(),
+                asset_decimals: [6, 6],
             },
         ),
     ]);
@@ -101,7 +104,7 @@ fn test() {
     test_compound_vkr_with_fees(&mut deps);
 }
 
-fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> ConfigInfo {
+fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) -> ConfigInfo {
     // test init & read config & read state
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
@@ -173,7 +176,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
     config
 }
 
-fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     // no permission
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
@@ -227,7 +230,7 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
     assert_eq!(res.total_weight, 1u32);
 }
 
-fn test_compound_unauthorized(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_compound_unauthorized(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     // reinvest err
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
@@ -238,7 +241,7 @@ fn test_compound_unauthorized(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMoc
     assert!(res.is_err());
 }
 
-fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     // reinvest zero
     let env = mock_env();
     let info = mock_info(TEST_CONTROLLER, &[]);
@@ -260,7 +263,7 @@ fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
     );
 }
 
-fn test_compound_vkr_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_compound_vkr_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     // update fees
     let env = mock_env();
     let info = mock_info(SPEC_GOV, &[]);
@@ -326,6 +329,7 @@ fn test_compound_vkr_with_fees(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMo
                         max_spread: None,
                         belief_price: None,
                         to: None,
+                        deadline: None,
                     })
                     .unwrap()
                 })

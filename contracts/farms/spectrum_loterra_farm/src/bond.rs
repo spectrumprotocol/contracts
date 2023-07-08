@@ -1,3 +1,4 @@
+use classic_bindings::TerraQuery;
 use cosmwasm_std::{
     attr, to_binary, Api, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
     Order, QueryRequest, Response, StdError, StdResult, Uint128, WasmMsg, WasmQuery,
@@ -21,7 +22,7 @@ use spectrum_protocol::loterra_farm::{RewardInfoResponse, RewardInfoResponseItem
 
 #[allow(clippy::too_many_arguments)]
 fn bond_internal(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     sender_addr_raw: CanonicalAddr,
     asset_token_raw: CanonicalAddr,
@@ -101,7 +102,7 @@ fn bond_internal(
 }
 
 pub fn bond(
-    mut deps: DepsMut,
+    mut deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     sender_addr: String,
@@ -158,7 +159,7 @@ pub fn bond(
 }
 
 pub fn deposit_farm_share(
-    _deps: Deps,
+    _deps: Deps<TerraQuery>,
     env: &Env,
     state: &mut State,
     pool_info: &mut PoolInfo,
@@ -188,7 +189,7 @@ pub fn deposit_farm_share(
 }
 
 pub fn deposit_spec_reward(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     env: &Env,
     state: &mut State,
     config: &Config,
@@ -244,7 +245,7 @@ fn spec_reward_to_pool(
     if !stake_share.is_zero() {
         let stake_share_per_bond = stake_share / pool_info.total_stake_bond_share;
         pool_info.stake_spec_share_index =
-            pool_info.stake_spec_share_index + stake_share_per_bond.into();
+            pool_info.stake_spec_share_index + <UDec128 as Into<Decimal>>::into(stake_share_per_bond);
     }
 
     // auto_share is additional SPEC rewards for auto-compound
@@ -252,7 +253,7 @@ fn spec_reward_to_pool(
     if !auto_share.is_zero() {
         let auto_share_per_bond = auto_share / pool_info.total_auto_bond_share;
         pool_info.auto_spec_share_index =
-            pool_info.auto_spec_share_index + auto_share_per_bond.into();
+            pool_info.auto_spec_share_index + <UDec128 as Into<Decimal>>::into(auto_share_per_bond);
     }
     pool_info.state_spec_share_index = state.spec_share_index;
 
@@ -332,7 +333,7 @@ fn stake_token(
 
 #[allow(clippy::too_many_arguments)]
 fn unbond_internal(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     staker_addr_raw: CanonicalAddr,
     asset_token_raw: CanonicalAddr,
@@ -415,7 +416,7 @@ fn unbond_internal(
 }
 
 pub fn unbond(
-    mut deps: DepsMut,
+    mut deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     asset_token: String,
@@ -476,7 +477,7 @@ pub fn unbond(
 }
 
 pub fn update_bond(
-    mut deps: DepsMut,
+    mut deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     asset_token: String,
@@ -527,7 +528,7 @@ pub fn update_bond(
 }
 
 pub fn withdraw(
-    mut deps: DepsMut,
+    mut deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     asset_token: Option<String>,
@@ -608,7 +609,7 @@ pub fn withdraw(
 
 #[allow(clippy::too_many_arguments)]
 fn withdraw_reward(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     config: &Config,
     state: &State,
@@ -763,7 +764,7 @@ fn calc_spec_share(amount: Uint128, stated: &SpecBalanceResponse) -> Uint128 {
 }
 
 pub fn query_reward_info(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     env: Env,
     staker_addr: String,
 ) -> StdResult<RewardInfoResponse> {
@@ -788,7 +789,7 @@ pub fn query_reward_info(
 }
 
 fn read_reward_infos(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     env: Env,
     config: &Config,
     state: &State,

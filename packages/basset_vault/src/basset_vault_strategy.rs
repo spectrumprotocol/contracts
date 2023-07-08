@@ -4,7 +4,8 @@ use cosmwasm_std::{to_binary, Addr, Deps, QueryRequest, StdResult, WasmQuery};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_bignumber::{Decimal256, Uint256};
+use cosmwasm_std::{Decimal256, Uint256};
+use classic_bindings::TerraQuery;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -112,7 +113,7 @@ impl BorrowerActionResponse {
 }
 
 pub fn query_borrower_action(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     basset_vault_strategy_contract: &Addr,
     borrowed_amount: Uint256,
     locked_basset_amount: Uint256,

@@ -1,6 +1,6 @@
 #![allow(clippy::needless_return)]
 
-use cosmwasm_bignumber::{Decimal256, Uint256};
+use cosmwasm_std::{Decimal256, Uint256};
 use cosmwasm_std::{
     to_binary, Addr, BalanceResponse, BankQuery, Binary, Deps, QuerierWrapper, QueryRequest,
     StdResult, Uint128, WasmQuery,
@@ -11,9 +11,10 @@ use cw20_base::state::TokenInfo;
 use crate::concat;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use classic_bindings::TerraQuery;
 
 pub fn query_balance(
-    querier: &QuerierWrapper,
+    querier: &QuerierWrapper<TerraQuery>,
     account_addr: &Addr,
     denom: String,
 ) -> StdResult<Uint128> {
@@ -26,7 +27,7 @@ pub fn query_balance(
 
 // ====================================================================================
 
-pub fn query_token_balance(deps: Deps, contract_addr: &Addr, account_addr: &Addr) -> Uint128 {
+pub fn query_token_balance(deps: Deps<TerraQuery>, contract_addr: &Addr, account_addr: &Addr) -> Uint128 {
     if let Ok(balance) = query_token_balance_legacy(&deps, contract_addr, account_addr) {
         return balance;
     }
@@ -39,7 +40,7 @@ pub fn query_token_balance(deps: Deps, contract_addr: &Addr, account_addr: &Addr
 }
 
 fn query_token_balance_new(
-    deps: &Deps,
+    deps: &Deps<TerraQuery>,
     contract_addr: &Addr,
     account_addr: &Addr,
 ) -> StdResult<Uint128> {
@@ -54,7 +55,7 @@ fn query_token_balance_new(
 }
 
 fn query_token_balance_legacy(
-    deps: &Deps,
+    deps: &Deps<TerraQuery>,
     contract_addr: &Addr,
     account_addr: &Addr,
 ) -> StdResult<Uint128> {
@@ -70,7 +71,7 @@ fn query_token_balance_legacy(
 
 // ====================================================================================
 
-pub fn query_supply(querier: &QuerierWrapper, contract_addr: &Addr) -> StdResult<Uint128> {
+pub fn query_supply(querier: &QuerierWrapper<TerraQuery>, contract_addr: &Addr) -> StdResult<Uint128> {
     if let Ok(supply) = query_supply_legacy(querier, contract_addr) {
         return Ok(supply);
     }
@@ -78,7 +79,7 @@ pub fn query_supply(querier: &QuerierWrapper, contract_addr: &Addr) -> StdResult
     return query_supply_new(querier, contract_addr);
 }
 
-fn query_supply_new(querier: &QuerierWrapper, contract_addr: &Addr) -> StdResult<Uint128> {
+fn query_supply_new(querier: &QuerierWrapper<TerraQuery>, contract_addr: &Addr) -> StdResult<Uint128> {
     let token_info: TokenInfo = querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
         contract_addr: contract_addr.to_string(),
         key: Binary::from(b"token_info"),
@@ -87,7 +88,7 @@ fn query_supply_new(querier: &QuerierWrapper, contract_addr: &Addr) -> StdResult
     Ok(token_info.total_supply)
 }
 
-fn query_supply_legacy(querier: &QuerierWrapper, contract_addr: &Addr) -> StdResult<Uint128> {
+fn query_supply_legacy(querier: &QuerierWrapper<TerraQuery>, contract_addr: &Addr) -> StdResult<Uint128> {
     let token_info: TokenInfo = querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
         contract_addr: contract_addr.to_string(),
         key: Binary::from(to_length_prefixed(b"token_info")),
@@ -141,7 +142,7 @@ pub struct AnchorMarketEpochStateResponse {
 }
 
 pub fn query_aterra_state(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     anchor_market_contract: &Addr,
 ) -> StdResult<AnchorMarketEpochStateResponse> {
     let epoch_state: AnchorMarketEpochStateResponse =

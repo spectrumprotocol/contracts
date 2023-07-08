@@ -1,8 +1,9 @@
+use classic_bindings::TerraQuery;
 use cosmwasm_std::{to_binary, CanonicalAddr, Deps, QueryRequest, StdResult, WasmQuery, Addr};
 use nexus_token::governance::{QueryMsg, StakerResponse};
 
 pub fn query_nexus_gov(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     nexus_gov: &CanonicalAddr,
     staker: &Addr,
 ) -> StdResult<StakerResponse> {

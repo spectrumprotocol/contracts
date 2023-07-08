@@ -1,3 +1,4 @@
+use classic_bindings::TerraQuery;
 use cosmwasm_std::{
     attr, to_binary, Attribute, CanonicalAddr, Coin, CosmosMsg, Decimal, DepsMut, Env, MessageInfo,
     Response, StdError, StdResult, Uint128, WasmMsg,
@@ -7,7 +8,7 @@ use crate::{
     bond::deposit_farm_share,
     model::ExecuteMsg,
     querier::{
-        astroport_router_simulate_swap, query_astroport_pending_token, query_astroport_pool_balance,
+        astroport_router_simulate_swap, query_astroport_pending_token,
     },
     state::{read_config, state_store},
 };
@@ -30,7 +31,7 @@ use spectrum_protocol::farm_helper::deduct_tax;
 use spectrum_protocol::gov::ExecuteMsg as GovExecuteMsg;
 use spectrum_protocol::gov_proxy::Cw20HookMsg as GovProxyCw20HookMsg;
 pub fn compound(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     threshold_compound_astro: Uint128,
@@ -462,7 +463,7 @@ pub fn compound(
 }
 
 pub fn stake(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     asset_token: String,
@@ -497,7 +498,7 @@ pub fn stake(
         ]))
 }
 
-pub fn send_fee(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
+pub fn send_fee(deps: DepsMut<TerraQuery>, env: Env, info: MessageInfo) -> StdResult<Response> {
     // only farm contract can execute this message
     if info.sender != env.contract.address {
         return Err(StdError::generic_err("unauthorized"));

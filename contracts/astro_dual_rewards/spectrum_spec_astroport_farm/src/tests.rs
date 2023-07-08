@@ -27,7 +27,7 @@ fn test() {
     test_bond(&mut deps);
 }
 
-fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> ConfigInfo {
+fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) -> ConfigInfo {
     // test init & read config & read state
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
@@ -84,7 +84,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
     config
 }
 
-fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     // no permission
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
@@ -133,7 +133,7 @@ fn clone_storage(storage: &MockStorage) -> MockStorage {
     cloned
 }
 
-fn test_bond(mut deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_bond(mut deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     // bond err from non-generator_proxy
     let mut env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);

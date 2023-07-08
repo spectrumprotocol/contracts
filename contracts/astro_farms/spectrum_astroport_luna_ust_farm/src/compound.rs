@@ -1,8 +1,9 @@
+use classic_bindings::TerraQuery;
 use cosmwasm_std::{attr, to_binary, Attribute, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg, Decimal};
 
 use crate::{
     bond::deposit_farm_share,
-    querier::{query_astroport_pending_token, query_astroport_pool_balance},
+    querier::{query_astroport_pending_token},
     state::{read_config, state_store},
 };
 
@@ -25,7 +26,7 @@ use spectrum_protocol::gov_proxy::Cw20HookMsg as GovProxyCw20HookMsg;
 use spectrum_protocol::gov::{ExecuteMsg as GovExecuteMsg};
 
 pub fn compound(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
 ) -> StdResult<Response> {
@@ -290,7 +291,7 @@ pub fn compound(
 }
 
 pub fn stake(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     asset_denom: String,
@@ -325,7 +326,7 @@ pub fn stake(
 }
 
 pub fn send_fee(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
 ) -> StdResult<Response> {

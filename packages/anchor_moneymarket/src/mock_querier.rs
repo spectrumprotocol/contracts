@@ -1,4 +1,4 @@
-use cosmwasm_bignumber::Decimal256;
+use cosmwasm_std::Decimal256;
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     from_binary, from_slice, to_binary, Coin, ContractResult, Decimal, OwnedDeps, Querier,
@@ -8,13 +8,13 @@ use std::collections::HashMap;
 
 use crate::oracle::{PriceResponse, QueryMsg as OracleQueryMsg};
 
-use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
+use classic_bindings::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
 pub fn mock_dependencies(
     contract_balance: &[Coin],
-) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier> {
+) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery> {
     let custom_querier: WasmMockQuerier =
         WasmMockQuerier::new(MockQuerier::new(&[(MOCK_CONTRACT_ADDR, contract_balance)]));
 
@@ -114,7 +114,7 @@ impl WasmMockQuerier {
                             let cap = self
                                 .tax_querier
                                 .caps
-                                .get(denom)
+                                .get(denom.as_str())
                                 .copied()
                                 .unwrap_or_default();
                             let res = TaxCapResponse { cap };

@@ -1,9 +1,10 @@
+use classic_bindings::TerraQuery;
 use cosmwasm_std::{to_binary, CanonicalAddr, Deps, QueryRequest, StdResult, WasmQuery, Uint128, Addr};
 
 use loterra::staking::{QueryMsg as LoterraStakingQueryMsg, HolderResponse, AccruedRewardsResponse};
 
 pub fn query_loterra_reward_info(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     loterra_staking: &CanonicalAddr,
     staker: &Addr
 ) -> StdResult<HolderResponse> {
@@ -16,7 +17,7 @@ pub fn query_loterra_reward_info(
 }
 
 pub fn query_loterra_pool_balance(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     loterra_staking: &CanonicalAddr,
     staker: &Addr,
 ) -> StdResult<Uint128> {
@@ -25,7 +26,7 @@ pub fn query_loterra_pool_balance(
 }
 
 pub fn query_loterra_accrued_reward(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     loterra_staking: &CanonicalAddr,
     staker: &Addr
 ) -> StdResult<Uint128> {

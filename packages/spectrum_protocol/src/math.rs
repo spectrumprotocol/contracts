@@ -22,7 +22,7 @@ impl UDec128 {
 
 impl From<Decimal> for UDec128 {
     fn from(val: Decimal) -> Self {
-        UDec128(val.numerator())
+        UDec128(val.numerator().u128())
     }
 }
 

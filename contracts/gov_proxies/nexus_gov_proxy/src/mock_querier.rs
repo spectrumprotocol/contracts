@@ -8,7 +8,7 @@ use cosmwasm_std::{
     QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
 };
 use std::collections::HashMap;
-use terra_cosmwasm::{TerraQueryWrapper};
+use classic_bindings::{TerraQuery, TerraQueryWrapper};
 
 use nexus_token::governance::StakerResponse;
 
@@ -16,7 +16,7 @@ use nexus_token::governance::StakerResponse;
 /// this uses our CustomQuerier.
 pub fn mock_dependencies(
     contract_balance: &[Coin],
-) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier> {
+) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery> {
     let contract_addr = MOCK_CONTRACT_ADDR.to_string();
     let custom_querier: WasmMockQuerier =
         WasmMockQuerier::new(MockQuerier::new(&[(&contract_addr, contract_balance)]));
@@ -25,6 +25,7 @@ pub fn mock_dependencies(
         storage: MockStorage::default(),
         api: MockApi::default(),
         querier: custom_querier,
+        custom_query_type: Default::default(),
     }
 }
 

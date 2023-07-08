@@ -16,6 +16,7 @@ use spectrum_protocol::terraworld_farm::{
     ConfigInfo, Cw20HookMsg, ExecuteMsg, PoolItem, PoolsResponse, QueryMsg, StateInfo,
 };
 use std::fmt::Debug;
+use classic_bindings::TerraQuery;
 use crate::bond::deposit_farm_share;
 
 const SPEC_GOV: &str = "SPEC_GOV";
@@ -69,7 +70,7 @@ fn test() {
     // test_staked_reward(&mut deps);
 }
 
-fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> ConfigInfo {
+fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) -> ConfigInfo {
     // test init & read config & read state
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
@@ -141,7 +142,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
     config
 }
 
-fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     // no permission
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
@@ -195,7 +196,7 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
     assert_eq!(res.total_weight, 1u32);
 }
 
-fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     // bond err
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);

@@ -1,3 +1,4 @@
+use classic_bindings::TerraQuery;
 use cosmwasm_std::{
     attr, Api, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdError,
     StdResult, WasmMsg,
@@ -14,7 +15,7 @@ use crate::state::{
 
 /// create a new poll
 pub fn poll_start(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     title: String,
@@ -113,7 +114,7 @@ fn validate_link(link: &Option<String>) -> StdResult<()> {
 }
 
 pub fn poll_vote(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     poll_id: u64,
@@ -169,7 +170,7 @@ pub fn poll_vote(
 /*
  * Ends a poll.
  */
-pub fn poll_end(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
+pub fn poll_end(deps: DepsMut<TerraQuery>, env: Env, poll_id: u64) -> StdResult<Response> {
     let mut a_poll = poll_store(deps.storage).load(&poll_id.to_be_bytes())?;
 
     if a_poll.status != PollStatus::in_progress {
@@ -231,7 +232,7 @@ pub fn poll_end(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
 /*
  * Execute a msg of passed poll.
  */
-pub fn poll_execute(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
+pub fn poll_execute(deps: DepsMut<TerraQuery>, env: Env, poll_id: u64) -> StdResult<Response> {
     let config = read_config(deps.storage)?;
     let mut a_poll = poll_store(deps.storage).load(&poll_id.to_be_bytes())?;
 
@@ -270,7 +271,7 @@ fn match_msg(msg: PollExecuteMsg) -> CosmosMsg {
 }
 
 /// ExpirePoll is used to make the poll as expired state for querying purpose
-pub fn poll_expire(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
+pub fn poll_expire(deps: DepsMut<TerraQuery>, env: Env, poll_id: u64) -> StdResult<Response> {
     let config = read_config(deps.storage)?;
     let mut a_poll = poll_store(deps.storage).load(&poll_id.to_be_bytes())?;
 
@@ -315,7 +316,7 @@ fn map_poll(poll: Poll, api: &dyn Api) -> StdResult<PollInfo> {
     })
 }
 
-pub fn query_poll(deps: Deps, poll_id: u64) -> StdResult<PollInfo> {
+pub fn query_poll(deps: Deps<TerraQuery>, poll_id: u64) -> StdResult<PollInfo> {
     let poll = read_poll(deps.storage, &poll_id.to_be_bytes())?;
     if poll.is_none() {
         return Err(StdError::generic_err("Poll does not exist"));
@@ -324,7 +325,7 @@ pub fn query_poll(deps: Deps, poll_id: u64) -> StdResult<PollInfo> {
 }
 
 pub fn query_polls(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     filter: Option<PollStatus>,
     start_after: Option<u64>,
     limit: Option<u32>,
@@ -342,7 +343,7 @@ pub fn query_polls(
 }
 
 pub fn query_voters(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     poll_id: u64,
     start_after: Option<String>,
     limit: Option<u32>,

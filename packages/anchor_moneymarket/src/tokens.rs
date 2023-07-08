@@ -1,4 +1,5 @@
-use cosmwasm_bignumber::Uint256;
+use classic_bindings::TerraQuery;
+use cosmwasm_std::Uint256;
 use cosmwasm_std::{CanonicalAddr, Deps, StdError, StdResult};
 
 pub type Token = (CanonicalAddr, Uint256);
@@ -14,11 +15,11 @@ pub trait TokensMath {
 }
 
 pub trait TokensToHuman {
-    fn to_human(&self, deps: Deps) -> StdResult<TokensHuman>;
+    fn to_human(&self, deps: Deps<TerraQuery>) -> StdResult<TokensHuman>;
 }
 
 pub trait TokensToRaw {
-    fn to_raw(&self, deps: Deps) -> StdResult<Tokens>;
+    fn to_raw(&self, deps: Deps<TerraQuery>) -> StdResult<Tokens>;
 }
 
 impl TokensMath for Tokens {
@@ -124,7 +125,7 @@ impl TokensMath for Tokens {
 }
 
 impl TokensToHuman for Tokens {
-    fn to_human(&self, deps: Deps) -> StdResult<TokensHuman> {
+    fn to_human(&self, deps: Deps<TerraQuery>) -> StdResult<TokensHuman> {
         let collaterals: TokensHuman = self
             .iter()
             .map(|c| Ok((deps.api.addr_humanize(&c.0)?.to_string(), c.1)))
@@ -134,7 +135,7 @@ impl TokensToHuman for Tokens {
 }
 
 impl TokensToRaw for TokensHuman {
-    fn to_raw(&self, deps: Deps) -> StdResult<Tokens> {
+    fn to_raw(&self, deps: Deps<TerraQuery>) -> StdResult<Tokens> {
         let collaterals: Tokens = self
             .iter()
             .map(|c| Ok((deps.api.addr_canonicalize(c.0.as_str())?, c.1)))

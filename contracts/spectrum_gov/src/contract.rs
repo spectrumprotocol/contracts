@@ -1,3 +1,4 @@
+use classic_bindings::TerraQuery;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -27,7 +28,7 @@ fn validate_effective_delay(value: u64) -> StdResult<()> {
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     _info: MessageInfo,
     msg: ConfigInfo,
@@ -111,7 +112,7 @@ fn validate_percentage(value: Decimal, field: &str) -> StdResult<()> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
+pub fn execute(deps: DepsMut<TerraQuery>, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
         ExecuteMsg::harvest { aust_amount, days } => harvest(deps, info, aust_amount, days.unwrap_or(0u64)),
         ExecuteMsg::mint {} => mint(deps, env),
@@ -163,7 +164,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
 }
 
 fn receive_cw20(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
@@ -203,7 +204,7 @@ fn receive_cw20(
 
 #[allow(clippy::too_many_arguments)]
 fn update_config(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     owner: Option<String>,
@@ -297,7 +298,7 @@ fn update_config(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps<TerraQuery>, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::balance { address } => to_binary(&query_balances(deps, address, env.block.height)?),
         QueryMsg::config {} => to_binary(&query_config(deps)?),
@@ -319,7 +320,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
+fn query_config(deps: Deps<TerraQuery>) -> StdResult<ConfigInfo> {
     let config = read_config(deps.storage)?;
     Ok(ConfigInfo {
         owner: deps.api.addr_humanize(&config.owner)?.to_string(),
@@ -353,7 +354,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
     })
 }
 
-fn query_state(deps: Deps, height: u64) -> StdResult<StateInfo> {
+fn query_state(deps: Deps<TerraQuery>, height: u64) -> StdResult<StateInfo> {
     let mut state = read_state(deps.storage)?;
     let config = read_config(deps.storage)?;
 
@@ -395,7 +396,7 @@ fn query_state(deps: Deps, height: u64) -> StdResult<StateInfo> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut<TerraQuery>, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     let mut state = read_state(deps.storage)?;
     state.pool_weight = 1u32;
     for pool in state.pools.iter_mut() {

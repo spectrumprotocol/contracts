@@ -1,6 +1,8 @@
+use std::marker::PhantomData;
+use classic_bindings::TerraQuery;
 use crate::contract::{execute, instantiate, query};
-use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{Binary, CosmosMsg, Decimal, DepsMut, StdError, SubMsg, Uint128, WasmMsg, from_binary, to_vec};
+use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR, MockStorage, MockApi, MockQuerier};
+use cosmwasm_std::{Binary, CosmosMsg, Decimal, DepsMut, StdError, SubMsg, Uint128, WasmMsg, from_binary, to_vec, OwnedDeps};
 use cw20::Cw20ExecuteMsg;
 use spectrum_protocol::common::OrderBy;
 use spectrum_protocol::platform::{
@@ -20,7 +22,12 @@ const DEFAULT_EXPIRATION_PERIOD: u64 = 20000u64;
 
 #[test]
 fn test() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = OwnedDeps {
+        storage: MockStorage::default(),
+        api: MockApi::default(),
+        querier: MockQuerier::default(),
+        custom_query_type: PhantomData::<TerraQuery>,
+    };
 
     let config = test_config(deps.as_mut());
     let (weight, weight_2, total_weight) = test_board(deps.as_mut());
@@ -31,7 +38,7 @@ fn test() {
     test_poll_expired(deps.as_mut());
 }
 
-fn test_config(mut deps: DepsMut) -> ConfigInfo {
+fn test_config(mut deps: DepsMut<TerraQuery>) -> ConfigInfo {
     // test instantiate & read config & read state
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
@@ -125,7 +132,7 @@ fn test_config(mut deps: DepsMut) -> ConfigInfo {
     config
 }
 
-fn test_board(mut deps: DepsMut) -> (u32, u32, u32) {
+fn test_board(mut deps: DepsMut<TerraQuery>) -> (u32, u32, u32) {
     // stake, error
     let env = mock_env();
     let info = mock_info(TEST_VOTER, &[]);
@@ -178,7 +185,7 @@ fn test_board(mut deps: DepsMut) -> (u32, u32, u32) {
 }
 
 fn test_poll_executed(
-    mut deps: DepsMut,
+    mut deps: DepsMut<TerraQuery>,
     config: &ConfigInfo,
     weight: u32,
     weight_2: u32,
@@ -371,7 +378,7 @@ fn test_poll_executed(
     assert!(res.is_err());
 }
 
-fn test_poll_low_quorum(mut deps: DepsMut, total_weight: u32) {
+fn test_poll_low_quorum(mut deps: DepsMut<TerraQuery>, total_weight: u32) {
     // start poll2
     let mut env = mock_env();
     let info = mock_info(TEST_VOTER, &[]);
@@ -415,7 +422,7 @@ fn test_poll_low_quorum(mut deps: DepsMut, total_weight: u32) {
     assert_eq!(res.total_balance_at_end_poll, Some(total_weight));
 }
 
-fn test_poll_low_threshold(mut deps: DepsMut, total_weight: u32) {
+fn test_poll_low_threshold(mut deps: DepsMut<TerraQuery>, total_weight: u32) {
     // start poll3
     let mut env = mock_env();
     let info = mock_info(TEST_VOTER, &[]);
@@ -460,7 +467,7 @@ fn test_poll_low_threshold(mut deps: DepsMut, total_weight: u32) {
     assert_eq!(res.total_balance_at_end_poll, Some(total_weight));
 }
 
-fn test_poll_expired(mut deps: DepsMut) {
+fn test_poll_expired(mut deps: DepsMut<TerraQuery>) {
     // start poll
     let mut env = mock_env();
     let info = mock_info(TEST_VOTER, &[]);

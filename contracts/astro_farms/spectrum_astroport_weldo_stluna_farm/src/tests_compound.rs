@@ -25,6 +25,7 @@ use spectrum_protocol::gov_proxy::{
 };
 use std::fmt::Debug;
 use std::str;
+use classic_bindings::TerraQuery;
 
 const SPEC_GOV: &str = "SPEC_GOV";
 const SPEC_PLATFORM: &str = "spec_platform";
@@ -116,7 +117,7 @@ fn test() {
     // compound STLUNA_TOKEN only
 }
 
-fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> ConfigInfo {
+fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) -> ConfigInfo {
     // test init & read config & read state
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
@@ -193,7 +194,7 @@ fn test_config(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) -> C
     config
 }
 
-fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     // no permission
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
@@ -249,7 +250,7 @@ fn test_register_asset(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerie
     assert_eq!(res.total_weight, 1u32);
 }
 
-fn test_compound_unauthorized(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_compound_unauthorized(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     // reinvest err
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
@@ -260,7 +261,7 @@ fn test_compound_unauthorized(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMoc
     assert!(res.is_err());
 }
 
-fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     // reinvest zero
     let env = mock_env();
     let info = mock_info(TEST_CONTROLLER, &[]);
@@ -286,7 +287,7 @@ fn test_compound_zero(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier
     );
 }
 
-fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
+fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>) {
     deps.querier.with_token_balances(&[]);
 
     // bond err
@@ -625,7 +626,7 @@ fn test_bond(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
 }
 
 fn test_compound_farm_token_and_astro_with_fees(
-    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>,
+    deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier, TerraQuery>,
 ) {
     // update fees
     let env = mock_env();
@@ -735,7 +736,7 @@ fn test_compound_farm_token_and_astro_with_fees(
                         max_spread: None,
                         belief_price: None,
                         to: None,
-                    }).unwrap() 
+                    }).unwrap()
                 })
                 .unwrap(),
                 funds: vec![],
@@ -892,13 +893,13 @@ fn test_compound_farm_token_and_astro_with_fees(
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: WELDO_TOKEN.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
-                     contract: PAIR_CONTRACT.to_string(), 
-                     amount: Uint128::from(50073864u128), 
+                     contract: PAIR_CONTRACT.to_string(),
+                     amount: Uint128::from(50073864u128),
                      msg: to_binary(&AstroportPairCw20HookMsg::Swap {
                         to: None,
                         max_spread: Some(Decimal::percent(50)),
                         belief_price: None,
-                     }).unwrap()                     
+                     }).unwrap()
                     }).unwrap(),
                 funds: vec![]
             }),

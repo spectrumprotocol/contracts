@@ -1,9 +1,10 @@
+use classic_bindings::TerraQuery;
 use cosmwasm_std::{to_binary, CanonicalAddr, Deps, QueryRequest, StdResult, WasmQuery, Uint128, Addr};
 
 use valkyrie::lp_staking::query_msgs::{QueryMsg as ValkyrieStakingQueryMsg, StakerInfoResponse};
 
 pub fn query_valkyrie_reward_info(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     valkyrie_staking: &CanonicalAddr,
     staker: &Addr,
 ) -> StdResult<StakerInfoResponse> {
@@ -16,7 +17,7 @@ pub fn query_valkyrie_reward_info(
 }
 
 pub fn query_valkyrie_pool_balance(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     valkyrie_staking: &CanonicalAddr,
     staker: &Addr,
 ) -> StdResult<Uint128> {

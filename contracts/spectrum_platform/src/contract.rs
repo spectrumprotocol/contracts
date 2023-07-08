@@ -1,3 +1,4 @@
+use classic_bindings::TerraQuery;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -19,7 +20,7 @@ use crate::state::{
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     _info: MessageInfo,
     msg: ConfigInfo,
@@ -73,7 +74,7 @@ fn validate_threshold(threshold: Decimal) -> StdResult<()> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
+pub fn execute(deps: DepsMut<TerraQuery>, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
         ExecuteMsg::poll_end { poll_id } => poll_end(deps, env, poll_id),
         ExecuteMsg::poll_execute { poll_id } => poll_execute(deps, env, poll_id),
@@ -108,7 +109,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
 
 #[allow(clippy::too_many_arguments)]
 fn update_config(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     info: MessageInfo,
     owner: Option<String>,
     quorum: Option<Decimal>,
@@ -157,7 +158,7 @@ fn update_config(
 }
 
 fn upsert_board(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     info: MessageInfo,
     address: String,
     weight: u32,
@@ -188,7 +189,7 @@ fn upsert_board(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps<TerraQuery>, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::boards {} => to_binary(&query_boards(deps)?),
         QueryMsg::config {} => to_binary(&query_config(deps)?),
@@ -209,7 +210,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn query_boards(deps: Deps) -> StdResult<BoardsResponse> {
+fn query_boards(deps: Deps<TerraQuery>) -> StdResult<BoardsResponse> {
     let boards = read_boards(deps.storage)?;
     Ok(BoardsResponse {
         boards: boards
@@ -222,7 +223,7 @@ fn query_boards(deps: Deps) -> StdResult<BoardsResponse> {
     })
 }
 
-fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
+fn query_config(deps: Deps<TerraQuery>) -> StdResult<ConfigInfo> {
     let config = read_config(deps.storage)?;
     Ok(ConfigInfo {
         owner: deps.api.addr_humanize(&config.owner)?.to_string(),
@@ -234,7 +235,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
     })
 }
 
-fn query_state(deps: Deps) -> StdResult<StateInfo> {
+fn query_state(deps: Deps<TerraQuery>) -> StdResult<StateInfo> {
     let state = read_state(deps.storage)?;
     Ok(StateInfo {
         poll_count: state.poll_count,
@@ -243,6 +244,6 @@ fn query_state(deps: Deps) -> StdResult<StateInfo> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(_deps: DepsMut<TerraQuery>, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
 }

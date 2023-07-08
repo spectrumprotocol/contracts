@@ -1,9 +1,10 @@
+use classic_bindings::TerraQuery;
 use cosmwasm_std::{to_binary, CanonicalAddr, Deps, QueryRequest, StdResult, WasmQuery, Uint128, Addr};
 
 use terraworld_token::staking::{QueryMsg as TerraworldStakingQueryMsg, StakerInfoResponse};
 
 pub fn query_terraworld_reward_info(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     terraworld_staking: &CanonicalAddr,
     staker: &Addr,
     block_height: Option<u64>,
@@ -18,7 +19,7 @@ pub fn query_terraworld_reward_info(
 }
 
 pub fn query_terraworld_pool_balance(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     terraworld_staking: &CanonicalAddr,
     staker: &Addr,
 ) -> StdResult<Uint128> {

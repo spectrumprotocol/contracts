@@ -1,3 +1,4 @@
+use classic_bindings::TerraQuery;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, CosmosMsg, WasmMsg};
@@ -6,7 +7,7 @@ use crate::state::{code_store, Config, config_store, read_codes, read_config};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     _env: Env,
     _info: MessageInfo,
     msg: ConfigInfo,
@@ -23,7 +24,7 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
+pub fn execute(deps: DepsMut<TerraQuery>, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
         ExecuteMsg::add_contract { contract_addr, code_id } => add_contract(deps, env, info, contract_addr, code_id),
         ExecuteMsg::update_contract { contract_addr, add_code_id, remove_code_ids }
@@ -34,7 +35,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
 }
 
 fn add_contract(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     contract_addr: String,
@@ -55,7 +56,7 @@ fn add_contract(
 }
 
 fn update_contract(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     contract_addr: String,
@@ -86,7 +87,7 @@ fn update_contract(
 }
 
 fn update_config(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     info: MessageInfo,
     owner: Option<String>,
     operator: Option<String>,
@@ -115,7 +116,7 @@ fn update_config(
 }
 
 fn execute_migrate(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
     contract_addr: String,
@@ -145,14 +146,14 @@ fn execute_migrate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps<TerraQuery>, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::config {} => to_binary(&query_config(deps)?),
         QueryMsg::contract { contract_addr } => to_binary(&query_contract(deps, contract_addr)?),
     }
 }
 
-fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
+fn query_config(deps: Deps<TerraQuery>) -> StdResult<ConfigInfo> {
     let config = read_config(deps.storage)?;
     Ok(ConfigInfo {
         owner: deps.api.addr_humanize(&config.owner)?.to_string(),
@@ -161,7 +162,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigInfo> {
     })
 }
 
-fn query_contract(deps: Deps, contract_addr: String) -> StdResult<ContractInfo> {
+fn query_contract(deps: Deps<TerraQuery>, contract_addr: String) -> StdResult<ContractInfo> {
     let codes = read_codes(deps.storage, deps.api.addr_canonicalize(&contract_addr)?)?;
     Ok(ContractInfo {
         codes,
@@ -169,6 +170,6 @@ fn query_contract(deps: Deps, contract_addr: String) -> StdResult<ContractInfo> 
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(_deps: DepsMut<TerraQuery>, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
 }

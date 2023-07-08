@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::tokens::TokensHuman;
-use cosmwasm_bignumber::{Decimal256, Uint256};
+use cosmwasm_std::{Decimal256, Uint256};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]

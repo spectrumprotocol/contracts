@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_bignumber::{Decimal256, Uint256};
+use cosmwasm_std::{Decimal256, Uint256};
 use cw20::Cw20ReceiveMsg;
 
 use crate::tokens::TokensHuman;
@@ -11,7 +11,7 @@ pub struct InstantiateMsg {
     pub owner: String,
     pub oracle_contract: String,
     pub stable_denom: String,
-    /// borrow_amount / borrow_limit must always be bigger than  
+    /// borrow_amount / borrow_limit must always be bigger than
     /// safe_ratio.
     pub safe_ratio: Decimal256,
     /// Fee applied to executed bids

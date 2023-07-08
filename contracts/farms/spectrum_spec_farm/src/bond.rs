@@ -1,3 +1,4 @@
+use classic_bindings::TerraQuery;
 use cosmwasm_std::{
     attr, to_binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, MessageInfo, Order,
     QueryRequest, Response, StdError, StdResult, Storage, Uint128, WasmMsg, WasmQuery,
@@ -14,7 +15,7 @@ use spectrum_protocol::math::UDec128;
 use spectrum_protocol::spec_farm::{RewardInfoResponse, RewardInfoResponseItem};
 
 pub fn bond(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     info: MessageInfo,
     staker_addr: String,
     asset_token: String,
@@ -62,7 +63,7 @@ pub fn bond(
 }
 
 pub fn deposit_reward(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     state: &mut State,
     config: &Config,
     query: bool,
@@ -103,7 +104,7 @@ fn reward_to_pool(state: &State, pool_info: &mut PoolInfo) -> StdResult<()> {
     let share = (UDec128::from(state.spec_share_index) - pool_info.state_spec_share_index.into())
         * Uint128::from(pool_info.weight as u128);
     let share_per_bond = share / pool_info.total_bond_amount;
-    pool_info.spec_share_index = pool_info.spec_share_index + share_per_bond.into();
+    pool_info.spec_share_index = pool_info.spec_share_index + <UDec128 as Into<Decimal>>::into(share_per_bond);
     pool_info.state_spec_share_index = state.spec_share_index;
 
     Ok(())
@@ -118,7 +119,7 @@ fn before_share_change(pool_info: &PoolInfo, reward_info: &mut RewardInfo) -> St
 }
 
 pub fn unbond(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     info: MessageInfo,
     asset_token: String,
     amount: Uint128,
@@ -179,7 +180,7 @@ pub fn unbond(
 }
 
 pub fn withdraw(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     info: MessageInfo,
     asset_token: Option<String>,
     spec_amount: Option<Uint128>,
@@ -314,7 +315,7 @@ fn calc_spec_share(amount: Uint128, stated: &BalanceResponse) -> Uint128 {
 }
 
 pub fn query_reward_info(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     staker_addr: String,
     asset_token: Option<String>,
 ) -> StdResult<RewardInfoResponse> {
@@ -338,7 +339,7 @@ pub fn query_reward_info(
 }
 
 fn read_reward_infos(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     state: &State,
     staker_addr: &CanonicalAddr,
     asset_token: &Option<String>,

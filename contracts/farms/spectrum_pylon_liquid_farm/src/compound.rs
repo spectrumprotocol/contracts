@@ -1,3 +1,4 @@
+use classic_bindings::TerraQuery;
 use cosmwasm_std::{attr, to_binary, Attribute, Coin, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg};
 
 use crate::{
@@ -12,9 +13,9 @@ use cw20::Cw20ExecuteMsg;
 use crate::state::{pool_info_read, pool_info_store, read_state};
 
 use spectrum_protocol::gov::{ExecuteMsg as GovExecuteMsg};
-use terraswap::asset::{Asset, AssetInfo};
-use terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg};
-use terraswap::querier::{query_token_balance, simulate};
+use classic_terraswap::asset::{Asset, AssetInfo};
+use classic_terraswap::pair::{Cw20HookMsg as TerraswapCw20HookMsg};
+use classic_terraswap::querier::{query_token_balance, simulate};
 use spectrum_protocol::{
     farm_helper::deduct_tax,
     gov_proxy::{
@@ -27,7 +28,7 @@ use pylon_gateway::pool_msg::{
 };
 use spectrum_protocol::pylon_liquid_farm::ExecuteMsg;
 
-pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
+pub fn compound(deps: DepsMut<TerraQuery>, env: Env, info: MessageInfo) -> StdResult<Response> {
     let config = read_config(deps.storage)?;
 
     if config.controller != deps.api.addr_canonicalize(info.sender.as_str())? {
@@ -131,6 +132,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
                     max_spread: None,
                     belief_price: None,
                     to: None,
+                    deadline: None,
                 })?,
             })?,
             funds: vec![],
@@ -173,6 +175,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
                     to: None,
                     max_spread: None,
                     belief_price: None,
+                    deadline: None,
                 })?,
             })?,
             funds: vec![],
@@ -222,7 +225,7 @@ pub fn compound(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
 }
 
 pub fn send_fee(
-    deps: DepsMut,
+    deps: DepsMut<TerraQuery>,
     env: Env,
     info: MessageInfo,
 ) -> StdResult<Response> {

@@ -1,9 +1,10 @@
 use crate::concat;
-use cosmwasm_bignumber::Uint256;
+use cosmwasm_std::Uint256;
 use cosmwasm_std::{Addr, Binary, Deps, QueryRequest, StdResult, WasmQuery};
 use cosmwasm_storage::to_length_prefixed;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use classic_bindings::TerraQuery;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct BorrowerInfo {
@@ -16,7 +17,7 @@ pub struct BorrowerInfo {
 }
 
 pub fn get_basset_in_custody(
-    deps: Deps,
+    deps: Deps<TerraQuery>,
     custody_basset_addr: &Addr,
     account_addr: &Addr,
 ) -> StdResult<Uint256> {
